@@ -4,6 +4,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- A CI workflow that lints the skill's scripts and validates the OpenSpec files.
+- An issue template for the short issue the workflow starts from.
+- A contributing guide.
+- README badges that link to the workflow's tools.
+
 ## [0.1.0] - 2026-10-10
 
 First release.

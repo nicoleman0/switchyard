@@ -1,0 +1,24 @@
+# Checks the workflow's own files. Add your project's checks as further steps.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Lint shell scripts
+        run: git ls-files -z '.claude/skills/work-issues/*.sh' | xargs -0 shellcheck
+      - name: Compile Python scripts
+        run: git ls-files -z '.claude/skills/work-issues/*.py' | xargs -0 python3 -m py_compile
+      - name: Check JavaScript syntax
+        run: git ls-files -z '.claude/skills/work-issues/*.mjs' | xargs -0 -n 1 node --check
+      - name: Validate OpenSpec
+        run: npx --yes @fission-ai/openspec validate --all --strict
