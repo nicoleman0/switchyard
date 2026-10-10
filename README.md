@@ -1,5 +1,7 @@
 # Switchyard
 
+![A steam engine entering a yard where one track splits into three and joins again](docs/switchyard.svg)
+
 Switchyard is a template repository. Start a new project from it, and the project begins with a delivery workflow for coding agents already in place: issues, specs, isolated worktrees, and review gates.
 
 It holds no application code. You add your stack on top.
@@ -98,6 +100,7 @@ Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` li
 |---|---|
 | `README.md` | This guide describes the workflow, not your project. Keep it with `git mv README.md docs/WORKFLOW.md` (after `mkdir docs`), then write your own README. |
 | `LICENSE` | Replace it with your project's license, or delete it. |
+| `CHANGELOG.md`, `docs/switchyard.svg` | Switchyard's release notes and banner. Start your own changelog. Delete the banner and its line at the top of the guide. |
 | `AGENTS.md`, Project section | Your checks, shared services, and conventions. Every agent reads it. |
 | `openspec/config.yaml`, `context` | What the product is and what is out of scope. |
 | `.claude/skills/work-issues/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
@@ -147,6 +150,7 @@ The commands are in `.claude/skills/work-issues/runners/`.
 
 ```
 AGENTS.md                        rules every agent reads
+CHANGELOG.md                     what changed in each release
 openspec/
   config.yaml                    project context and artifact rules
   specs/                         what the product does today
