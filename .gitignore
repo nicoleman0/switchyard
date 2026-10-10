@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+node_modules/
+.DS_Store
+.codex/
+
+# Briefs, answers, screenshots, and PR bodies stay local to each worktree.
+.claude/*
+!.claude/skills/
+!.claude/commands/
+!.claude/agents/
