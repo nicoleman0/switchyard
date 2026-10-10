@@ -2,6 +2,18 @@
 
 ![A steam engine entering a yard where one track splits into three and joins again](docs/switchyard.svg)
 
+[![OpenSpec](https://img.shields.io/badge/OpenSpec-1F3A5F)](https://github.com/Fission-AI/OpenSpec)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-1F3A5F?logo=claude&logoColor=white)](https://claude.com/product/claude-code)
+[![Codex](https://img.shields.io/badge/Codex-1F3A5F)](https://github.com/openai/codex)
+[![opencode](https://img.shields.io/badge/opencode-1F3A5F?logo=opencode&logoColor=white)](https://opencode.ai)
+[![Herdr](https://img.shields.io/badge/Herdr-1F3A5F)](https://herdr.dev)
+[![GitHub CLI](https://img.shields.io/badge/GitHub_CLI-1F3A5F?logo=github&logoColor=white)](https://cli.github.com)
+[![Git](https://img.shields.io/badge/Git-1F3A5F?logo=git&logoColor=white)](https://git-scm.com)
+[![Python](https://img.shields.io/badge/Python-1F3A5F?logo=python&logoColor=white)](https://www.python.org)
+[![Node.js](https://img.shields.io/badge/Node.js-1F3A5F?logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![Playwright](https://img.shields.io/badge/Playwright-1F3A5F)](https://playwright.dev)
+[![ImageMagick](https://img.shields.io/badge/ImageMagick-1F3A5F)](https://imagemagick.org)
+
 Switchyard is a template repository. Start a new project from it, and the project begins with a delivery workflow for coding agents already in place: issues, specs, isolated worktrees, and review gates.
 
 It holds no application code. You add your stack on top.
