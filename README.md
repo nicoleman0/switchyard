@@ -1,10 +1,12 @@
 # Switchyard
 
-A starter repo for delivering GitHub issues with a small crew of coding agents.
+Switchyard is a template repository. Start a new project from it, and the project begins with a delivery workflow for coding agents already in place: issues, specs, isolated worktrees, and review gates.
+
+It holds no application code. You add your stack on top.
 
 One session coordinates. For each issue, a planner writes a spec change and an implementer builds it, in a git worktree of its own, on Claude Code, Codex, or opencode. You answer the product questions and approve the merges.
 
-Clone it to start a project, or copy the workflow into a repo you already have.
+[Start a new project](#start-a-new-project) from the template, or [add the workflow to a repo you already have](#add-it-to-an-existing-repo).
 
 ## The workflow
 
@@ -66,16 +68,20 @@ You are asked something at three points: before work starts, after the plan, and
 - Recommended: [Herdr](https://herdr.dev), a terminal workspace manager for coding agents. See [Runners](#runners).
 - For UI screenshots: Playwright in your project, and `sips` (macOS) or ImageMagick.
 
-## Set up
+## Start a new project
 
-New project:
+Click **Use this template** on GitHub, or run:
 
 ```sh
 gh repo create my-project --template nicoleman0/switchyard --private --clone
 cd my-project
 ```
 
-Existing repo, from a clone of this one beside it:
+The new repo has every file here and none of this repo's history. Then [make it yours](#make-it-yours) before the first issue.
+
+## Add it to an existing repo
+
+From a clone of this repo beside yours:
 
 ```sh
 mkdir -p .claude/agents .claude/skills
@@ -86,10 +92,12 @@ npx @fission-ai/openspec init --tools claude,codex,opencode
 
 Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` lines of `.gitignore`, and the `rules` in `openspec/config.yaml`.
 
-### Make it yours
+## Make it yours
 
 | Edit | What goes there |
 |---|---|
+| `README.md` | This guide describes the workflow, not your project. Keep it with `git mv README.md docs/WORKFLOW.md` (after `mkdir docs`), then write your own README. |
+| `LICENSE` | Replace it with your project's license, or delete it. |
 | `AGENTS.md`, Project section | Your checks, shared services, and conventions. Every agent reads it. |
 | `openspec/config.yaml`, `context` | What the product is and what is out of scope. |
 | `.claude/skills/work-issues/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
