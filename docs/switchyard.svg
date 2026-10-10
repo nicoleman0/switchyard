@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 260" role="img" aria-labelledby="title">
+  <title id="title">A steam engine entering a yard where one track splits into three and joins again</title>
+  <defs>
+    <path id="main" d="M40 150H760"/>
+    <path id="upper" d="M220 150C262 150 258 80 300 80H560C602 80 598 150 640 150"/>
+    <path id="lower" d="M220 150C262 150 258 220 300 220H560C602 220 598 150 640 150"/>
+    <g id="wheel">
+      <circle r="6" fill="#2B3440"/>
+      <circle r="2" fill="#F2B84B"/>
+    </g>
+    <g id="drive-wheel">
+      <circle r="12" fill="#2B3440"/>
+      <circle r="7" fill="none" stroke="#D9483B" stroke-width="2"/>
+      <circle r="3" fill="#F2B84B"/>
+    </g>
+    <!-- Cars are drawn with y=0 on the rail top. -->
+    <g id="chassis">
+      <rect x="-3" y="-13" width="70" height="3" fill="#2B3440"/>
+      <use href="#wheel" x="14" y="-6"/>
+      <use href="#wheel" x="50" y="-6"/>
+    </g>
+    <g id="boxcar-trim">
+      <rect x="-2" y="-44" width="68" height="6" rx="3" fill="#1F3A5F"/>
+      <rect x="24" y="-36" width="16" height="22" fill="#000" opacity=".15"/>
+      <use href="#chassis"/>
+    </g>
+    <g id="cloud" fill="#fff">
+      <rect x="-24" y="-2" width="48" height="12" rx="6"/>
+      <circle cx="-10" cy="-2" r="9"/>
+      <circle cx="5" cy="-7" r="12"/>
+    </g>
+  </defs>
+
+  <rect width="800" height="260" rx="20" fill="#EAF3F7"/>
+  <use href="#cloud" x="268" y="40"/>
+  <use href="#cloud" x="736" y="46"/>
+
+  <g fill="none">
+    <g stroke="#B9966B" stroke-width="16" stroke-dasharray="4 8">
+      <use href="#main"/>
+      <use href="#upper"/>
+      <use href="#lower"/>
+    </g>
+    <g stroke="#3B4756" stroke-width="5" stroke-linecap="round">
+      <use href="#main"/>
+      <use href="#upper"/>
+      <use href="#lower"/>
+    </g>
+  </g>
+  <g fill="#F2B84B" stroke="#3B4756" stroke-width="3">
+    <circle cx="220" cy="150" r="7"/>
+    <circle cx="640" cy="150" r="7"/>
+  </g>
+
+  <!-- Signal -->
+  <rect x="678" y="96" width="4" height="46" fill="#3B4756"/>
+  <rect x="670" y="62" width="20" height="36" rx="6" fill="#1F3A5F"/>
+  <circle cx="680" cy="73" r="5" fill="#5B6470"/>
+  <circle cx="680" cy="87" r="5" fill="#4CC38A"/>
+
+  <!-- Engine -->
+  <g transform="translate(60 147.5)">
+    <g fill="#fff">
+      <circle cx="88" cy="-80" r="6"/>
+      <circle cx="99" cy="-92" r="8"/>
+      <circle cx="114" cy="-103" r="10"/>
+    </g>
+    <circle cx="58" cy="-50" r="8" fill="#F2B84B"/>
+    <rect x="77" y="-66" width="12" height="20" fill="#1F3A5F"/>
+    <rect x="73" y="-70" width="20" height="6" rx="2" fill="#1F3A5F"/>
+    <rect x="36" y="-50" width="64" height="30" rx="6" fill="#1F3A5F"/>
+    <path d="M56 -50v30M74 -50v30" stroke="#F2B84B" stroke-width="2.5"/>
+    <circle cx="100" cy="-40" r="4" fill="#F2B84B"/>
+    <rect x="4" y="-64" width="36" height="44" rx="3" fill="#D9483B"/>
+    <rect x="11" y="-56" width="22" height="15" rx="2" fill="#EAF3F7"/>
+    <rect x="0" y="-69" width="44" height="7" rx="3" fill="#1F3A5F"/>
+    <rect x="2" y="-24" width="102" height="8" rx="2" fill="#2B3440"/>
+    <path d="M104 -24l16 21h-16z" fill="#F2B84B"/>
+    <use href="#drive-wheel" x="20" y="-12"/>
+    <use href="#drive-wheel" x="48" y="-12"/>
+    <use href="#wheel" x="84" y="-6"/>
+    <path d="M20 -12H48" stroke="#F2B84B" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- Upper siding: two boxcars -->
+  <g transform="translate(346 77.5)">
+    <rect y="-40" width="64" height="28" rx="3" fill="#D9483B"/>
+    <use href="#boxcar-trim"/>
+  </g>
+  <g transform="translate(416 77.5)">
+    <rect y="-40" width="64" height="28" rx="3" fill="#3A8F8A"/>
+    <use href="#boxcar-trim"/>
+  </g>
+
+  <!-- Middle track: tanker -->
+  <g transform="translate(456 147.5)">
+    <rect x="26" y="-44" width="12" height="8" rx="2" fill="#1F3A5F"/>
+    <rect x="1" y="-38" width="62" height="25" rx="12" fill="#F2B84B"/>
+    <path d="M22 -38v25M42 -38v25" stroke="#1F3A5F" stroke-width="2" opacity=".35"/>
+    <use href="#chassis"/>
+  </g>
+
+  <!-- Lower siding: log car and boxcar -->
+  <g transform="translate(370 217.5)">
+    <rect x="5" y="-26" width="54" height="10" rx="5" fill="#A9743F"/>
+    <rect x="11" y="-35" width="42" height="10" rx="5" fill="#BF8A52"/>
+    <rect x="1" y="-37" width="3" height="24" fill="#1F3A5F"/>
+    <rect x="60" y="-37" width="3" height="24" fill="#1F3A5F"/>
+    <rect y="-16" width="64" height="4" fill="#3A8F8A"/>
+    <use href="#chassis"/>
+  </g>
+  <g transform="translate(440 217.5)">
+    <rect y="-40" width="64" height="28" rx="3" fill="#F2B84B"/>
+    <use href="#boxcar-trim"/>
+  </g>
+</svg>
