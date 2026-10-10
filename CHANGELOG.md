@@ -11,6 +11,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 - A contributing guide.
 - README badges that link to the workflow's tools.
 
+### Changed
+
+- The README banner is now pixel art.
+
 ## [0.1.0] - 2026-10-10
 
 First release.
