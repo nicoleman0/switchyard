@@ -4,6 +4,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-11
+
 ### Added
 
 - `scripts/state.py status` shows the coordinator each issue's phase, worker, and PR. `scripts/start-worker.sh` starts a worker and records its session or agent name.
@@ -41,6 +43,7 @@ First release.
 - `AGENTS.md` with the workflow and writing rules every agent reads.
 - A README that explains the workflow and how to start a project from the template.
 
-[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/nicoleman0/switchyard/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/nicoleman0/switchyard/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/nicoleman0/switchyard/releases/tag/v0.1.0
