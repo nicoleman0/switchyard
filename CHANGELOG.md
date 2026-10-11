@@ -4,6 +4,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-11
+
 ### Added
 
 - A reviewer role. After the implementer commits, a fresh session on another provider checks the diff against the change's scenarios and tasks and writes a verdict to `.claude/reviews/<n>.md`. Each issue now runs one more worker session.
@@ -62,7 +64,8 @@ First release.
 - `AGENTS.md` with the workflow and writing rules every agent reads.
 - A README that explains the workflow and how to start a project from the template.
 
-[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/nicoleman0/switchyard/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/nicoleman0/switchyard/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/nicoleman0/switchyard/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/nicoleman0/switchyard/compare/v0.1.0...v0.2.0
