@@ -43,7 +43,7 @@ class Harness(unittest.TestCase):
         self.bin.mkdir()
         self.log = self.base / "calls.jsonl"
         self.stub("gh", 'echo "$*" >> "$CALL_LOG"\n[ "$1 $2" = "pr list" ] && [ "$3" = "--head" ] && [ "$5" = "--state" ] && [ "$6" = all ] && [ "$7" = "--json" ] && [ "$8" = "number,state" ] && [ "$9" = "--limit" ] && [ "${10}" = 1 ] || exit 23\n[ "${FAIL_GH:-}" != 1 ] || exit 2\nprintf \'%s\\n\' "${GH_RESULT:-[]}"')
-        self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\n[ "${FAIL_HERDR:-}" != 1 ] || exit 2\nif [ "$1 $2" = "agent list" ] && [ "$#" = 2 ]; then printf \'%s\\n\' "$HERDR_RESULT"; elif [ "$1 $2" = "agent start" ]; then [ "${FAIL_START:-}" != 1 ] || exit 2; [ "$3" = "planner-10" ] || [ "$3" = "planner-8" ] || exit 23; echo "agent start output"; elif [ "$1 $2" = "worktree create" ]; then printf \'%s\\n\' "$HERDR_CREATE_RESULT"; else exit 23; fi')
+        self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\n[ "${FAIL_HERDR:-}" != 1 ] || exit 2\nif [ "$1 $2" = "agent list" ] && [ "$#" = 2 ]; then printf \'%s\\n\' "$HERDR_RESULT"; elif [ "$1 $2" = "agent start" ]; then [ "${FAIL_START:-}" != 1 ] || exit 2; case "$3" in planner-10|planner-8|implementer-10|reviewer-10) ;; *) exit 23 ;; esac; echo "agent start output"; elif [ "$1 $2" = "worktree create" ]; then printf \'%s\\n\' "$HERDR_CREATE_RESULT"; else exit 23; fi')
         self.env = os.environ.copy()
         self.env.update(PATH=f"{self.bin}:{self.env['PATH']}", CALL_LOG=str(self.log), TEST_WORKTREE=str(self.repo))
         self.env["HERDR_RESULT"] = '{"result":{"agents":[]}}'
@@ -205,6 +205,46 @@ class Harness(unittest.TestCase):
         for args in [("8", "unknown", "claude"), ("8", "planner", "bad"), ("99", "planner", "claude")]:
             self.assertNotEqual(self.script("start-worker.sh", *args).returncode, 0)
         self.assertEqual(self.record(), before)
+
+    def test_reviewer_runs_on_another_provider(self):
+        self.init(branch="b", path=str(self.repo), runner="headless")
+        self.assertEqual(self.script("start-worker.sh", "8", "planner", "claude").returncode, 0)
+        before = self.record()
+        failed = self.script("start-worker.sh", "8", "reviewer", "codex")
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("no implementer has run", failed.stderr)
+        self.assertEqual(self.record(), before)
+
+        self.assertEqual(self.script("start-worker.sh", "8", "implementer", "claude").returncode, 0)
+        self.assertEqual(self.get("8", "implementer_backend"), "claude")
+        before = self.record()
+        for backend, reason in [("claude", "another provider"), ("opencode", "not opencode")]:
+            failed = self.script("start-worker.sh", "8", "reviewer", backend)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn(reason, failed.stderr)
+            self.assertEqual(self.record(), before)
+
+        self.assertEqual(self.script("start-worker.sh", "8", "reviewer", "codex").returncode, 0)
+        self.assertEqual(self.record()["role"], "reviewer")
+        self.assertEqual(self.record()["backend"], "codex")
+        self.assertEqual(self.get("8", "implementer_backend"), "claude")
+        status = self.state("status")
+        self.assertRegex(status.stdout, r"8\s+b\s+reviewer\s+codex")
+
+        same = self.env.copy(); same["SWITCHYARD_SAME_PROVIDER"] = "1"
+        result = self.script("start-worker.sh", "8", "reviewer", "claude", env=same)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.record()["backend"], "claude")
+        self.assertNotEqual(self.script("start-worker.sh", "8", "reviewer", "opencode", env=same).returncode, 0)
+
+    def test_reviewer_starts_in_herdr_pane(self):
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
+        herdr_env = self.env.copy(); herdr_env["HERDR_ENV"] = "1"
+        self.assertEqual(self.script("start-worker.sh", "10", "implementer", "codex", env=herdr_env).returncode, 0)
+        result = self.script("start-worker.sh", "10", "reviewer", "claude", "--", "--agent", "issue-reviewer", env=herdr_env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.get("10", "worker"), "reviewer-10")
+        self.assertIn("agent start reviewer-10 --kind claude --pane w1:p1 -- --agent issue-reviewer", self.log.read_text())
 
 
 if __name__ == "__main__":

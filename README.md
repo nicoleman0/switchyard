@@ -13,7 +13,7 @@ Switchyard is a template repository. Start a new project from it, and the projec
 
 It holds no application code. You add your stack on top.
 
-One session coordinates. For each issue, a planner writes a spec change and an implementer builds it, in a git worktree of its own, on Claude Code, Codex, or opencode. You answer the product questions and approve the merges.
+One session coordinates. For each issue, a planner writes a spec change, an implementer builds it, and a reviewer on another provider checks it, in a git worktree of its own, on Claude Code, Codex, or opencode. You answer the product questions and approve the merges.
 
 [Start a new project](#start-a-new-project) from the template, or [add the workflow to a repo you already have](#add-it-to-an-existing-repo).
 
@@ -23,9 +23,10 @@ Each piece covers a gap the others leave:
 
 - **Issue, then spec, then code.** Every behaviour change starts as a short GitHub issue, becomes exactly one [OpenSpec](https://github.com/Fission-AI/OpenSpec) change, and ships as one PR. The PR archives the change into `openspec/specs/`, so the specs always describe what the code does.
 - **Planning and building are separate sessions.** The planner runs on a strong model and stops at a plan. The implementer starts fresh on a cheaper model and reads the plan from disk. The expensive context is never carried into the cheap phase.
-- **A coordinator reviews twice.** It checks the plan before any code is written, and the diff before anything is pushed. It never implements.
+- **Two reviews, two reviewers.** The coordinator checks the plan before any code is written. A reviewer on a different provider from the implementer checks the diff against the change before anything is pushed.
+- **Files carry every handoff.** The brief, the answers, the change, and the review live in the worktree. Each session reads them from disk, so no stage works from another session's summary, and the coordinator holds verdicts, not diffs.
 - **One worktree per issue.** Each issue gets its own branch, ports, and data. Issues that own different folders run in parallel.
-- **Workers never push.** Nothing reaches the remote until the coordinator has reviewed it, and nothing merges until you approve it.
+- **Workers never push.** Nothing reaches the remote until the review passes, and nothing merges until you approve it.
 - **Several providers share the load.** Implementers rotate across Claude, Codex, and opencode, so one usage window does not stall a batch.
 
 ### Who does what
@@ -33,9 +34,10 @@ Each piece covers a gap the others leave:
 | Role | Where it runs | Does | Never |
 |---|---|---|---|
 | You | GitHub and the coordinator's chat | Open issues, answer product questions, approve merges | |
-| Coordinator | Your session on the main checkout, Claude Code or Codex | Splits the work, writes briefs, reviews plans and diffs, pushes, opens PRs, merges, cleans up | Implements |
+| Coordinator | Your session on the main checkout, Claude Code or Codex | Splits the work, writes briefs, reviews plans, acts on review verdicts, pushes, opens PRs, merges, cleans up | Implements |
 | Planner | The issue's worktree, strong model | Reads the issue and the code, proposes the OpenSpec change, takes before screenshots, lists open questions | Writes code |
 | Implementer | The same worktree, fresh session, any provider | Applies the change, runs every check, takes after screenshots, archives the change, commits, writes the PR body | Pushes |
+| Reviewer | The same worktree, fresh session, a provider other than the implementer's | Checks the diff against the change's scenarios and tasks, runs every check, writes a verdict file | Edits code |
 
 ### One issue, start to finish
 
@@ -45,6 +47,7 @@ sequenceDiagram
     participant C as Coordinator
     participant P as Planner
     participant I as Implementer
+    participant R as Reviewer
     You->>C: Work on issue 12
     C->>You: Anything the issue leaves undecided
     C->>P: Worktree and brief
@@ -52,7 +55,8 @@ sequenceDiagram
     C->>You: Product decisions only
     C->>I: Reviewed change and answers
     I->>C: Commit, check results, PR body
-    C->>C: Review the diff
+    C->>R: Review the commit
+    R->>C: Verdict file
     C->>You: Pull request
     You->>C: Approve
     C->>C: Squash-merge and tear down
@@ -64,8 +68,9 @@ sequenceDiagram
 4. **The planner proposes the change.** It writes the proposal, design, spec delta, and tasks under `openspec/changes/<name>`, links the change from the issue, and stops with numbered questions, each with options and a recommendation.
 5. **The coordinator reviews the plan.** It checks the plan's claims against the code, answers what it can, and brings you the product decisions. The answers go into a file in the worktree.
 6. **The implementer builds it.** A fresh session applies the tasks, runs every check, syncs the spec delta into `openspec/specs/`, archives the change, commits, and writes the PR body. It asks before it decides anything the plan does not cover.
-7. **The coordinator reviews the diff.** It checks scope, tests, duplication, and the before and after screenshots. It sends fixes back, or pushes the branch and opens the PR.
-8. **You approve.** The coordinator squash-merges, removes the worktree and its branch, and rebases the PRs still open.
+7. **The reviewer checks the diff.** A fresh session on another provider reads the change and the diff. It checks each scenario and task, scope, tests, duplication, and the screenshots, runs every check, and writes a verdict to a file in the worktree.
+8. **The coordinator acts on the verdict.** On a pass it pushes the branch and opens the PR. Otherwise a fresh implementer session reads the review and fixes it, and a new reviewer checks again. After two failed rounds the coordinator brings the findings to you.
+9. **You approve.** The coordinator squash-merges, removes the worktree and its branch, and rebases the PRs still open.
 
 You are asked something at three points: before work starts, after the plan, and at the merge.
 
@@ -197,7 +202,7 @@ openspec/
   agents/                        Claude profiles: model and effort for each role
   skills/work-issues/
     SKILL.md                     the coordinator's playbook and the routing table
-    roles/                       planner and implementer instructions, shared by every provider
+    roles/                       planner, implementer, and reviewer instructions, shared by every provider
     runners/                     Herdr and headless commands
     hooks/                       your per-issue isolation
     brief-template.md            what each worker is told

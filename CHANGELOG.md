@@ -4,6 +4,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- A reviewer role. After the implementer commits, a fresh session on another provider checks the diff against the change's scenarios and tasks and writes a verdict to `.claude/reviews/<n>.md`. Each issue now runs one more worker session.
+- `start-worker.sh` refuses a reviewer on the implementer's provider. Set `SWITCHYARD_SAME_PROVIDER=1` when only one provider is available.
+
+### Changed
+
+- The coordinator reads the reviewer's verdict, not the diff. Its PR review checklist moved to `roles/reviewer.md`. Fixes go to a fresh implementer session that reads the review file.
+- At plan review, the coordinator reads the change files on disk, not the planner's summary.
+- The PR body has a Review section.
+
 ## [0.4.0] - 2026-10-11
 
 ### Changed
