@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Changed
+
+- Switchyard's checks moved from `.github/workflows/ci.yml` to `.github/workflows/switchyard.yml`, and the updater no longer touches `ci.yml`. A repo with its own `ci.yml` got a whole-file conflict when a release changed the template's. After you update, delete the Switchyard steps from your `ci.yml` if it still has them.
+
 ## [0.3.0] - 2026-10-11
 
 ### Added

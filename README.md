@@ -93,9 +93,10 @@ The new repo has every file here and none of this repo's history. Then [make it 
 From a clone of this repo beside yours:
 
 ```sh
-mkdir -p .claude/agents .claude/skills
+mkdir -p .claude/agents .claude/skills .github/workflows
 cp -R ../switchyard/.claude/agents/. .claude/agents/
 cp -R ../switchyard/.claude/skills/work-issues .claude/skills/
+cp ../switchyard/.github/workflows/switchyard.yml .github/workflows/
 npx @fission-ai/openspec init --tools claude,codex,opencode
 ```
 
@@ -109,7 +110,7 @@ Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` li
 | `LICENSE` | Replace it with your project's license, or delete it. |
 | `CHANGELOG.md`, `docs/switchyard.svg` | Switchyard's release notes and banner. Start your own changelog. Delete the banner and its line at the top of the guide. |
 | `CONTRIBUTING.md` | Switchyard's contributing guide. Replace it with your own, or delete it. |
-| `.github/workflows/ci.yml` | It checks the workflow's own files. Add your project's checks as further steps. |
+| `.github/workflows/` | `switchyard.yml` checks the workflow's own files and follows releases. Put your project's checks in a workflow of their own, such as `ci.yml`. |
 | `AGENTS.md`, Project section | Your checks, shared services, and conventions. Every agent reads it. |
 | `openspec/config.yaml`, `context` | What the product is and what is out of scope. |
 | `.claude/skills/work-issues/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
@@ -186,7 +187,7 @@ AGENTS.md                        rules every agent reads
 CHANGELOG.md                     what changed in each release
 CONTRIBUTING.md                  how to contribute to Switchyard
 .github/
-  workflows/ci.yml               checks that run on every PR
+  workflows/switchyard.yml       checks on the workflow's own files
   ISSUE_TEMPLATE/                the short issue the workflow starts from
 openspec/
   config.yaml                    project context and artifact rules
