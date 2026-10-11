@@ -64,6 +64,10 @@ The Codex sandbox can write the checkout, apart from `.git`, and nothing outside
 
 At an approval prompt, the maintainer answers "Yes, proceed". "Don't ask again" saves an allow rule under `~/.codex/rules/`, which every Codex session reads, workers included.
 
+## Batch state
+
+Issue records live in `.claude/state/<issue>.json` in the main checkout. `setup-worktree.sh`, `start-worker.sh`, and `teardown-worktree.sh` write or remove them. Run `python3 .claude/skills/work-issues/scripts/state.py status` first in a new coordinator session, then read each worker with the runner's Read command. On headless, read the newest log in `<path>/.claude/turns/`.
+
 ## Before starting
 
 1. Read the issues and `AGENTS.md`. Check the issues against the code. For each one, write down anything the issue leaves undecided, and ask the maintainer before any agent starts.
@@ -72,7 +76,7 @@ At an approval prompt, the maintainer answers "Yes, proceed". "Don't ask again" 
 
 ## Per issue
 
-1. **Set up.** Run `scripts/setup-worktree.sh <issue> <branch>`. It prints the worktree path, the runner's handles, and the isolation values from the project's `hooks/worktree-up.sh`. Keep them for the brief. On Codex, run it outside the sandbox: a sandbox failure halfway leaves a worktree the script cannot resume.
+1. **Set up.** Run `scripts/setup-worktree.sh <issue> <branch>`. It records the issue and prints the worktree path, the runner's handles, and the isolation values from the project's `hooks/worktree-up.sh`. Keep them for the brief. On Codex, run it outside the sandbox: a sandbox failure halfway leaves a worktree the script cannot resume.
 2. **Brief.** Copy `brief-template.md` to `<path>/.claude/brief.md` and fill every `{placeholder}`. Under the coordinator notes, put:
    - the decisions already made,
    - what is out of scope and which issue owns it,
@@ -106,7 +110,7 @@ Send fixes back to the implementer as an answers file. With several PRs in fligh
 
 ## Merge and clean up
 
-Merge only when the maintainer approves. Squash-merge one PR with `gh pr merge <pr> --squash`, without `--delete-branch`. Then end its worker's session and run `scripts/teardown-worktree.sh <issue> <branch>`. It runs the project's `hooks/worktree-down.sh`, removes the worktree, and then deletes the local and remote branch.
+Merge only when the maintainer approves. Squash-merge one PR with `gh pr merge <pr> --squash`, without `--delete-branch`. Then end its worker's session and run `scripts/teardown-worktree.sh <issue> <branch>`. It runs the project's `hooks/worktree-down.sh`, removes the worktree, deletes the local and remote branch, and removes the record.
 
 For each PR still open:
 1. Rebase its branch in its worktree onto `origin/main`.

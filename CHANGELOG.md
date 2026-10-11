@@ -4,6 +4,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/state.py status` shows the coordinator each issue's phase, worker, and PR. `scripts/start-worker.sh` starts a worker and records its session or agent name.
+
+### Fixed
+
+- The Herdr runner now names agents `<role>-<issue>` because Herdr rejects names that start with a digit.
+
 ## [0.2.0] - 2026-10-11
 
 ### Added

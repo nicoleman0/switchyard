@@ -20,5 +20,7 @@ jobs:
         run: git ls-files -z '.claude/skills/work-issues/*.py' | xargs -0 python3 -m py_compile
       - name: Check JavaScript syntax
         run: git ls-files -z '.claude/skills/work-issues/*.mjs' | xargs -0 -n 1 node --check
+      - name: Test the batch state scripts
+        run: python3 .claude/skills/work-issues/scripts/test_state.py
       - name: Validate OpenSpec
         run: npx --yes @fission-ai/openspec validate --all --strict
