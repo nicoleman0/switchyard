@@ -149,8 +149,12 @@ class Harness(unittest.TestCase):
         env = self.env.copy(); env["HERDR_ENV"] = "1"
         env["HERDR_CREATE_RESULT"] = '{"result":{"root_pane":{"cwd":"' + str(self.base / "herdr-tree") + '","pane_id":"w9:p2","workspace_id":"ws9"}}}'
         self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\nprintf \'%s\\n\' "$HERDR_CREATE_RESULT"')
+        # Herdr is stubbed, so make the worktree it would have created.
+        subprocess.run(["git", "-C", str(self.repo), "worktree", "add", "-qb", "topic", str(self.base / "herdr-tree")], check=True)
         result = self.script("setup-worktree.sh", "8", "topic", env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
+        pushurl = subprocess.run(["git", "-C", str(self.base / "herdr-tree"), "config", "--worktree", "remote.origin.pushurl"], capture_output=True, text=True)
+        self.assertEqual(pushurl.stdout.strip(), "workers-do-not-push")
         self.assertEqual(self.get("8", "runner"), "herdr")
         self.assertEqual(self.get("8", "pane"), "w9:p2")
 
@@ -205,6 +209,36 @@ class Harness(unittest.TestCase):
         for args in [("8", "unknown", "claude"), ("8", "planner", "bad"), ("99", "planner", "claude")]:
             self.assertNotEqual(self.script("start-worker.sh", *args).returncode, 0)
         self.assertEqual(self.record(), before)
+
+    def test_worktree_cannot_push_and_scope_is_checked(self):
+        git = lambda *args, cwd=self.repo: subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True)
+        self.assertEqual(git("push", "-q", "origin", "HEAD:main").returncode, 0)
+        git("fetch", "-q", "origin")
+        self.assertEqual(self.script("setup-worktree.sh", "8", "topic").returncode, 0)
+        tree = Path(self.record()["path"])
+        missing = self.script("check-scope.sh", "8")
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("owned", missing.stderr)
+        self.state("set", "8", "owned=src/ docs/guide.md")
+        for name in ["src/a.py", "docs/guide.md", "openspec/changes/x/tasks.md"]:
+            (tree / name).parent.mkdir(parents=True, exist_ok=True)
+            (tree / name).write_text("x")
+        git("add", "-A", cwd=tree); git("commit", "-qm", "in scope", cwd=tree)
+        result = self.script("check-scope.sh", "8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (tree / "README.md").write_text("x"); (tree / "srcs.py").write_text("x")
+        git("add", "-A", cwd=tree); git("commit", "-qm", "out of scope", cwd=tree)
+        result = self.script("check-scope.sh", "8")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout.split(), ["README.md", "srcs.py"])
+
+        blocked = git("push", "origin", "topic", cwd=tree)
+        self.assertNotEqual(blocked.returncode, 0)
+        self.assertIn("workers-do-not-push", blocked.stderr)
+        self.assertEqual(git("ls-remote", "--heads", "origin", "topic").stdout, "")
+        self.assertEqual(git("push", "-q", "origin", "topic").returncode, 0)
+        self.assertIn("refs/heads/topic", git("ls-remote", "--heads", "origin", "topic").stdout)
+        self.assertEqual(self.script("teardown-worktree.sh", "8", "topic").returncode, 0)
 
     def test_reviewer_runs_on_another_provider(self):
         self.init(branch="b", path=str(self.repo), runner="headless")

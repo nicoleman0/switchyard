@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 - A reviewer role. After the implementer commits, a fresh session on another provider checks the diff against the change's scenarios and tasks and writes a verdict to `.claude/reviews/<n>.md`. Each issue now runs one more worker session.
 - `start-worker.sh` refuses a reviewer on the implementer's provider. Set `SWITCHYARD_SAME_PROVIDER=1` when only one provider is available.
+- `setup-worktree.sh` disables the push URL in each new worktree, so workers cannot push. It turns on git's `extensions.worktreeConfig` in the repo. The coordinator now pushes from the main checkout.
+- `scripts/check-scope.sh <issue>` lists files a branch changed outside the owned paths recorded with `state.py set <issue> "owned=..."`.
 
 ### Changed
 

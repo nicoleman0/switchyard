@@ -52,7 +52,7 @@ The reviewer runs on a provider other than the implementer's, so no model grades
 
 Each phase starts a fresh session, fix rounds included. Every handoff is a file in the worktree: the brief, the answers, the change, and the review. A worker reads them from disk, not from another session's context or from your summary, so the expensive context is not carried into the cheap phase.
 
-Workers never push. Implementers commit and write `.claude/pr-body.md`, then stop, so nothing reaches the remote before the review passes. The coordinator pushes and opens the PR.
+Workers never push. Implementers commit and write `.claude/pr-body.md`, then stop, so nothing reaches the remote before the review passes. `setup-worktree.sh` disables the push URL in each worktree, so a push works only from the main checkout. The coordinator pushes from there and opens the PR.
 
 Escalate a single issue only when the plan review shows judgment the plan cannot capture. To escalate, run that issue's implementer on Claude with `--agent issue-implementer --model opus --effort high`, and tell the maintainer you did it.
 
@@ -90,6 +90,8 @@ Issue records live in `.claude/state/<issue>.json` in the main checkout. `setup-
    - what is out of scope and which issue owns it,
    - any known traps.
    `.claude/` is git-ignored apart from agents, skills, and commands.
+
+   Record the owned paths for the scope check: `python3 scripts/state.py set <issue> "owned=<path> <path>"`. Separate them with spaces and end folders with `/`.
 3. **Plan.** Start the planner with its routing-table flags, then prompt it: `Read .claude/skills/work-issues/roles/planner.md, then .claude/brief.md, and plan issue #<issue>.` The role path is in the prompt because only Claude loads it from a profile.
 4. **Review the plan.**
    - Read the change on disk: the proposal, the design, the spec delta, and the tasks. The planner's last message is only its list of questions.
@@ -112,11 +114,12 @@ The reviewer checks the diff against the change. Read its review, not the diff. 
 
 ## Open the PR
 
-After `Verdict: pass`, from the worktree:
-1. Push with `git push -u origin <branch>`. On Codex, request the push outside the sandbox, so the prompt goes to the maintainer.
-2. Fill the Review section of `.claude/pr-body.md` with the reviewer's backend, the verdict, and the number of rounds.
-3. Fill the Screenshots section. If your harness can publish a page, as Claude Code's Artifact tool can, publish `<path>/.claude/shots/compare.html` and put the link there. Otherwise write that the comparison page was not published, and give its local path.
-4. Run `gh pr create --milestone <milestone> --body-file <path>/.claude/pr-body.md`.
+After `Verdict: pass`:
+1. Run `scripts/check-scope.sh <issue>`. It lists the files the branch changed outside its owned paths. The change's files under `openspec/` are always in scope. Rule on each listed file: accept an appended section in a shared doc, and send anything else back as a fix round.
+2. From the main checkout, push with `git push -u origin <branch>`. On Codex, request the push outside the sandbox, so the prompt goes to the maintainer.
+3. Fill the Review section of `.claude/pr-body.md` with the reviewer's backend, the verdict, and the number of rounds.
+4. Fill the Screenshots section. If your harness can publish a page, as Claude Code's Artifact tool can, publish `<path>/.claude/shots/compare.html` and put the link there. Otherwise write that the comparison page was not published, and give its local path.
+5. Run `gh pr create --head <branch> --milestone <milestone> --body-file <path>/.claude/pr-body.md`.
 
 ## Several PRs
 
@@ -130,5 +133,5 @@ For each PR still open:
 1. Rebase its branch in its worktree onto `origin/main`.
 2. Run `scripts/union-resolve.py` on each conflicted append-only file. In zsh, pass the files as separate arguments, not one variable.
 3. Run every check in `AGENTS.md`.
-4. Push with `--force-with-lease`.
+4. From the main checkout, push with `git push --force-with-lease origin <branch>`.
 5. Wait for CI, then merge it and tear it down the same way.

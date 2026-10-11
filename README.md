@@ -26,7 +26,7 @@ Each piece covers a gap the others leave:
 - **Two reviews, two reviewers.** The coordinator checks the plan before any code is written. A reviewer on a different provider from the implementer checks the diff against the change before anything is pushed.
 - **Files carry every handoff.** The brief, the answers, the change, and the review live in the worktree. Each session reads them from disk, so no stage works from another session's summary, and the coordinator holds verdicts, not diffs.
 - **One worktree per issue.** Each issue gets its own branch, ports, and data. Issues that own different folders run in parallel.
-- **Workers never push.** Nothing reaches the remote until the review passes, and nothing merges until you approve it.
+- **Workers never push.** Each worktree's push URL is disabled, and a script lists any file changed outside the paths the issue owns. Nothing reaches the remote until the review passes, and nothing merges until you approve it.
 - **Several providers share the load.** Implementers rotate across Claude, Codex, and opencode, so one usage window does not stall a batch.
 
 ### Who does what
