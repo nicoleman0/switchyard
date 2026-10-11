@@ -8,13 +8,13 @@ Each worker turn is one command, run from the worktree. It blocks until the work
 
 | Backend | First turn | Later turns |
 |---|---|---|
-| Claude | `claude -p --session-id <uuid> <flags> "<prompt>"` | `claude -p --resume <uuid> <flags> "<prompt>"` |
+| Claude | `claude -p --session-id <session> <flags> "<prompt>"` | `claude -p --resume <session> <flags> "<prompt>"` |
 | Codex | `codex exec <flags> "<prompt>"` | `codex exec resume --last <flags> "<prompt>"` |
 | opencode | `opencode run <flags> --session ses_issue<issue> "<prompt>"` | the same command |
 
 | Verb | How |
 |---|---|
-| Start and prompt | Run the first-turn command with the role prompt. Make a new `<uuid>` per session with `uuidgen`, in lower case. |
+| Start and prompt | Run `scripts/start-worker.sh <issue> <role> <backend>`, then use its printed `session` in the first-turn command with the role prompt. |
 | Wait | The turn is over when the command exits. Run it in the background when your harness supports that. |
 | Read | Send each turn's output to `<path>/.claude/turns/<role>-<n>.log` and read the end of it. |
 | End | Nothing to do. The next phase starts a new session. |

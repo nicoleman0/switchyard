@@ -26,6 +26,14 @@ else
   printf 'path=%s\n' "$path"
 fi
 
+state_args=(init "$issue" "branch=$branch" "path=$path")
+if [ "${HERDR_ENV:-}" = 1 ]; then
+  state_args+=(runner=herdr "pane=$pane")
+else
+  state_args+=(runner=headless)
+fi
+python3 .claude/skills/work-issues/scripts/state.py "${state_args[@]}"
+
 if [ -x "$hook" ]; then
   ISSUE=$issue BRANCH=$branch WORKTREE=$path MAIN_CHECKOUT=$repo "$hook"
 fi

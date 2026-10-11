@@ -39,4 +39,5 @@ else
   # 2: the branch is already gone, for example deleted when merging on GitHub.
   [ "$status" -eq 2 ] || exit "$status"
 fi
+python3 .claude/skills/work-issues/scripts/state.py rm "$issue"
 echo "Removed worktree $path and branch $branch (local and remote)."
