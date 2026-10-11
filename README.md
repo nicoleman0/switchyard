@@ -119,7 +119,7 @@ Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` li
 |---|---|
 | `README.md` | This guide describes the workflow, not your project. Keep it with `git mv README.md docs/WORKFLOW.md` (after `mkdir docs`), then write your own README. |
 | `LICENSE` | Replace it with your project's license, or delete it. |
-| `CHANGELOG.md`, `docs/switchyard.svg`, `docs/social-preview.png` | Switchyard's release notes, banner, and social preview image. Start your own changelog. Delete the two images and the banner's line at the top of the guide. |
+| `CHANGELOG.md`, `docs/switchyard.svg`, `docs/social-preview.png`, `docs/pixelart.py` | Switchyard's release notes, banner, social preview image, and the script that draws both. Start your own changelog. Delete the three files and the banner's line at the top of the guide. |
 | `CONTRIBUTING.md` | Switchyard's contributing guide. Replace it with your own, or delete it. |
 | `.github/workflows/` | `switchyard.yml` checks the workflow's own files and follows releases. Put your project's checks in a workflow of their own, such as `ci.yml`. |
 | `AGENTS.md`, Project section | Your checks, shared services, and conventions. Every agent reads it. |
