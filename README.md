@@ -1,4 +1,4 @@
-# Switchyard
+# Switchyard: an agent coordination framework
 
 ![A rail yard where switches sort one wagon onto each of three sidings, each ending at a signal](docs/switchyard.svg)
 
@@ -9,7 +9,9 @@
 [![Herdr](https://img.shields.io/badge/Herdr-1F3A5F)](https://herdr.dev)
 [![GitHub CLI](https://img.shields.io/badge/GitHub_CLI-1F3A5F?logo=github&logoColor=white)](https://cli.github.com)
 
-Switchyard is a template repository. Start a new project from it, and the project begins with a delivery workflow for coding agents already in place: issues, specs, isolated worktrees, and review gates.
+Switchyard is a template repository that was born out of my own personal AI development setup.
+
+Start a new project from it, and the project begins with a delivery workflow for coding agents already in place: issues, specs, isolated worktrees, and review gates.
 
 It holds no application code. You add your stack on top.
 
