@@ -2,6 +2,7 @@
 """Draw the Switchyard banner and social preview as pixel art.
 Usage: python3 docs/pixelart.py docs
 Writes switchyard.svg and social-preview.png into the folder.
+The banner is animated with CSS, in whole-pixel steps.
 """
 import random
 import struct
@@ -25,9 +26,9 @@ STONE, STONE_DK = "#C9CFC4", "#A8B0A4"
 
 
 class Canvas:
-    def __init__(self, w, h):
+    def __init__(self, w, h, fill=GRASS):
         self.w, self.h = w, h
-        self.px = [[GRASS] * w for _ in range(h)]
+        self.px = [[fill] * w for _ in range(h)]
 
     def dot(self, x, y, c):
         if 0 <= x < self.w and 0 <= y < self.h:
@@ -44,7 +45,8 @@ class Canvas:
                 if ch != ".":
                     self.dot(x + dx, y + dy, colors[ch])
 
-    def svg(self, scale, title):
+    def paths(self):
+        """One path per colour. Unset pixels are skipped, so layers can stack."""
         rects = {}
         open_runs = {}
         for y in range(self.h + 1):
@@ -56,7 +58,8 @@ class Canvas:
                     x0 = x
                     while x < self.w and self.px[y][x] == c:
                         x += 1
-                    runs.add((c, x0, x - x0))
+                    if c:
+                        runs.add((c, x0, x - x0))
             for key in list(open_runs):
                 if key not in runs:
                     c, x0, w = key
@@ -65,16 +68,7 @@ class Canvas:
             # Sorted, so the same drawing always writes the same file.
             for key in sorted(runs):
                 open_runs.setdefault(key, y)
-        out = [
-            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.w} {self.h}" '
-            f'width="{self.w * scale}" height="{self.h * scale}" shape-rendering="crispEdges" '
-            f'role="img" aria-labelledby="title">',
-            f'  <title id="title">{title}</title>',
-        ]
-        for c in sorted(rects):
-            out.append(f'  <path fill="{c}" d="{"".join(rects[c])}"/>')
-        out.append("</svg>")
-        return "\n".join(out) + "\n"
+        return [f'<path fill="{c}" d="{"".join(rects[c])}"/>' for c in sorted(rects)]
 
     def png(self, scale):
         raw = bytearray()
@@ -206,11 +200,21 @@ def engine(cv, x, rail):
     cv.dot(x, rail - 4, DARK)
 
 
-def smoke(cv, x, y):
-    for dx, dy, w in [(0, 0, 2), (-3, -3, 3), (-4, -4, 3), (-8, -6, 4), (-9, -7, 3), (-14, -9, 5), (-13, -10, 3)]:
+# Two frames of the same plume, as (puffs, shade).
+SMOKE = [
+    ([(0, 0, 2), (-3, -3, 3), (-4, -4, 3), (-8, -6, 4), (-9, -7, 3), (-14, -9, 5), (-13, -10, 3)],
+     [(-7, -5, 3), (-13, -8, 4)]),
+    ([(-1, -1, 2), (-2, -2, 3), (-6, -4, 3), (-6, -5, 4), (-11, -7, 3), (-12, -8, 5), (-15, -10, 3)],
+     [(-5, -3, 3), (-11, -6, 4)]),
+]
+
+
+def smoke(cv, x, y, frame=0):
+    puffs, shade = SMOKE[frame]
+    for dx, dy, w in puffs:
         cv.rect(x + dx, y + dy, w, 1, WHITE)
-    cv.rect(x - 7, y - 5, 3, 1, CLOUD_SH)
-    cv.rect(x - 13, y - 8, 4, 1, CLOUD_SH)
+    for dx, dy, w in shade:
+        cv.rect(x + dx, y + dy, w, 1, CLOUD_SH)
 
 
 def signal(cv, x, rail, go):
@@ -285,9 +289,15 @@ def water_tower(cv, x, base):
     cv.dot(x + 11, base - 7, GREY)
 
 
+BANNER_W, BANNER_H = 200, 65
+# Longer than the banner, so the train is off screen before its copy comes in.
+TRAIN_LOOP = 250
+
+
 def banner():
-    cv = Canvas(200, 65)
-    backdrop(cv, 14, 7, [(8, 2, 16), (52, 5, 11), (96, 1, 20), (141, 4, 13), (176, 2, 15)])
+    """The banner as layers: the still yard, then each thing that moves over it."""
+    cv = Canvas(BANNER_W, BANNER_H)
+    backdrop(cv, 14, 7, [])
     main, sidings = 60, [50, 40, 30]
     track_h(cv, 0, 199, main)
     track_d(cv, 48, main, 30, 1)
@@ -314,12 +324,57 @@ def banner():
     wagon(cv, 82, sidings[1], TEAL, TEAL_DK, "#57AAA5")
     wagon(cv, 108, sidings[0], YEL, YEL_DK, "#F7D07F")
 
-    wagon(cv, 1, main, NAVY_LT, NAVY, "#5C80B0")
-    wagon(cv, 14, main, BRN, BRN_DK, "#D8AA78")
-    engine(cv, 27, main)
-    smoke(cv, 40, 47)
-    wagon(cv, 184, main, GRN, GRN_DK, "#7BD9AA")
-    return cv
+    sky, cars, puff1, puff2, lamp = (Canvas(BANNER_W, BANNER_H, None) for _ in range(5))
+    for x, y, w in [(8, 2, 16), (52, 5, 11), (96, 1, 20), (141, 4, 13), (176, 2, 15)]:
+        cloud(sky, x, y, w)
+    wagon(cars, 1, main, NAVY_LT, NAVY, "#5C80B0")
+    wagon(cars, 14, main, BRN, BRN_DK, "#D8AA78")
+    engine(cars, 27, main)
+    wagon(cars, 184, main, GRN, GRN_DK, "#7BD9AA")
+    smoke(puff1, 40, 47, 0)
+    smoke(puff2, 40, 47, 1)
+    # Covers the green lamp of the go signal, to blink it.
+    lamp.rect(141, sidings[0] - 9, 1, 2, GREY)
+    return {"yard": cv, "sky": sky, "cars": cars, "puff1": puff1, "puff2": puff2, "lamp": lamp}
+
+
+def loop(name, cv, period):
+    """A layer and a copy one period behind it, so sliding by a period repeats."""
+    return [f'<g class="{name}">', f'<g id="{name}">', *cv.paths(), "</g>",
+            f'<use href="#{name}" x="-{period}"/>', "</g>"]
+
+
+def banner_svg(scale, title):
+    b = banner()
+    out = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {BANNER_W} {BANNER_H}" '
+        f'width="{BANNER_W * scale}" height="{BANNER_H * scale}" shape-rendering="crispEdges" '
+        f'role="img" aria-labelledby="title">',
+        f'<title id="title">{title}</title>',
+        "<style>",
+        # One step per pixel keeps the art on its grid.
+        f".sky{{animation:drift 120s steps({BANNER_W}) infinite}}",
+        f".train{{animation:roll 20s steps({TRAIN_LOOP}) infinite}}",
+        ".puff1{animation:hide 1s step-end infinite}",
+        ".puff2{opacity:0;animation:show 1s step-end infinite}",
+        ".lamp{opacity:0;animation:show 2s step-end infinite}",
+        f"@keyframes drift{{to{{transform:translate({BANNER_W}px)}}}}",
+        f"@keyframes roll{{to{{transform:translate({TRAIN_LOOP}px)}}}}",
+        "@keyframes hide{50%{opacity:0}}",
+        "@keyframes show{50%{opacity:1}}",
+        "@media (prefers-reduced-motion:reduce){*{animation:none!important}}",
+        "</style>",
+        *b["yard"].paths(),
+        *loop("sky", b["sky"], BANNER_W),
+        '<g class="lamp">', *b["lamp"].paths(), "</g>",
+        '<g class="train">',
+        *loop("cars", b["cars"], TRAIN_LOOP),
+        *loop("puff1", b["puff1"], TRAIN_LOOP),
+        *loop("puff2", b["puff2"], TRAIN_LOOP),
+        "</g>",
+        "</svg>",
+    ]
+    return "\n".join(out) + "\n"
 
 
 FONT5 = {
@@ -404,6 +459,6 @@ def social():
 
 if __name__ == "__main__":
     out = Path(sys.argv[1])
-    b, s = banner(), social()
-    (out / "switchyard.svg").write_text(b.svg(4, "Pixel art of a rail yard. A steam engine brings wagons in on the main line. Switches sort one wagon onto each of three sidings, each siding ends at a signal, and a signal box watches a wagon leave."))
+    s = social()
+    (out / "switchyard.svg").write_text(banner_svg(4, "Pixel art of a rail yard. A steam engine brings wagons in on the main line. Switches sort one wagon onto each of three sidings, each siding ends at a signal, and a signal box watches a wagon leave."))
     (out / "social-preview.png").write_bytes(s.png(8))
