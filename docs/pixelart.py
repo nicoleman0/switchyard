@@ -62,7 +62,8 @@ class Canvas:
                     c, x0, w = key
                     y0 = open_runs.pop(key)
                     rects.setdefault(c, []).append(f"M{x0} {y0}h{w}v{y - y0}h-{w}z")
-            for key in runs:
+            # Sorted, so the same drawing always writes the same file.
+            for key in sorted(runs):
                 open_runs.setdefault(key, y)
         out = [
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.w} {self.h}" '
