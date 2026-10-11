@@ -92,18 +92,21 @@ def cloud(cv, x, y, w):
     cv.rect(x + 1, y + 3, w - 2, 1, CLOUD_SH)
 
 
-def pine(cv, x, base, tall=False):
-    """A small tree whose trunk stands on row `base`."""
+def pine(cv, x, base, tall=False, lean=0):
+    """A small tree whose trunk stands on row `base`. `lean` shifts its top sideways."""
     top = base - (6 if tall else 4)
-    cv.dot(x, top, TREE)
-    cv.rect(x - 1, top + 1, 3, 1, TREE)
-    cv.rect(x - 2, top + 2, 5, 1, TREE)
+    tip = x + lean
+    # A tall tree bends its whole upper tier, a short one only its tip.
+    mid = tip if tall else x
+    cv.dot(tip, top, TREE)
+    cv.rect(tip - 1, top + 1, 3, 1, TREE)
+    cv.rect(mid - 2, top + 2, 5, 1, TREE)
     if tall:
         cv.rect(x - 1, top + 3, 3, 1, TREE)
         cv.rect(x - 3, top + 4, 7, 1, TREE)
         cv.dot(x + 2, top + 4, TREE_DK)
-    cv.dot(x + 1, top + 2, TREE_DK)
-    cv.dot(x, base - 1 if not tall else base - 1, BRN_DK)
+    cv.dot(mid + 1, top + 2, TREE_DK)
+    cv.dot(x, base - 1, BRN_DK)
     cv.dot(x, base, BRN_DK)
 
 
@@ -291,7 +294,7 @@ def water_tower(cv, x, base):
 
 BANNER_W, BANNER_H = 200, 65
 # Longer than the banner, so the train is off screen before its copy comes in.
-TRAIN_LOOP = 250
+TRAIN_LOOP = 260
 
 
 def banner():
@@ -309,10 +312,8 @@ def banner():
     switch(cv, 48, main)
     switch(cv, 164, main)
 
-    pine(cv, 6, 30, True); pine(cv, 14, 26); pine(cv, 22, 34, True); pine(cv, 33, 24); pine(cv, 41, 38)
     pond(cv, 10, 42)
     water_tower(cv, 52, 31)
-    pine(cv, 150, 22); pine(cv, 158, 27, True); pine(cv, 192, 24, True); pine(cv, 185, 20)
     signal_box(cv, 166, 49)
     crates(cv, 152, 47)
 
@@ -324,24 +325,36 @@ def banner():
     wagon(cv, 82, sidings[1], TEAL, TEAL_DK, "#57AAA5")
     wagon(cv, 108, sidings[0], YEL, YEL_DK, "#F7D07F")
 
-    sky, cars, puff1, puff2, lamp = (Canvas(BANNER_W, BANNER_H, None) for _ in range(5))
+    names = ["sky", "cars", "puff1", "puff2", "lamp", "calm0", "calm1", "lean0", "lean1"]
+    b = {name: Canvas(BANNER_W, BANNER_H, None) for name in names}
+    sky, cars, puff1, puff2, lamp = (b[name] for name in names[:5])
+    pines = [(6, 30, True), (14, 26, False), (22, 34, True), (33, 24, False), (41, 38, False),
+             (150, 22, False), (158, 27, True), (192, 24, True), (185, 20, False)]
+    # Two groups, so neighbours sway out of step. No pine touches anything else in the yard.
+    for i, (x, base, tall) in enumerate(pines):
+        pine(b[f"calm{i % 2}"], x, base, tall)
+        pine(b[f"lean{i % 2}"], x, base, tall, 1)
     for x, y, w in [(8, 2, 16), (52, 5, 11), (96, 1, 20), (141, 4, 13), (176, 2, 15)]:
         cloud(sky, x, y, w)
-    wagon(cars, 1, main, NAVY_LT, NAVY, "#5C80B0")
-    wagon(cars, 14, main, BRN, BRN_DK, "#D8AA78")
-    engine(cars, 27, main)
-    wagon(cars, 184, main, GRN, GRN_DK, "#7BD9AA")
-    smoke(puff1, 40, 47, 0)
-    smoke(puff2, 40, 47, 1)
+    wagon(cars, 1, main, GRN, GRN_DK, "#7BD9AA")
+    wagon(cars, 14, main, NAVY_LT, NAVY, "#5C80B0")
+    wagon(cars, 27, main, BRN, BRN_DK, "#D8AA78")
+    engine(cars, 40, main)
+    smoke(puff1, 53, 47, 0)
+    smoke(puff2, 53, 47, 1)
     # Covers the green lamp of the go signal, to blink it.
     lamp.rect(141, sidings[0] - 9, 1, 2, GREY)
-    return {"yard": cv, "sky": sky, "cars": cars, "puff1": puff1, "puff2": puff2, "lamp": lamp}
+    return {"yard": cv, **b}
 
 
 def loop(name, cv, period):
     """A layer and a copy one period behind it, so sliding by a period repeats."""
     return [f'<g class="{name}">', f'<g id="{name}">', *cv.paths(), "</g>",
             f'<use href="#{name}" x="-{period}"/>', "</g>"]
+
+
+def group(name, b):
+    return [f'<g class="{name}">', *b[name.split()[0]].paths(), "</g>"]
 
 
 def banner_svg(scale, title):
@@ -358,6 +371,9 @@ def banner_svg(scale, title):
         ".puff1{animation:hide 1s step-end infinite}",
         ".puff2{opacity:0;animation:show 1s step-end infinite}",
         ".lamp{opacity:0;animation:show 2s step-end infinite}",
+        ".calm0,.calm1{animation:hide 3s step-end infinite}",
+        ".lean0,.lean1{opacity:0;animation:show 3s step-end infinite}",
+        ".late{animation-delay:-1.2s}",
         f"@keyframes drift{{to{{transform:translate({BANNER_W}px)}}}}",
         f"@keyframes roll{{to{{transform:translate({TRAIN_LOOP}px)}}}}",
         "@keyframes hide{50%{opacity:0}}",
@@ -365,8 +381,10 @@ def banner_svg(scale, title):
         "@media (prefers-reduced-motion:reduce){*{animation:none!important}}",
         "</style>",
         *b["yard"].paths(),
+        *group("calm0", b), *group("lean0", b),
+        *group("calm1 late", b), *group("lean1 late", b),
         *loop("sky", b["sky"], BANNER_W),
-        '<g class="lamp">', *b["lamp"].paths(), "</g>",
+        *group("lamp", b),
         '<g class="train">',
         *loop("cars", b["cars"], TRAIN_LOOP),
         *loop("puff1", b["puff1"], TRAIN_LOOP),
@@ -460,5 +478,5 @@ def social():
 if __name__ == "__main__":
     out = Path(sys.argv[1])
     s = social()
-    (out / "switchyard.svg").write_text(banner_svg(4, "Pixel art of a rail yard. A steam engine brings wagons in on the main line. Switches sort one wagon onto each of three sidings, each siding ends at a signal, and a signal box watches a wagon leave."))
+    (out / "switchyard.svg").write_text(banner_svg(4, "Pixel art of a rail yard. A steam engine brings wagons in on the main line. Switches sort one wagon onto each of three sidings, each siding ends at a signal, and a signal box watches over the yard."))
     (out / "social-preview.png").write_bytes(s.png(8))
