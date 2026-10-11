@@ -1,6 +1,6 @@
 # Switchyard
 
-![A steam engine entering a yard where one track splits into three and joins again](docs/switchyard.svg)
+![A rail yard where switches sort one wagon onto each of three sidings, each ending at a signal](docs/switchyard.svg)
 
 [![OpenSpec](https://img.shields.io/badge/OpenSpec-1F3A5F)](https://github.com/Fission-AI/OpenSpec)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-1F3A5F?logo=claude&logoColor=white)](https://claude.com/product/claude-code)
@@ -57,6 +57,12 @@ sequenceDiagram
     I->>C: Commit, check results, PR body
     C->>R: Review the commit
     R->>C: Verdict file
+    opt Changes requested
+        C->>I: Review file, fresh session
+        I->>C: Fix commit
+        C->>R: Review again
+        R->>C: Verdict file
+    end
     C->>You: Pull request
     You->>C: Approve
     C->>C: Squash-merge and tear down
@@ -113,7 +119,7 @@ Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` li
 |---|---|
 | `README.md` | This guide describes the workflow, not your project. Keep it with `git mv README.md docs/WORKFLOW.md` (after `mkdir docs`), then write your own README. |
 | `LICENSE` | Replace it with your project's license, or delete it. |
-| `CHANGELOG.md`, `docs/switchyard.svg` | Switchyard's release notes and banner. Start your own changelog. Delete the banner and its line at the top of the guide. |
+| `CHANGELOG.md`, `docs/switchyard.svg`, `docs/social-preview.png` | Switchyard's release notes, banner, and social preview image. Start your own changelog. Delete the two images and the banner's line at the top of the guide. |
 | `CONTRIBUTING.md` | Switchyard's contributing guide. Replace it with your own, or delete it. |
 | `.github/workflows/` | `switchyard.yml` checks the workflow's own files and follows releases. Put your project's checks in a workflow of their own, such as `ci.yml`. |
 | `AGENTS.md`, Project section | Your checks, shared services, and conventions. Every agent reads it. |
