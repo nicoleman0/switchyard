@@ -1,6 +1,6 @@
 # Brief: issue #{issue}
 
-You work on one issue in your own git worktree. A coordinator session reviews your plan and your PR and relays questions to the maintainer. Answers to your questions arrive as files in `.claude/answers/`.
+You work on one issue in your own git worktree. A coordinator session reviews the plan and relays questions to the maintainer. A reviewer session on another provider checks the commit against the change. Answers to your questions arrive as files in `.claude/answers/`.
 
 - Issue: #{issue}, {title}. Read it with `gh issue view {issue} --comments`.
 - Worktree: `{path}`, branch `{branch}`.
@@ -29,4 +29,4 @@ The `openspec/specs/` files may change in parallel branches. Add your own requir
 
 ## PR
 
-Use plain, short sentences. The sections are Changes, Decisions to review, Checks (with real numbers), and Screenshots. Leave Screenshots as "Pending": the coordinator fills it in. Follow the writing rules in `AGENTS.md`.
+Use plain, short sentences. The sections are Changes, Decisions to review, Checks (with real numbers), Review, and Screenshots. Leave Review and Screenshots as "Pending": the coordinator fills them in. Follow the writing rules in `AGENTS.md`.
