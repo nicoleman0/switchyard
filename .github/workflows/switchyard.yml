@@ -1,5 +1,6 @@
-# Checks the workflow's own files. Add your project's checks as further steps.
-name: CI
+# Checks the workflow's own files. The release updater owns this file, so put
+# your project's checks in a workflow of their own.
+name: Switchyard
 
 on:
   pull_request:
