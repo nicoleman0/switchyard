@@ -6,6 +6,8 @@ Use this outside Herdr. It needs only git and the worker CLIs.
 
 Each worker turn is one command, run from the worktree. It blocks until the worker stops, and what it prints last is the worker's report. Later turns resume the same session, so answers keep their context.
 
+For Claude, `<flags>` is the Flags cell of that worker's row in `.claude/skills/work-issues/routing.md`.
+
 | Backend | First turn | Later turns |
 |---|---|---|
 | Claude | `claude -p --session-id <session> <flags> "<prompt>"` | `claude -p --resume <session> <flags> "<prompt>"` |
@@ -20,6 +22,6 @@ Each worker turn is one command, run from the worktree. It blocks until the work
 | End | Nothing to do. The next phase starts a new session, and so does each fix round. |
 
 Codex:
-- `codex exec resume` forgets the model, so pass the routing table's `-m` and `-c` flags again.
+- `codex exec resume` forgets the model, so pass the routing table's `-m` and `-c` flags from `.claude/skills/work-issues/routing.md` again.
 - It rejects `--approve-for-me`. Pass `-c approvals_reviewer=auto_review` in its place.
 - `--last` picks the newest session recorded for the current folder, so run it from the worktree.

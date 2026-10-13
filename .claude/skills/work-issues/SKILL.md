@@ -25,46 +25,35 @@ The steps below say start, prompt, wait, read, and end. The runner file gives th
 
 ## Routing
 
-The maintainer starts the coordinator on the main checkout, on Claude or Codex. Workers get their role from `roles/planner.md`, `roles/implementer.md`, or `roles/reviewer.md`, so every backend follows the same instructions. Each backend's model and effort are set in one place: the Claude profiles in `.claude/agents/`, the Codex coordinator profile below, and this table for the others.
+The model, effort, and provider flags for workers and coordinators live in `.claude/skills/work-issues/routing.md`. That file is the project's to edit. Its worker table is the routing table.
 
-| Role | Backend | Flags |
-|---|---|---|
-| Coordinator | Claude, Opus, high | the maintainer's session; the skill loads by name |
-| Coordinator | Codex, `gpt-5.6-sol`, medium | the maintainer runs `codex -p coordinator`; `AGENTS.md` points the session here |
-| Planner | Claude, `issue-planner` profile | `--agent issue-planner --permission-mode auto` |
-| Planner | Codex, `gpt-5.6-sol`, high | `-m gpt-5.6-sol -c model_reasoning_effort=high --approve-for-me` |
-| Implementer | Claude, `issue-implementer` profile | `--agent issue-implementer --permission-mode auto` |
-| Implementer | Codex, `gpt-6-luna`, medium | `-m gpt-6-luna -c model_reasoning_effort=medium --approve-for-me` |
-| Implementer | opencode, Kimi K3 | `--model opencode-go/kimi-k3 --auto` |
-| Reviewer | Claude, `issue-reviewer` profile | `--agent issue-reviewer --permission-mode auto` |
-| Reviewer | Codex, `gpt-5.6-sol`, high | `-m gpt-5.6-sol -c model_reasoning_effort=high --approve-for-me` |
-
-The planner runs on the coordinator's backend. Spread implementers across the providers to share the usage:
-- Use the provider the maintainer names.
-- Otherwise rotate Claude, Codex, then opencode. Leave out a provider whose CLI is not installed.
+- The planner uses the Planner row for the coordinator's provider.
+- For implementers, use the provider the maintainer names. Otherwise rotate through providers with an Implementer row, in the order they first appear in the table. Leave out a provider whose CLI is not installed.
+- The first row for a role and provider is the default. Use a later row only when its Use column says so or the maintainer names it.
 - Skip a provider when more than about 70% of its five-hour window is used. Claude's status line shows usage used, and Codex's shows usage left ("5h N% left"). There is no known way to read opencode's usage from a script, so ask the maintainer when in doubt.
 - Say which backend each issue got.
 
-The reviewer runs on a provider other than the implementer's, so no model grades its own work:
-- Implementer on Claude: review on Codex.
-- Implementer on Codex or opencode: review on Claude.
-- `start-worker.sh` refuses a reviewer on the implementer's provider. When the other provider is not installed or is over the usage threshold, set `SWITCHYARD_SAME_PROVIDER=1` for that command and tell the maintainer.
+The reviewer uses the first Reviewer row whose provider differs from the implementer's. If there is no such row, or that provider is unavailable or over the usage threshold, set `SWITCHYARD_SAME_PROVIDER=1` for that command and tell the maintainer. `start-worker.sh` refuses a reviewer on the implementer's provider without that override.
+
+For escalation, use the Implementer row marked `escalation`. If there is no such row, tell the maintainer and do not escalate. If `routing.md` or a usable row for a role is missing, stop and tell the maintainer. Never choose a model yourself.
 
 Each phase starts a fresh session, fix rounds included. Every handoff is a file in the worktree: the brief, the answers, the change, and the review. A worker reads them from disk, not from another session's context or from your summary, so the expensive context is not carried into the cheap phase.
 
 Workers never push. Implementers commit and write `.claude/pr-body.md`, then stop, so nothing reaches the remote before the review passes. `setup-worktree.sh` disables the push URL in each worktree, so a push works only from the main checkout. The coordinator pushes from there and opens the PR.
 
-Escalate a single issue only when the plan review shows judgment the plan cannot capture. To escalate, run that issue's implementer on Claude with `--agent issue-implementer --model opus --effort high`, and tell the maintainer you did it.
+Escalate a single issue only when the plan review shows judgment the plan cannot capture. To escalate, run that issue's implementer with the `escalation` row's flags, and tell the maintainer you did it.
 
 ## Codex coordinator profile
 
 `codex -p coordinator` layers `~/.codex/coordinator.config.toml` over the user config. The file lives outside the repo, so create it once:
 
 ```toml
-model = "gpt-5.6-sol"
-model_reasoning_effort = "medium"
+model = "<Coordinator table model>"
+model_reasoning_effort = "<Coordinator table effort>"
 approvals_reviewer = "user"
 ```
+
+Copy the values from the `codex` row of the Coordinator table in `.claude/skills/work-issues/routing.md`.
 
 `approvals_reviewer = "user"` sends approval requests to the maintainer, as Claude's permission prompts do. Without it they go to Codex's automatic reviewer, which decides case by case and has refused pushes. Workers keep `--approve-for-me`.
 
@@ -94,16 +83,16 @@ Run `scripts/preflight.sh` first. It checks the requirements and says how to fix
    `.claude/` is git-ignored apart from agents, skills, and commands.
 
    Record the owned paths for the scope check: `python3 scripts/state.py set <issue> "owned=<path> <path>"`. Separate them with spaces and end folders with `/`.
-3. **Plan.** Start the planner with its routing-table flags, then prompt it: `Read .claude/skills/work-issues/roles/planner.md, then .claude/brief.md, and plan issue #<issue>.` The role path is in the prompt because only Claude loads it from a profile.
+3. **Plan.** Start the planner with its routing-table flags from `.claude/skills/work-issues/routing.md`, then prompt it: `Read .claude/skills/work-issues/roles/planner.md, then .claude/brief.md, and plan issue #<issue>.` The role path is in the prompt because only Claude loads it from a profile.
 4. **Review the plan.**
    - Read the change on disk: the proposal, the design, the spec delta, and the tasks. The planner's last message is only its list of questions.
    - Check the change against the code and the specs. Verify any claim it makes about the code or the data before you rely on it.
    - Answer what you can.
    - Bring product decisions to the maintainer: anything that changes behaviour the issue does not settle, or that reaches past the paths the issue owns.
    - Write the answers to `<path>/.claude/answers/plan.md`.
-5. **Implement.** End the planner's session. Pick the implementer backend from the routing table and start it in the same worktree. Then prompt it: `Read .claude/skills/work-issues/roles/implementer.md, then .claude/brief.md and .claude/answers/, and implement the change for issue #<issue>.`
+5. **Implement.** End the planner's session. Pick the implementer backend from the routing table in `.claude/skills/work-issues/routing.md` and start it in the same worktree. Then prompt it: `Read .claude/skills/work-issues/roles/implementer.md, then .claude/brief.md and .claude/answers/, and implement the change for issue #<issue>.`
 6. **Watch.** Wait for the worker, then read its report. Answer it with a file in `.claude/answers/` and a one-line prompt that points to the file.
-7. **Review.** When the implementer reports its commit, end its session. Start the reviewer on the other provider with its routing-table flags, then prompt it: `Read .claude/skills/work-issues/roles/reviewer.md and follow it for issue #<issue>.` Wait for it, then read the newest file in `<path>/.claude/reviews/`.
+7. **Review.** When the implementer reports its commit, end its session. Start the reviewer on the other provider with its routing-table flags from `.claude/skills/work-issues/routing.md`, then prompt it: `Read .claude/skills/work-issues/roles/reviewer.md and follow it for issue #<issue>.` Wait for it, then read the newest file in `<path>/.claude/reviews/`.
 
 ## Act on the verdict
 

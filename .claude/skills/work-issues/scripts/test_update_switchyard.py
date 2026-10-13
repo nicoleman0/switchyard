@@ -12,6 +12,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).with_name("update-switchyard.py").resolve()
 VERSION = ".claude/skills/work-issues/VERSION"
+ROUTING = ".claude/skills/work-issues/routing.md"
 PATHS = ".claude/skills/work-issues/update-paths.txt"
 COVERED = [
     ".claude/agents",
@@ -136,6 +137,74 @@ class UpdateSwitchyardTests(unittest.TestCase):
                          b"first line\nstable line\nnew last line\n")
         self.assertEqual((self.project / VERSION).read_text(), "0.2.0\n")
         self.assertIn(b"updated: .claude/skills/work-issues/workflow.txt", result.stdout)
+
+    def test_project_owned_routing_is_never_updated_or_removed(self) -> None:
+        self.source.joinpath(ROUTING).write_bytes(b"example v1\n")
+        self.commit(self.source, "add routing base")
+        self.git(self.source, "tag", "-f", "v0.1.0")
+        self.make_target({ROUTING: b"example v2\n"})
+        files = {k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"}
+        files[ROUTING] = b"project edit\n"
+        self.make_project(files=files)
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual((self.project / ROUTING).read_bytes(), b"project edit\n")
+        self.assertNotIn(("updated: " + ROUTING).encode(), result.stdout)
+        self.assertNotIn(("added: " + ROUTING).encode(), result.stdout)
+
+    def test_project_owned_routing_survives_upstream_deletion_without_report(self) -> None:
+        self.source.joinpath(ROUTING).write_bytes(b"example v1\n")
+        self.commit(self.source, "add routing base")
+        self.git(self.source, "tag", "-f", "v0.1.0")
+        self.make_target({ROUTING: None})
+        files = {k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"}
+        files[ROUTING] = b"project edit\n"
+        self.make_project(files=files)
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual((self.project / ROUTING).read_bytes(), b"project edit\n")
+        for status in ("removed", "kept", "updated", "added"):
+            self.assertNotIn((status + ": " + ROUTING).encode(), result.stdout)
+
+    def test_unedited_project_owned_routing_is_not_updated(self) -> None:
+        self.source.joinpath(ROUTING).write_bytes(b"example v1\n")
+        self.commit(self.source, "add routing base")
+        self.git(self.source, "tag", "-f", "v0.1.0")
+        self.make_target({ROUTING: b"example v2\n"})
+        files = {k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"}
+        files[ROUTING] = b"example v1\n"
+        self.make_project(files=files)
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual((self.project / ROUTING).read_bytes(), b"example v1\n")
+        self.assertNotIn(("updated: " + ROUTING).encode(), result.stdout)
+        self.assertNotIn(("added: " + ROUTING).encode(), result.stdout)
+
+    def test_project_owned_routing_adds_only_when_missing_and_other_files_update(self) -> None:
+        self.source.joinpath(ROUTING).write_bytes(b"example v1\n")
+        self.commit(self.source, "add routing base")
+        self.git(self.source, "tag", "-f", "v0.1.0")
+        self.make_target({ROUTING: b"example v2\n", ".claude/skills/work-issues/workflow.txt": b"new content\n"})
+        files = {k: v for k, v in DEFAULT_FILES.items() if k not in ("outside.txt", ROUTING)}
+        self.make_project(files=files)
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual((self.project / ROUTING).read_bytes(), b"example v2\n")
+        self.assertIn(("added: " + ROUTING).encode(), result.stdout)
+        self.assertIn(b"updated: .claude/skills/work-issues/workflow.txt", result.stdout)
+
+    def test_project_owned_routing_added_in_new_release_does_not_conflict(self) -> None:
+        (self.source / ROUTING).unlink(missing_ok=True)
+        self.commit(self.source, "ensure base has no routing")
+        self.git(self.source, "tag", "-f", "v0.1.0")
+        self.make_target({ROUTING: b"example\n"})
+        files = {k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"}
+        files[ROUTING] = b"local file\n"
+        self.make_project(files=files)
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual((self.project / ROUTING).read_bytes(), b"local file\n")
+        self.assertNotIn(("conflict: " + ROUTING).encode(), result.stdout)
 
     def test_independent_edits_merge(self) -> None:
         self.make_target({".claude/skills/work-issues/workflow.txt": b"first line\nstable line\nupstream last\n"})

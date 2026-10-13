@@ -131,8 +131,7 @@ Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` li
 | `.claude/skills/work-issues/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
 | `.claude/skills/work-issues/brief-template.md`, Isolation section | Rules every worker must follow, such as how to start a dev server on its own port. |
 | `.claude/skills/work-issues/scripts/shots.mjs` | The routes to screenshot, if the project has a UI. |
-
-Models and effort are set in two places: the routing table in `.claude/skills/work-issues/SKILL.md` and the Claude profiles in `.claude/agents/`. Change them there to use other models or fewer providers.
+| `.claude/skills/work-issues/routing.md` | Models, effort, providers, and flags for workers and coordinators. This file belongs to your project. |
 
 A Codex coordinator needs a one-time profile. The skill's "Codex coordinator profile" section has the file.
 
@@ -154,6 +153,8 @@ python3 ../switchyard/.claude/skills/work-issues/scripts/update-switchyard.py \
 ```
 
 The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, or `kept`. Review the diff and resolve conflict markers. The updater does not commit. To undo, restore changed and removed files with `git restore .`, remove files reported as added, and remove `VERSION` if the project did not have one before the update.
+
+The updater adds `.claude/skills/work-issues/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
 
 The updater covers paths listed in its target release. It skips OpenSpec-generated files, which `npx @fission-ai/openspec update` refreshes, and Switchyard's README, license, changelog, contributing guide, and banner. See the [Switchyard releases](https://github.com/nicoleman0/switchyard/releases) for release notes.
 
@@ -209,9 +210,10 @@ openspec/
   specs/                         what the product does today
   changes/                       one folder per change in flight, plus archive/
 .claude/
-  agents/                        Claude profiles: model and effort for each role
+  agents/                        Claude role profiles
   skills/work-issues/
-    SKILL.md                     the coordinator's playbook and the routing table
+    SKILL.md                     the coordinator's playbook and routing rules
+    routing.md                   project-owned models, effort, and provider flags
     roles/                       planner, implementer, and reviewer instructions, shared by every provider
     runners/                     Herdr and headless commands
     hooks/                       your per-issue isolation

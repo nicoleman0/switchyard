@@ -32,6 +32,7 @@ class Harness(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.repo), "remote", "add", "origin", str(self.origin)], check=True)
         self.skill = self.repo / ".claude/skills/work-issues"
         shutil.copytree(SOURCE_SKILL, self.skill)
+        (self.skill / "routing.md").write_text("# Routing\n")
         (self.skill / "roles/planner.md").write_text("role")
         self.up_hook = self.skill / "hooks/worktree-up.sh"
         self.up_hook.write_text("#!/bin/sh\necho hook-output\n[ \"${FAIL_HOOK:-}\" != 1 ]\n")
@@ -208,6 +209,16 @@ class Harness(unittest.TestCase):
         before = self.record()
         for args in [("8", "unknown", "claude"), ("8", "planner", "bad"), ("99", "planner", "claude")]:
             self.assertNotEqual(self.script("start-worker.sh", *args).returncode, 0)
+        self.assertEqual(self.record(), before)
+
+    def test_start_without_routing_file_fails_without_mutating_record(self):
+        self.init(branch="b", path=str(self.repo), runner="headless", role="planner", backend="codex", session="old")
+        before = self.record()
+        (self.skill / "routing.md").unlink()
+        result = self.script("start-worker.sh", "8", "planner", "claude")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(".claude/skills/work-issues/routing.md", result.stderr)
+        self.assertIn("copy it from the Switchyard release", result.stderr)
         self.assertEqual(self.record(), before)
 
     def test_worktree_cannot_push_and_scope_is_checked(self):

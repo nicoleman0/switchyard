@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 ### Changed
 
 - Milestones are optional. The workflow passes `--milestone` to `gh pr create` only for an issue that has one.
+- Models, effort, and provider flags now live in `.claude/skills/work-issues/routing.md`. The added example uses GLM 5.3 Flash for opencode Implementers instead of Kimi K3. The updater adds the file when missing and never changes it. Claude role profiles no longer set models. After updating, review an added routing file; for a conflict in `SKILL.md` or a profile, take the release's side and move your values to `routing.md`.
 
 ## [0.5.0] - 2026-10-11
 
