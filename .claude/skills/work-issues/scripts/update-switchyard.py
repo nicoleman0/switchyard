@@ -15,6 +15,7 @@ from pathlib import Path
 
 DEFAULT_SOURCE = "https://github.com/nicoleman0/switchyard.git"
 VERSION_PATH = ".claude/skills/work-issues/VERSION"
+PROJECT_OWNED = {".claude/skills/work-issues/routing.md"}
 PATHS_PATH = ".claude/skills/work-issues/update-paths.txt"
 VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 
@@ -212,6 +213,11 @@ def run() -> int:
             for path in all_paths:
                 base_item = base_tree.get(path)
                 target_item = target_tree.get(path)
+                if path in PROJECT_OWNED:
+                    local_content, _ = local_file(project_root, path)
+                    if target_item is not None and local_content is None:
+                        actions.append(Action(path, "added", target_item[1], target_item[0]))
+                    continue
                 base_content = base_item[1] if base_item else None
                 target_content = target_item[1] if target_item else None
                 if base_item == target_item:

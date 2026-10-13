@@ -10,6 +10,7 @@ shift 3
 if [ "${1:-}" = -- ]; then shift; fi
 script_dir=$(cd "$(dirname "$0")" && pwd)
 skill_dir=$(cd "$script_dir/.." && pwd)
+[ -f "$skill_dir/routing.md" ] || { echo "Missing .claude/skills/work-issues/routing.md; copy it from the Switchyard release this project follows" >&2; exit 1; }
 [ -f "$skill_dir/roles/$role.md" ] || { echo "Unknown role: $role" >&2; exit 1; }
 case "$backend" in claude|codex|opencode) ;; *) echo "Unknown backend: $backend" >&2; exit 1 ;; esac
 state="$script_dir/state.py"

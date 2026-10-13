@@ -20,6 +20,6 @@ Each worker turn is one command, run from the worktree. It blocks until the work
 | End | Nothing to do. The next phase starts a new session, and so does each fix round. |
 
 Codex:
-- `codex exec resume` forgets the model, so pass the routing table's `-m` and `-c` flags again.
+- `codex exec resume` forgets the model, so pass the routing table's `-m` and `-c` flags from `.claude/skills/work-issues/routing.md` again.
 - It rejects `--approve-for-me`. Pass `-c approvals_reviewer=auto_review` in its place.
 - `--last` picks the newest session recorded for the current folder, so run it from the worktree.

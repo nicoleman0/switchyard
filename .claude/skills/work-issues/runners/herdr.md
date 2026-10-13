@@ -6,7 +6,7 @@ Use this when the coordinator runs inside Herdr (`HERDR_ENV=1`). Each worker is 
 
 | Verb | Command |
 |---|---|
-| Start | `scripts/start-worker.sh <issue> <role> <claude\|codex> -- <flags from the routing table>` |
+| Start | `scripts/start-worker.sh <issue> <role> <claude\|codex> -- <flags from .claude/skills/work-issues/routing.md>` |
 | Prompt | `herdr agent prompt <name> "<one line>"` |
 | Wait | `scripts/wait-agents.sh <name>...` |
 | Read | `herdr agent read <name> --source recent-unwrapped --lines 80` |
