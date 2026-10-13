@@ -56,7 +56,7 @@ Usage: start-worker.sh <issue> <role> <provider> [--turns] [-- <routing flags>..
 
 Checks, in this order, all before the record changes:
 1. `roles/<role>.md` exists. Unchanged.
-2. The provider name matches `[a-z][a-z0-9_-]*` and `command -v` finds it. Otherwise exit 1 with `Unknown provider: <name> is not a command on PATH. A provider is named after its CLI command.`
+2. The provider name matches `[a-z][a-z0-9_-]*` and `type -P` finds it. Otherwise exit 1 with `Unknown provider: <name> is not a command on PATH. A provider is named after its CLI command.`
 3. The runner is `herdr` or `headless`. Unchanged.
 4. For a reviewer: an implementer has run, and the provider differs from the implementer's unless `SWITCHYARD_SAME_PROVIDER=1`. Unchanged.
 
@@ -152,7 +152,8 @@ Row rules that follow it:
 - Implementers: rotate through the providers with an Implementer row, in the order they first appear. Unchanged.
 - The first row for a role and provider is the default. Use a later row only when its Use cell says so or the maintainer names it. Unchanged.
 - A row marked `when named` is used only when the maintainer names its provider. See question 6.
-- Usage: skip a provider when more than about 70% of its usage window is used. The provider notes in `routing.md` say how to read each one. Ask the maintainer when a provider has no note.
+- Usage: skip a provider when more than about 70% of its usage window is used. The provider notes in `routing.md` say how to read each one. Ask the maintainer when a provider has no note or its note says usage cannot be read.
+- First turn: if a provider's first turn fails to start or reach its model, skip it for the batch, move to the next usable row, and tell the maintainer which provider failed and the error.
 - Say which provider and model each issue got.
 - Reviewer: the first Reviewer row whose provider differs from the implementer's. When there is none, or it is not usable, review on the implementer's provider with `SWITCHYARD_SAME_PROVIDER=1` on that `start-worker.sh` command. Tell the maintainer once per batch that the review is not independent, and write "same provider, not independent" in the PR body's Review section. A choice under rule 3 still prefers another provider than the implementer's.
 - Escalation: the Implementer row marked `escalation`. Without one, follow the order above.

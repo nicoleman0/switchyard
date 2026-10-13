@@ -90,7 +90,7 @@ You are asked something at three points: before work starts, after the plan, and
 - `git`, Python 3, and Node.js (OpenSpec runs through `npx`).
 - The [GitHub CLI](https://cli.github.com), signed in.
 - Any agent CLI with a worker row in `routing.md`. The coordinator runs on Claude Code or Codex.
-- With one provider, keep only that provider's rows in the Providers table. The reviewer then runs on the implementer's provider, and the review is not independent.
+- With one provider, keep only that provider's rows in `routing.md`. The reviewer then runs on the implementer's provider, and the review is not independent.
 - Recommended: [Herdr](https://herdr.dev), a terminal workspace manager for coding agents. See [Runners](#runners).
 - For UI screenshots: Playwright in your project, and `sips` (macOS) or ImageMagick.
 - Check them with `.claude/skills/work-issues/scripts/preflight.sh <provider>...`, passing the providers in `routing.md`.

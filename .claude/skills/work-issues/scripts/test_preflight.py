@@ -164,6 +164,13 @@ class PreflightTests(unittest.TestCase):
         self.assertIn("warn     Provider aider: not installed.", result.stdout)
         self.assertIn("warn     Second provider: only claude is installed. The reviewer runs on the implementer's provider, so the review is not independent.", result.stdout)
 
+    def test_builtin_provider_is_not_installed(self):
+        self.add_base("claude", "magick", "herdr")
+        result = self.run_check(providers=("eval",))
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("warn     Provider eval: not installed.", result.stdout)
+        self.assertNotIn("ok       Provider eval", result.stdout)
+
     def test_no_provider_arguments_warn_without_second_provider_check(self):
         self.add_base("claude")
         result = self.run_check()

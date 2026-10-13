@@ -34,7 +34,7 @@ Who decides, in this order:
 
 When the maintainer names a model, use that provider's row for the role with the model replaced. When the row has no model flag and the maintainer names a model, add the model flag using the syntax in that provider's note in `routing.md`. Otherwise use the provider's own default.
 
-- A row is usable when its provider's CLI is installed and the provider is under the usage threshold.
+- A row is usable when its provider's CLI is installed and the provider is under the usage threshold. If its first turn fails to start or reach its model, skip that provider for the batch, move to the next usable row, and tell the maintainer which provider failed and the error.
 - Planner: use the Planner row for your provider. If there is none, use the first Planner row.
 - Implementers: rotate through providers with an Implementer row, in the order they first appear. Leave out a provider whose CLI is not installed.
 - The first row for a role and provider is the default. Use a later row only when its Use cell says so or the maintainer names it.

@@ -57,7 +57,7 @@ installed_count=0
 installed_provider=""
 for provider in "$@"; do
   provider_count=$((provider_count + 1))
-  if command -v "$provider" >/dev/null 2>&1; then
+  if type -P "$provider" >/dev/null 2>&1; then
     printf 'ok       Provider %s\n' "$provider"
     installed_count=$((installed_count + 1))
     installed_provider=$provider

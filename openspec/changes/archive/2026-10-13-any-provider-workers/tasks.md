@@ -24,12 +24,13 @@ Read `.claude/answers/` first. The design follows the recommended option of each
   - `Coordinator CLI` passes with `claude` or `codex` and is `MISSING` with neither, including when only `opencode` or `pi` is installed;
   - with no arguments, the output has the `Worker providers: none named` warning and no `Second provider` line;
   - a named provider that is installed prints `ok       Provider <name>`, and one that is not prints a `warn` line;
+  - a shell builtin such as `eval` is reported as not installed;
   - names given and none installed prints the `Worker providers` warning and still exits 0 when the coordinator CLI is found;
   - one installed prints the `Second provider` warning with "not independent", and two print `ok       Second provider`;
   - a fifth name, such as `aider`, is checked like the others;
   - the count test still expects 5 missing with nothing installed;
   - the full-pass test passes `claude codex` and expects no warning.
-- [x] 2.2 Change `scripts/preflight.sh` to match design.md. Use only builtins. Verify: the tests pass, and running it here with `claude codex opencode pi` exits 0.
+- [x] 2.2 Change `scripts/preflight.sh` to match design.md. Use only builtins, including `type -P` for provider checks. Verify: the tests pass, and running it here with `claude codex opencode pi` exits 0.
 
 ## 3. routing.md
 
@@ -40,7 +41,7 @@ Read `.claude/answers/` first. The design follows the recommended option of each
 
 ## 4. SKILL.md and the runners
 
-- [x] 4.1 Rewrite the Routing section as design.md describes: the order of precedence once, then the row rules. Keep the fresh-session paragraph, the no-push paragraph, and the escalation paragraph's last sentence. Verify: `grep -n -i "never choose\|opencode\|codex's\|claude's" SKILL.md` shows no line in Routing, and the section no longer tells the coordinator to stop for a missing file or row.
+- [x] 4.1 Rewrite the Routing section as design.md describes: the order of precedence once, then the row rules, including the response to a provider's failed first turn. Keep the fresh-session paragraph, the no-push paragraph, and the escalation paragraph's last sentence. Verify: `grep -n -i "never choose\|opencode\|codex's\|claude's" SKILL.md` shows no line in Routing, and the section no longer tells the coordinator to stop for a missing file or row.
 - [x] 4.2 Change the frontmatter description and the preflight paragraph. In the Codex coordinator profile instructions, omit the `model` TOML line when the Coordinator Model cell is empty. Verify: the description names no provider as the implementer's.
 - [x] 4.3 Rewrite `runners/headless.md` as design.md describes. Verify: it names no worker CLI command, and it says where `<flags>`, `<session>`, and `<prompt>` come from for every provider.
 - [x] 4.4 Rewrite `runners/herdr.md` as design.md describes. Verify: it has both Start commands, the End cell, the "Providers that run as turns" section with the `TURN-DONE-<issue>-<turn>` marker, and no provider section.
@@ -61,7 +62,7 @@ Read `.claude/answers/` first. The design follows the recommended option of each
 - [x] 6.1 Run one real headless pi turn from the worktree using `--model ollama/qwen3.5:9b-32k` on the command line, not in the shipped row. Use a read-only prompt that asks which file `planner.md` tells it to read first, then ask a later turn to repeat its answer. Verify: the second turn shows the first turn's context, and the session file is under `.claude/sessions/`. Quote both turns and say the proof model is not in the shipped row in the PR body. Remove the scratch record afterwards.
 - [x] 6.2 Run two OpenCode turns in separate sessions using `--model opencode-go/glm-5.3-flash` on the command line. Verify: the second session does not recall the first. Record the default model's exact failure and both turn results in the PR body. Do not retry another model if either GLM turn fails.
 - [x] 6.3 Record the coordinator's successful pi Herdr smoke test in the PR body. Do not start another Herdr agent.
-- [x] 6.4 List under Decisions to review in the PR body: the removed `routing.md` check, the removed opencode reviewer refusal, the `command -v` rule and what a typo does, the empty shipped model defaults and unshipped pi proof model, the revised planning/building wording, and the stale description in `.claude/agents/issue-reviewer.md`.
+- [x] 6.4 List under Decisions to review in the PR body: the removed `routing.md` check, the removed opencode reviewer refusal, the `type -P` rule and what a typo does, the empty shipped model defaults and unshipped pi proof model, the revised planning/building wording, and the stale description in `.claude/agents/issue-reviewer.md`.
 
 ## 7. Repository checks
 
