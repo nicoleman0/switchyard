@@ -13,23 +13,25 @@ Switchyard is a template repository that was born out of my own personal AI deve
 
 Start a new project from it, and the project begins with a delivery workflow for coding agents already in place: issues, specs, isolated worktrees, and review gates.
 
+To adopt it, [start a new project](#start-a-new-project) from the template with one command, or [add the workflow to a repo you already have](#add-it-to-an-existing-repo) with a few copy commands and three hand merges.
+
+It does not depend on one AI provider. Use any agent CLI for the worker roles, and change a provider or a model by editing one file, `.claude/skills/work-issues/routing.md`. The values it ships with are examples. The coordinator runs on Claude Code or Codex.
+
 It holds no application code. You add your stack on top.
 
-One session coordinates. For each issue, a planner writes a spec change, an implementer builds it, and a reviewer on another provider checks it, in a git worktree of its own, on Claude Code, Codex, or opencode. You answer the product questions and approve the merges.
-
-[Start a new project](#start-a-new-project) from the template, or [add the workflow to a repo you already have](#add-it-to-an-existing-repo).
+One session coordinates. For each issue, a planner writes a spec change, an implementer builds it, and a reviewer checks it, in a git worktree of its own. The reviewer runs on another provider than the implementer when the project lists more than one. You answer the product questions and approve the merges.
 
 ## The workflow
 
 Each piece covers a gap the others leave:
 
 - **Issue, then spec, then code.** Every behaviour change starts as a short GitHub issue, becomes exactly one [OpenSpec](https://github.com/Fission-AI/OpenSpec) change, and ships as one PR. The PR archives the change into `openspec/specs/`, so the specs always describe what the code does.
-- **Planning and building are separate sessions.** The planner runs on a strong model and stops at a plan. The implementer starts fresh on a cheaper model and reads the plan from disk. The expensive context is never carried into the cheap phase.
-- **Two reviews, two reviewers.** The coordinator checks the plan before any code is written. A reviewer on a different provider from the implementer checks the diff against the change before anything is pushed.
+- **Planning and building are separate sessions.** The planner and implementer can use different effort settings, and the planner stops at a plan. The implementer starts fresh and reads the plan from disk. Its session does not inherit the planner's context.
+- **Two reviews, two reviewers.** The coordinator checks the plan before any code is written. A reviewer checks the diff against the change before anything is pushed, on another provider when one is available.
 - **Files carry every handoff.** The brief, the answers, the change, and the review live in the worktree. Each session reads them from disk, so no stage works from another session's summary, and the coordinator holds verdicts, not diffs.
 - **One worktree per issue.** Each issue gets its own branch, ports, and data. Issues that own different folders run in parallel.
 - **Workers never push.** Each worktree's push URL is disabled, and a script lists any file changed outside the paths the issue owns. Nothing reaches the remote until the review passes, and nothing merges until you approve it.
-- **Several providers share the load.** Implementers rotate across Claude, Codex, and opencode, so one usage window does not stall a batch.
+- **Several providers share the load.** Worker roles run on any agent CLI the project lists in `routing.md`, and you choose the models there. Implementers rotate across the listed providers, so one usage window does not stall a batch.
 
 ### Who does what
 
@@ -37,9 +39,9 @@ Each piece covers a gap the others leave:
 |---|---|---|---|
 | You | GitHub and the coordinator's chat | Open issues, answer product questions, approve merges | |
 | Coordinator | Your session on the main checkout, Claude Code or Codex | Splits the work, writes briefs, reviews plans, acts on review verdicts, pushes, opens PRs, merges, cleans up | Implements |
-| Planner | The issue's worktree, strong model | Reads the issue and the code, proposes the OpenSpec change, takes before screenshots, lists open questions | Writes code |
+| Planner | The issue's worktree, any provider | Reads the issue and the code, proposes the OpenSpec change, takes before screenshots, lists open questions | Writes code |
 | Implementer | The same worktree, fresh session, any provider | Applies the change, runs every check, takes after screenshots, archives the change, commits, writes the PR body | Pushes |
-| Reviewer | The same worktree, fresh session, a provider other than the implementer's | Checks the diff against the change's scenarios and tasks, runs every check, writes a verdict file | Edits code |
+| Reviewer | The same worktree, fresh session, another provider when available | Checks the diff against the change's scenarios and tasks, runs every check, writes a verdict file | Edits code |
 
 ### One issue, start to finish
 
@@ -76,7 +78,7 @@ sequenceDiagram
 4. **The planner proposes the change.** It writes the proposal, design, spec delta, and tasks under `openspec/changes/<name>`, links the change from the issue, and stops with numbered questions, each with options and a recommendation.
 5. **The coordinator reviews the plan.** It checks the plan's claims against the code, answers what it can, and brings you the product decisions. The answers go into a file in the worktree.
 6. **The implementer builds it.** A fresh session applies the tasks, runs every check, syncs the spec delta into `openspec/specs/`, archives the change, commits, and writes the PR body. It asks before it decides anything the plan does not cover.
-7. **The reviewer checks the diff.** A fresh session on another provider reads the change and the diff. It checks each scenario and task, scope, tests, duplication, and the screenshots, runs every check, and writes a verdict to a file in the worktree.
+7. **The reviewer checks the diff.** A fresh session, on another provider when available, reads the change and the diff. It checks each scenario and task, scope, tests, duplication, and the screenshots, runs every check, and writes a verdict to a file in the worktree.
 8. **The coordinator acts on the verdict.** On a pass it pushes the branch and opens the PR. Otherwise a fresh implementer session reads the review and fixes it, and a new reviewer checks again. After two failed rounds the coordinator brings the findings to you.
 9. **You approve.** The coordinator squash-merges, removes the worktree and its branch, and rebases the PRs still open.
 
@@ -87,10 +89,11 @@ You are asked something at three points: before work starts, after the plan, and
 - macOS or Linux. CI lints and tests the workflow's scripts on `ubuntu-latest`, and the maintainer develops on macOS. Windows is untested. WSL should behave like Linux, but nobody has run it.
 - `git`, Python 3, and Node.js (OpenSpec runs through `npx`).
 - The [GitHub CLI](https://cli.github.com), signed in.
-- At least one of Claude Code, Codex, and opencode. The coordinator runs on Claude Code or Codex.
+- Any agent CLI with a worker row in `routing.md`. The coordinator runs on Claude Code or Codex.
+- With one provider, keep only that provider's rows in `routing.md`. The reviewer then runs on the implementer's provider, and the review is not independent.
 - Recommended: [Herdr](https://herdr.dev), a terminal workspace manager for coding agents. See [Runners](#runners).
 - For UI screenshots: Playwright in your project, and `sips` (macOS) or ImageMagick.
-- Check them with `.claude/skills/work-issues/scripts/preflight.sh`.
+- Check them with `.claude/skills/work-issues/scripts/preflight.sh <provider>...`, passing the providers in `routing.md`.
 
 ## Start a new project
 
@@ -131,7 +134,7 @@ Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` li
 | `.claude/skills/work-issues/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
 | `.claude/skills/work-issues/brief-template.md`, Isolation section | Rules every worker must follow, such as how to start a dev server on its own port. |
 | `.claude/skills/work-issues/scripts/shots.mjs` | The routes to screenshot, if the project has a UI. |
-| `.claude/skills/work-issues/routing.md` | Models, effort, providers, and flags for workers and coordinators. This file belongs to your project. |
+| `.claude/skills/work-issues/routing.md` | The Providers table holds each provider's commands. The Workers table holds providers, models, effort, and flags. Shipped values are examples. This file belongs to your project. |
 
 A Codex coordinator needs a one-time profile. The skill's "Codex coordinator profile" section has the file.
 
@@ -190,7 +193,7 @@ The runner is how the coordinator starts a worker, prompts it, waits for it, and
 | | Herdr (recommended) | Headless |
 |---|---|---|
 | Needs | Herdr | Nothing beyond the worker CLIs |
-| Workers | Interactive agents, one pane per issue | One CLI command per turn: `claude -p`, `codex exec`, `opencode run` |
+| Workers | Interactive agents, one pane per issue | One CLI command per turn, from the Providers table |
 | Watching | Live. You can read a pane or type into it. | Each turn's output is logged to `.claude/turns/` in the worktree. |
 | Worktrees | `~/.herdr/worktrees/<repo>` | `../<repo>.worktrees/<branch>` |
 
@@ -213,7 +216,7 @@ openspec/
   agents/                        Claude role profiles
   skills/work-issues/
     SKILL.md                     the coordinator's playbook and routing rules
-    routing.md                   project-owned models, effort, and provider flags
+    routing.md                   project-owned providers, models, effort, flags, and commands
     roles/                       planner, implementer, and reviewer instructions, shared by every provider
     runners/                     Herdr and headless commands
     hooks/                       your per-issue isolation

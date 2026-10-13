@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Check batch requirements before creating a worktree.
+# Provider gaps warn so the coordinator can still run every worker role.
 set -u
 
 missing=0
@@ -44,17 +45,36 @@ else
   missing=$((missing + 1))
 fi
 
-worker_count=0
-for cli in claude codex opencode; do
-  if command -v "$cli" >/dev/null 2>&1; then
-    worker_count=$((worker_count + 1))
+if command -v claude >/dev/null 2>&1 || command -v codex >/dev/null 2>&1; then
+  printf 'ok       Coordinator CLI\n'
+else
+  printf 'MISSING  Coordinator CLI: Claude Code or Codex is required to run the coordinator. Install one.\n'
+  missing=$((missing + 1))
+fi
+
+provider_count=0
+installed_count=0
+installed_provider=""
+for provider in "$@"; do
+  provider_count=$((provider_count + 1))
+  if type -P "$provider" >/dev/null 2>&1; then
+    printf 'ok       Provider %s\n' "$provider"
+    installed_count=$((installed_count + 1))
+    installed_provider=$provider
+  else
+    printf 'warn     Provider %s: not installed. The coordinator leaves it out.\n' "$provider"
+    warnings=$((warnings + 1))
   fi
 done
-if command -v claude >/dev/null 2>&1 || command -v codex >/dev/null 2>&1; then
-  printf 'ok       Worker CLI\n'
+
+if [ "$provider_count" -eq 0 ]; then
+  warning 'Worker providers: none named. Pass the providers in routing.md: preflight.sh <provider>...'
+elif [ "$installed_count" -eq 0 ]; then
+  warning 'Worker providers: none of the named providers is installed. The coordinator will choose one and tell you.'
+elif [ "$installed_count" -eq 1 ]; then
+  warning "Second provider: only $installed_provider is installed. The reviewer runs on the implementer's provider, so the review is not independent."
 else
-  printf 'MISSING  Worker CLI: Claude Code or Codex is required because the coordinator and reviewer need one. Install Claude Code or Codex.\n'
-  missing=$((missing + 1))
+  printf 'ok       Second provider\n'
 fi
 
 if command -v herdr >/dev/null 2>&1; then
@@ -78,12 +98,6 @@ if command -v sips >/dev/null 2>&1 || command -v magick >/dev/null 2>&1; then
   printf 'ok       Image tool\n'
 else
   warning 'Image tool: install sips or ImageMagick. The comparison page cannot be built.'
-fi
-
-if [ "$worker_count" -ge 2 ]; then
-  printf 'ok       Second provider\n'
-else
-  warning 'Second provider: unavailable. The reviewer will run on the implementer provider with SWITCHYARD_SAME_PROVIDER=1.'
 fi
 
 if command -v codex >/dev/null 2>&1; then

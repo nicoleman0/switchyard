@@ -6,22 +6,11 @@ Use this outside Herdr. It needs only git and the worker CLIs.
 
 Each worker turn is one command, run from the worktree. It blocks until the worker stops, and what it prints last is the worker's report. Later turns resume the same session, so answers keep their context.
 
-For Claude, `<flags>` is the Flags cell of that worker's row in `.claude/skills/work-issues/routing.md`.
-
-| Backend | First turn | Later turns |
-|---|---|---|
-| Claude | `claude -p --session-id <session> <flags> "<prompt>"` | `claude -p --resume <session> <flags> "<prompt>"` |
-| Codex | `codex exec <flags> "<prompt>"` | `codex exec resume --last <flags> "<prompt>"` |
-| opencode | `opencode run <flags> --session ses_issue<issue> "<prompt>"` | the same command |
+Use the First turn or Later turns command from the provider's row in the Providers table of `.claude/skills/work-issues/routing.md`. For every provider, `<flags>` is the Flags cell of the worker's row in the Workers table, `<session>` is the value `start-worker.sh` printed, and `<prompt>` is the role prompt. Run the command from the worktree. If a row has no model flag, the CLI uses its own default unless the maintainer names a model.
 
 | Verb | How |
 |---|---|
-| Start and prompt | Run `scripts/start-worker.sh <issue> <role> <backend>`, then use its printed `session` in the first-turn command with the role prompt. |
+| Start and prompt | Run `scripts/start-worker.sh <issue> <role> <provider>`, then use its printed `session` in the first-turn command with the role prompt. |
 | Wait | The turn is over when the command exits. Run it in the background when your harness supports that. |
 | Read | Send each turn's output to `<path>/.claude/turns/<role>-<n>.log` and read the end of it. |
 | End | Nothing to do. The next phase starts a new session, and so does each fix round. |
-
-Codex:
-- `codex exec resume` forgets the model, so pass the routing table's `-m` and `-c` flags from `.claude/skills/work-issues/routing.md` again.
-- It rejects `--approve-for-me`. Pass `-c approvals_reviewer=auto_review` in its place.
-- `--last` picks the newest session recorded for the current folder, so run it from the worktree.
