@@ -154,7 +154,7 @@ python3 ../switchyard/.claude/skills/work-issues/scripts/update-switchyard.py \
 
 The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, or `kept`. Review the diff and resolve conflict markers. The updater does not commit. To undo, restore changed and removed files with `git restore .`, remove files reported as added, and remove `VERSION` if the project did not have one before the update.
 
-The updater adds `.claude/skills/work-issues/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added. If an update conflicts in `SKILL.md` or a Claude profile, take the release's side and move your model values to `routing.md`.
+The updater adds `.claude/skills/work-issues/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
 
 The updater covers paths listed in its target release. It skips OpenSpec-generated files, which `npx @fission-ai/openspec update` refreshes, and Switchyard's README, license, changelog, contributing guide, and banner. See the [Switchyard releases](https://github.com/nicoleman0/switchyard/releases) for release notes.
 

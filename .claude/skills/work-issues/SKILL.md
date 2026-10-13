@@ -25,7 +25,7 @@ The steps below say start, prompt, wait, read, and end. The runner file gives th
 
 ## Routing
 
-The model, effort, and provider flags for workers and coordinators live in `.claude/skills/work-issues/routing.md`. That file is the project's to edit. Its worker table is the routing table below.
+The model, effort, and provider flags for workers and coordinators live in `.claude/skills/work-issues/routing.md`. That file is the project's to edit. Its worker table is the routing table.
 
 - The planner uses the Planner row for the coordinator's provider.
 - For implementers, use the provider the maintainer names. Otherwise rotate through providers with an Implementer row, in the order they first appear in the table. Leave out a provider whose CLI is not installed.
@@ -52,6 +52,8 @@ model = "<Coordinator table model>"
 model_reasoning_effort = "<Coordinator table effort>"
 approvals_reviewer = "user"
 ```
+
+Copy the values from the `codex` row of the Coordinator table in `.claude/skills/work-issues/routing.md`.
 
 `approvals_reviewer = "user"` sends approval requests to the maintainer, as Claude's permission prompts do. Without it they go to Codex's automatic reviewer, which decides case by case and has refused pushes. Workers keep `--approve-for-me`.
 

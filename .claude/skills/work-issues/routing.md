@@ -23,3 +23,5 @@ Supported worker providers are `claude`, `codex`, and `opencode`. Reviewers run 
 |---|---|---|
 | claude | `opus` | high |
 | codex | `gpt-5.6-sol` | medium |
+
+The `claude` row recommends settings for the maintainer's own session. The `codex` row fills the Codex coordinator profile.

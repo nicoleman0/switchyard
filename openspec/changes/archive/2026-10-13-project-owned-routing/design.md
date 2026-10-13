@@ -47,7 +47,7 @@ Workers:
 | Implementer | claude | `--agent issue-implementer --model sonnet --effort medium --permission-mode auto` | |
 | Implementer | claude | `--agent issue-implementer --model opus --effort high --permission-mode auto` | escalation |
 | Implementer | codex | `-m gpt-6-luna -c model_reasoning_effort=medium --approve-for-me` | |
-| Implementer | opencode | `--model opencode-go/kimi-k3 --auto` | |
+| Implementer | opencode | `--model opencode-go/glm-5.3-flash --auto` | |
 | Reviewer | claude | `--agent issue-reviewer --model opus --effort high --permission-mode auto` | |
 | Reviewer | codex | `-m gpt-5.6-sol -c model_reasoning_effort=high --approve-for-me` | |
 

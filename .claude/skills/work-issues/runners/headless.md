@@ -6,6 +6,8 @@ Use this outside Herdr. It needs only git and the worker CLIs.
 
 Each worker turn is one command, run from the worktree. It blocks until the worker stops, and what it prints last is the worker's report. Later turns resume the same session, so answers keep their context.
 
+For Claude, `<flags>` is the Flags cell of that worker's row in `.claude/skills/work-issues/routing.md`.
+
 | Backend | First turn | Later turns |
 |---|---|---|
 | Claude | `claude -p --session-id <session> <flags> "<prompt>"` | `claude -p --resume <session> <flags> "<prompt>"` |
