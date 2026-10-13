@@ -84,6 +84,7 @@ You are asked something at three points: before work starts, after the plan, and
 
 ## Requirements
 
+- macOS or Linux. CI lints and tests the workflow's scripts on `ubuntu-latest`, and the maintainer develops on macOS. Windows is untested. WSL should behave like Linux, but nobody has run it.
 - `git`, Python 3, and Node.js (OpenSpec runs through `npx`).
 - The [GitHub CLI](https://cli.github.com), signed in.
 - At least one of Claude Code, Codex, and opencode. The coordinator runs on Claude Code or Codex.
