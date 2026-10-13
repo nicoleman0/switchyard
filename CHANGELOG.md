@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- A preflight check reports missing batch requirements before a worktree is created.
+
 ### Changed
 
 - Milestones are optional. The workflow passes `--milestone` to `gh pr create` only for an issue that has one.

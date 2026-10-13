@@ -2,6 +2,7 @@
 // From the worktree root, with the dev server running:
 //   SHOTS_BASE=http://127.0.0.1:<port> node .claude/skills/work-issues/scripts/shots.mjs <out-dir>
 // Needs @playwright/test in the package at SHOTS_PACKAGE_DIR (default: the worktree root).
+// The preflight probe in preflight.sh uses the same package lookup.
 import { createRequire } from 'node:module'
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'

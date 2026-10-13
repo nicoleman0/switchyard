@@ -90,6 +90,7 @@ You are asked something at three points: before work starts, after the plan, and
 - At least one of Claude Code, Codex, and opencode. The coordinator runs on Claude Code or Codex.
 - Recommended: [Herdr](https://herdr.dev), a terminal workspace manager for coding agents. See [Runners](#runners).
 - For UI screenshots: Playwright in your project, and `sips` (macOS) or ImageMagick.
+- Check them with `.claude/skills/work-issues/scripts/preflight.sh`.
 
 ## Start a new project
 

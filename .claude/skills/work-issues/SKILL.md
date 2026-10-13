@@ -78,6 +78,8 @@ Issue records live in `.claude/state/<issue>.json` in the main checkout. `setup-
 
 ## Before starting
 
+Run `scripts/preflight.sh` first. It checks the requirements and says how to fix each missing one. Stop on a non-zero exit and tell the maintainer what is missing. Pass its warnings on. On Codex, run it outside the sandbox, because it calls GitHub.
+
 1. Read the issues and `AGENTS.md`. Check the issues against the code. For each one, write down anything the issue leaves undecided, and ask the maintainer before any agent starts.
 2. Split the issues by ownership. Each issue owns folders that no other issue in the batch edits. Issues that touch the same files run one after another, not in parallel. Run first the one whose result the others build on.
 3. Make sure the shared services `AGENTS.md` names are up in the main checkout.
