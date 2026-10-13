@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Changed
 
+- The coordinator can run on any CLI that reads `AGENTS.md` and can run the skill's scripts. Per-CLI setup lives in `routing.md`.
 - Milestones are optional. The workflow passes `--milestone` to `gh pr create` only for an issue that has one.
 - Models, effort, and provider flags now live in `.claude/skills/work-issues/routing.md`. The opencode Implementer example uses the CLI's default model; it no longer pins GLM 5.3 Flash or Kimi K3. The updater adds the file when missing and never changes it. Claude role profiles no longer set models. After updating, review an added routing file; for a conflict in `SKILL.md` or a profile, take the release's side and move your values to `routing.md`.
 - Workers use any provider named after its CLI command. `start-worker.sh` accepts `--turns`, gives each turns worker a fresh session, and no longer refuses an opencode reviewer or a missing `routing.md`. When the file does not settle a choice, the coordinator chooses and reports it. `preflight.sh` takes provider names, and runner commands come from `routing.md`.

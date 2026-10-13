@@ -45,13 +45,6 @@ else
   missing=$((missing + 1))
 fi
 
-if command -v claude >/dev/null 2>&1 || command -v codex >/dev/null 2>&1; then
-  printf 'ok       Coordinator CLI\n'
-else
-  printf 'MISSING  Coordinator CLI: Claude Code or Codex is required to run the coordinator. Install one.\n'
-  missing=$((missing + 1))
-fi
-
 provider_count=0
 installed_count=0
 installed_provider=""
@@ -98,15 +91,6 @@ if command -v sips >/dev/null 2>&1 || command -v magick >/dev/null 2>&1; then
   printf 'ok       Image tool\n'
 else
   warning 'Image tool: install sips or ImageMagick. The comparison page cannot be built.'
-fi
-
-if command -v codex >/dev/null 2>&1; then
-  codex_home=${CODEX_HOME:-$HOME/.codex}
-  if [ -f "$codex_home/coordinator.config.toml" ]; then
-    printf 'ok       Codex coordinator profile\n'
-  else
-    warning "Codex coordinator profile: missing $codex_home/coordinator.config.toml. See the work-issues skill."
-  fi
 fi
 
 printf '%s missing, %s warning(s)\n' "$missing" "$warnings"

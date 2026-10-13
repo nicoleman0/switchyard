@@ -2,7 +2,7 @@
 
 Use this when the coordinator runs inside Herdr (`HERDR_ENV=1`). Each worker is an interactive agent in its own pane, so the maintainer can watch it and step in.
 
-`setup-worktree.sh` creates the worktree under `~/.herdr/worktrees/<repo>` and prints its `pane` and `workspace`. A Codex coordinator needs that folder writable: `--add-dir ~/.herdr/worktrees/<repo>`.
+`setup-worktree.sh` creates the worktree under `~/.herdr/worktrees/<repo>` and prints its `pane` and `workspace`. The coordinator must be able to write to `~/.herdr/worktrees/<repo>`; its setup note is in the Coordinator section of `.claude/skills/work-issues/routing.md`.
 
 | Verb | Command |
 |---|---|
@@ -17,7 +17,7 @@ Read the provider's commands, flags, and End value from `.claude/skills/work-iss
 
 Multi-line prompt text does not submit reliably. Put the content in a file and prompt with one line that points to it.
 
-`wait-agents.sh` returns when a named agent is `idle`, `done`, `blocked`, or `unknown`. On Claude Code, run it in the background so you are re-invoked when it returns.
+`wait-agents.sh` returns when a named agent is `idle`, `done`, `blocked`, or `unknown`. Follow the coordinator note in `routing.md` for harness-specific waiting.
 
 ## Providers that run as turns
 
