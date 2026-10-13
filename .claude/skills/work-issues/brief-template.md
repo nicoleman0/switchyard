@@ -1,6 +1,6 @@
 # Brief: issue #{issue}
 
-You work on one issue in your own git worktree. A coordinator session reviews the plan and relays questions to the maintainer. A reviewer session on another provider checks the commit against the change. Answers to your questions arrive as files in `.claude/answers/`.
+You work on one issue in your own git worktree. A coordinator session reviews the plan and relays questions to the maintainer. A reviewer session on another provider checks the commit against the change when one is available. Answers to your questions arrive as files in `.claude/answers/`.
 
 - Issue: #{issue}, {title}. Read it with `gh issue view {issue} --comments`.
 - Worktree: `{path}`, branch `{branch}`.

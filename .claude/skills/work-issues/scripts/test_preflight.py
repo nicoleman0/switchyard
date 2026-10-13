@@ -27,7 +27,7 @@ class PreflightTests(unittest.TestCase):
         path.chmod(0o755)
         return path
 
-    def run_check(self, extra_env=None):
+    def run_check(self, extra_env=None, providers=()):
         env = {
             "PATH": str(self.bin),
             "HOME": str(self.home),
@@ -41,7 +41,7 @@ class PreflightTests(unittest.TestCase):
                 else:
                     env[key] = value
         return subprocess.run(
-            ["/bin/bash", str(SCRIPT)],
+            ["/bin/bash", str(SCRIPT), *providers],
             check=False,
             capture_output=True,
             text=True,
@@ -100,25 +100,23 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(sum("GitHub CLI" in line for line in result.stdout.splitlines()), 1)
 
-    def test_worker_cli_rules(self):
-        for clis, expected in ((["claude"], 0), (["codex"], 0), (["opencode"], 1), ([], 1)):
+    def test_coordinator_cli_rules(self):
+        for clis, expected in ((["claude"], 0), (["codex"], 0), (["opencode"], 1), (["pi"], 1), ([], 1)):
             with self.subTest(clis=clis):
                 self.add_base(*clis, "magick", "herdr")
                 result = self.run_check()
                 self.assertEqual(result.returncode, expected)
                 if expected:
-                    self.assertIn("MISSING  Worker CLI", result.stdout)
-                    if clis == ["opencode"]:
-                        self.assertIn("coordinator and reviewer need one", result.stdout)
+                    self.assertIn("MISSING  Coordinator CLI", result.stdout)
                 else:
-                    self.assertIn("ok       Worker CLI", result.stdout)
+                    self.assertIn("ok       Coordinator CLI", result.stdout)
                 for path in self.bin.iterdir():
                     path.unlink()
 
     def test_all_required_items_are_reported_and_counted(self):
         result = self.run_check()
         self.assertEqual(result.returncode, 1)
-        for item in ("git", "Python 3", "Node.js", "GitHub CLI", "Worker CLI"):
+        for item in ("git", "Python 3", "Node.js", "GitHub CLI", "Coordinator CLI"):
             self.assertTrue(any(line.startswith("MISSING") and item in line for line in result.stdout.splitlines()), item)
         self.assertIn("5 missing,", result.stdout)
 
@@ -147,14 +145,36 @@ class PreflightTests(unittest.TestCase):
         self.assertIn("warn     Playwright: skipped", result.stdout)
         self.assertEqual(sum(line.startswith("MISSING  Node.js") for line in result.stdout.splitlines()), 1)
 
-    def test_second_provider_warning(self):
+    def test_provider_checks_and_second_provider_warning(self):
         self.add_base("claude", "magick", "herdr")
-        result = self.run_check()
+        result = self.run_check(providers=("claude",))
+        self.assertIn("ok       Provider claude", result.stdout)
         self.assertIn("warn     Second provider:", result.stdout)
         self.add("codex")
-        result = self.run_check()
+        result = self.run_check(providers=("claude", "codex"))
         self.assertIn("ok       Second provider", result.stdout)
         self.assertNotIn("warn     Second provider:", result.stdout)
+        self.assertIn("ok       Provider codex", result.stdout)
+
+    def test_missing_and_unrecognized_providers_are_warnings(self):
+        self.add_base("claude", "magick", "herdr")
+        result = self.run_check(providers=("claude", "pi", "aider"))
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("warn     Provider pi: not installed.", result.stdout)
+        self.assertIn("warn     Provider aider: not installed.", result.stdout)
+        self.assertIn("warn     Second provider: only claude is installed. The reviewer runs on the implementer's provider, so the review is not independent.", result.stdout)
+
+    def test_no_provider_arguments_warn_without_second_provider_check(self):
+        self.add_base("claude")
+        result = self.run_check()
+        self.assertIn("warn     Worker providers: none named", result.stdout)
+        self.assertNotIn("Second provider", result.stdout)
+
+    def test_named_but_uninstalled_providers_warn_and_batch_passes(self):
+        self.add_base("claude", "magick", "herdr")
+        result = self.run_check(providers=("pi", "aider"))
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("warn     Worker providers: none of the named providers is installed.", result.stdout)
 
     def test_codex_profile_path_and_absence(self):
         self.add_base("codex", "magick", "herdr")
@@ -179,7 +199,7 @@ class PreflightTests(unittest.TestCase):
     def test_full_pass_has_no_missing_or_warnings(self):
         self.add_base("claude", "codex", "herdr", "magick")
         (self.codex_home / "coordinator.config.toml").write_text("profile = true\n")
-        result = self.run_check()
+        result = self.run_check(providers=("claude", "codex"))
         self.assertEqual(result.returncode, 0)
         self.assertNotIn("MISSING", result.stdout)
         self.assertFalse(any(line.startswith("warn ") for line in result.stdout.splitlines()))

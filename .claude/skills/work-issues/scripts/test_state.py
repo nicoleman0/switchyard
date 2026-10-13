@@ -42,6 +42,8 @@ class Harness(unittest.TestCase):
         self.down_hook.chmod(0o755)
         self.bin = self.base / "bin"
         self.bin.mkdir()
+        for cli in ("claude", "codex", "opencode", "pi"):
+            self.stub(cli, "exit 0")
         self.log = self.base / "calls.jsonl"
         self.stub("gh", 'echo "$*" >> "$CALL_LOG"\n[ "$1 $2" = "pr list" ] && [ "$3" = "--head" ] && [ "$5" = "--state" ] && [ "$6" = all ] && [ "$7" = "--json" ] && [ "$8" = "number,state" ] && [ "$9" = "--limit" ] && [ "${10}" = 1 ] || exit 23\n[ "${FAIL_GH:-}" != 1 ] || exit 2\nprintf \'%s\\n\' "${GH_RESULT:-[]}"')
         self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\n[ "${FAIL_HERDR:-}" != 1 ] || exit 2\nif [ "$1 $2" = "agent list" ] && [ "$#" = 2 ]; then printf \'%s\\n\' "$HERDR_RESULT"; elif [ "$1 $2" = "agent start" ]; then [ "${FAIL_START:-}" != 1 ] || exit 2; case "$3" in planner-10|planner-8|implementer-10|reviewer-10) ;; *) exit 23 ;; esac; echo "agent start output"; elif [ "$1 $2" = "worktree create" ]; then printf \'%s\\n\' "$HERDR_CREATE_RESULT"; else exit 23; fi')
@@ -174,30 +176,42 @@ class Harness(unittest.TestCase):
 
     def test_start_worker_modes(self):
         self.init(branch="b", path=str(self.repo), runner="headless")
-        result = self.script("start-worker.sh", "8", "planner", "claude")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        session = self.get("8", "session")
-        self.assertEqual(len(session), 36)
-        self.assertEqual(session, session.lower())
-        self.init("9", branch="b", path=str(self.repo), runner="headless")
-        self.assertEqual(self.script("start-worker.sh", "9", "planner", "codex").returncode, 0)
-        self.assertEqual(self.record("9")["worker"], "")
-        self.assertEqual(self.record("9")["session"], "")
-        self.init("11", branch="b", path=str(self.repo), runner="headless")
-        self.assertEqual(self.script("start-worker.sh", "11", "planner", "opencode").returncode, 0)
-        self.assertEqual(self.get("11", "session"), "ses_issue11")
+        sessions = []
+        for provider in ("claude", "codex", "opencode", "pi"):
+            issue = str(8 + len(sessions))
+            self.init(issue, branch="b", path=str(self.repo), runner="headless")
+            result = self.script("start-worker.sh", issue, "planner", provider)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            record = self.record(issue)
+            self.assertEqual(record["worker"], "")
+            self.assertRegex(record["session"], r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
+            sessions.append(record["session"])
+        self.assertEqual(len(sessions), len(set(sessions)))
+        self.init("20", branch="b", path=str(self.repo), runner="headless")
+        first = self.script("start-worker.sh", "20", "planner", "pi")
+        first_session = self.get("20", "session")
+        second = self.script("start-worker.sh", "20", "implementer", "pi")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertNotEqual(first_session, self.get("20", "session"))
         self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
         herdr_env = self.env.copy(); herdr_env["HERDR_ENV"] = "1"
-        result = self.script("start-worker.sh", "10", "planner", "claude", "--", "--agent", "x", env=herdr_env)
+        result = self.script("start-worker.sh", "10", "planner", "pi", "--", "--agent", "x", env=herdr_env)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.splitlines(), [f"path={self.repo}", "pane=w1:p1", "name=planner-10"])
         self.assertEqual(self.get("10", "worker"), "planner-10")
-        self.assertIn("agent start planner-10 --kind claude --pane w1:p1 -- --agent x", self.log.read_text())
-        result = self.script("start-worker.sh", "10", "planner", "opencode", env=herdr_env)
+        self.assertIn("agent start planner-10 --kind pi --pane w1:p1 -- --agent x", self.log.read_text())
+        result = self.script("start-worker.sh", "10", "planner", "pi", "--turns", env=herdr_env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.get("10", "session"), "ses_issue10")
+        self.assertRegex(self.get("10", "session"), r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
         self.assertEqual(self.record("10")["worker"], "")
         self.assertEqual(self.record("10")["role"], "planner")
+        self.assertIn("pane=w1:p1", result.stdout)
+        self.assertIn("session=", result.stdout)
+        calls = self.log.read_text()
+        self.assertEqual(calls.count("agent start"), 1)
+        self.init("21", branch="b", path=str(self.repo), runner="headless")
+        self.assertEqual(self.script("start-worker.sh", "21", "planner", "pi", "--turns").returncode, 0)
         before = self.record("10")
         fail_env = herdr_env.copy(); fail_env["FAIL_START"] = "1"
         failed = self.script("start-worker.sh", "10", "planner", "claude", env=fail_env)
@@ -207,19 +221,19 @@ class Harness(unittest.TestCase):
     def test_start_failures_do_not_mutate(self):
         self.init(branch="b", path=str(self.repo), runner="headless", role="planner", backend="codex", session="old")
         before = self.record()
-        for args in [("8", "unknown", "claude"), ("8", "planner", "bad"), ("99", "planner", "claude")]:
-            self.assertNotEqual(self.script("start-worker.sh", *args).returncode, 0)
+        for args in [("8", "unknown", "claude"), ("8", "planner", "bad"), ("8", "planner", "ClaUde"), ("8", "planner", "foo/bar"), ("99", "planner", "claude")]:
+            result = self.script("start-worker.sh", *args)
+            self.assertNotEqual(result.returncode, 0)
+            if args[2] != "claude":
+                self.assertIn(args[2], result.stderr)
         self.assertEqual(self.record(), before)
 
-    def test_start_without_routing_file_fails_without_mutating_record(self):
+    def test_start_without_routing_file_succeeds(self):
         self.init(branch="b", path=str(self.repo), runner="headless", role="planner", backend="codex", session="old")
-        before = self.record()
         (self.skill / "routing.md").unlink()
         result = self.script("start-worker.sh", "8", "planner", "claude")
-        self.assertEqual(result.returncode, 1)
-        self.assertIn(".claude/skills/work-issues/routing.md", result.stderr)
-        self.assertIn("copy it from the Switchyard release", result.stderr)
-        self.assertEqual(self.record(), before)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.get("8", "backend"), "claude")
 
     def test_worktree_cannot_push_and_scope_is_checked(self):
         git = lambda *args, cwd=self.repo: subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True)
@@ -263,7 +277,7 @@ class Harness(unittest.TestCase):
         self.assertEqual(self.script("start-worker.sh", "8", "implementer", "claude").returncode, 0)
         self.assertEqual(self.get("8", "implementer_backend"), "claude")
         before = self.record()
-        for backend, reason in [("claude", "another provider"), ("opencode", "not opencode")]:
+        for backend, reason in [("claude", "another provider")]:
             failed = self.script("start-worker.sh", "8", "reviewer", backend)
             self.assertNotEqual(failed.returncode, 0)
             self.assertIn(reason, failed.stderr)
@@ -280,7 +294,7 @@ class Harness(unittest.TestCase):
         result = self.script("start-worker.sh", "8", "reviewer", "claude", env=same)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.record()["backend"], "claude")
-        self.assertNotEqual(self.script("start-worker.sh", "8", "reviewer", "opencode", env=same).returncode, 0)
+        self.assertEqual(self.script("start-worker.sh", "8", "reviewer", "opencode", env=same).returncode, 0)
 
     def test_reviewer_starts_in_herdr_pane(self):
         self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
