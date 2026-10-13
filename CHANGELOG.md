@@ -19,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 ### Fixed
 
 - `teardown-worktree.sh` now removes the record even when the remote branch delete fails, and a branch GitHub deletes between the check and the push no longer fails the teardown. A remote branch that still exists after a rejected delete prints an error and exits non-zero.
+- `check-scope.sh` no longer fails under bash 3.2 when an issue owns no paths. It now reports every changed file outside `openspec/` and exits 1.
 
 ## [0.5.0] - 2026-10-11
 

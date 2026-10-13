@@ -296,6 +296,25 @@ exec "{real}" "$@"''')
         self.assertIn("refs/heads/topic", git("ls-remote", "--heads", "origin", "topic").stdout)
         self.assertEqual(self.script("teardown-worktree.sh", "8", "topic").returncode, 0)
 
+    def test_check_scope_reports_all_files_when_owned_is_blank(self):
+        bash = "/bin/bash"
+        version = subprocess.run([bash, "-c", "echo $BASH_VERSION"], capture_output=True, text=True).stdout.strip()
+        if not version.startswith("3."):
+            self.skipTest(f"test needs bash 3; /bin/bash is {version or 'unknown'}")
+        git = lambda *args, cwd=self.repo: subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True)
+        self.assertEqual(git("push", "-q", "origin", "HEAD:main").returncode, 0)
+        git("fetch", "-q", "origin")
+        self.assertEqual(self.script("setup-worktree.sh", "8", "topic").returncode, 0)
+        tree = Path(self.record()["path"])
+        self.state("set", "8", "owned= ")
+        (tree / "README.md").write_text("x")
+        added = git("add", "-A", cwd=tree)
+        committed = git("commit", "-qm", "out of scope", cwd=tree)
+        result = subprocess.run([bash, str(self.skill / "scripts/check-scope.sh"), "8"], cwd=self.repo, env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout + added.stderr + committed.stderr)
+        self.assertEqual(result.stdout.split(), ["README.md"])
+        self.assertNotIn("unbound variable", result.stderr)
+
     def test_reviewer_runs_on_another_provider(self):
         self.init(branch="b", path=str(self.repo), runner="headless")
         self.assertEqual(self.script("start-worker.sh", "8", "planner", "claude").returncode, 0)
