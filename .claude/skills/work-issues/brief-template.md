@@ -6,7 +6,7 @@ You work on one issue in your own git worktree. A coordinator session reviews th
 - Worktree: `{path}`, branch `{branch}`.
 - Isolation values: {values}.
 - You own: {owned_paths}. Anything else is shared: ask before you change it.
-- Milestone for the PR: {milestone}.
+- Milestone for the PR: {milestone, or "none"}.
 
 ## Issue notes from the coordinator
 

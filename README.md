@@ -70,7 +70,7 @@ sequenceDiagram
     C->>C: Squash-merge and tear down
 ```
 
-1. **You open an issue.** State the problem and pick a milestone. Keep it short: acceptance criteria belong in the change, not the issue.
+1. **You open an issue.** State the problem. Pick a milestone if the project uses them. Keep it short: acceptance criteria belong in the change, not the issue.
 2. **You ask the coordinator to work on it.** It reads the issue against the code and asks you about anything the issue does not settle. With several issues, it splits them by the folders each one owns and runs the independent ones in parallel.
 3. **The coordinator sets up.** A script creates the worktree and runs your isolation hook. The coordinator writes a brief there: the issue, the paths it owns, its ports, and the decisions so far.
 4. **The planner proposes the change.** It writes the proposal, design, spec delta, and tasks under `openspec/changes/<name>`, links the change from the issue, and stops with numbered questions, each with options and a recommendation.
@@ -160,9 +160,9 @@ The updater clones the release source, so a Codex session needs network access. 
 
 ## Use it
 
-1. Create a milestone and an issue:
+1. Create an issue. Add `--milestone` if the project uses milestones:
    ```sh
-   gh issue create --title "Password reset emails arrive twice" --milestone "M1" --body "..."
+   gh issue create --title "Password reset emails arrive twice" --body "..."
    ```
 2. Start the coordinator on the main checkout. Open `claude` there, inside Herdr if you use it. For Codex, run `codex -p coordinator --add-dir <worktrees folder>`; the runner file names the folder.
 3. Tell it what to deliver:

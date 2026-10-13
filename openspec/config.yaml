@@ -3,7 +3,7 @@ schema: spec-driven
 # Replace with what an agent cannot infer from the code: what the product is,
 # what is out of scope, and where architecture and decisions are documented.
 context: |
-  Delivery order and issue breakdown live in GitHub milestones and issues.
+  Delivery order and issue breakdown live in GitHub issues; milestones set the order when the project uses them.
 
 rules:
   proposal:
