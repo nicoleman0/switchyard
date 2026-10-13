@@ -45,7 +45,7 @@ ok       git
 ok       Python 3
 MISSING  GitHub CLI: not signed in. Run: gh auth login
 warn     Herdr: not installed. Workers will run headless. See https://herdr.dev
-1 missing, 1 warning
+1 missing, 1 warning(s)
 ```
 
 Each `MISSING` and `warn` line names the item, what is wrong, and one fix. Exit status is 1 when any line is `MISSING`, else 0. Alternative: failures on stderr. Rejected: the coordinator reads one stream, in order.
@@ -54,12 +54,12 @@ Each `MISSING` and `warn` line names the item, what is wrong, and one fix. Exit 
 
 | Item | Probe | Fix printed |
 |---|---|---|
-| git | `command -v git` | install git |
-| Python 3 | `command -v python3` | install Python 3 |
+| git | `command -v git` | install Git with your system package manager |
+| Python 3 | `command -v python3` | install Python 3 from python.org or your system package manager |
 | Node.js | `command -v node` and `command -v npx` | install Node.js, which brings `npx` |
 | GitHub CLI | `command -v gh` | install from https://cli.github.com |
 | GitHub CLI sign-in | `gh auth status` exits 0, run only when `gh` is found | `gh auth login` |
-| Worker CLI | `command -v` on `claude`, `codex`, `opencode` | install Claude Code or Codex |
+| Worker CLI | `command -v` on `claude`, `codex`, `opencode` | install Claude Code or Codex; the coordinator and reviewer need one |
 
 The worker check passes when `claude` or `codex` is found. `opencode` alone fails, because the coordinator and reviewer need Claude Code or Codex. See answer 1.
 
@@ -77,7 +77,7 @@ Node.js is checked for presence only, with `npx` also required for OpenSpec. No 
 | Second provider | at least two of `claude`, `codex`, `opencode` found | the reviewer will run on the implementer's provider, with `SWITCHYARD_SAME_PROVIDER=1` |
 | Codex profile | `${CODEX_HOME:-$HOME/.codex}/coordinator.config.toml` exists, checked only when `codex` is found | a Codex coordinator needs it; see the skill |
 
-The Playwright and image-tool probes are skipped with a `warn` when `node` is missing, not run and failed twice.
+The Playwright probe is skipped with a `warn` when `node` is missing. The image-tool probe does not need Node.js and still runs.
 
 The Playwright probe repeats the resolution rule in `shots.mjs`. Both read `SHOTS_PACKAGE_DIR` and default to the working directory. A comment in each file names the other.
 

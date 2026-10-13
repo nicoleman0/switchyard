@@ -22,8 +22,8 @@ warning() {
   warnings=$((warnings + 1))
 }
 
-required git git 'install git'
-required 'Python 3' python3 'install Python 3'
+required git git 'install Git with your system package manager'
+required 'Python 3' python3 'install Python 3 from python.org or your system package manager'
 
 if command -v node >/dev/null 2>&1 && command -v npx >/dev/null 2>&1; then
   printf 'ok       Node.js\n'
@@ -53,7 +53,7 @@ done
 if command -v claude >/dev/null 2>&1 || command -v codex >/dev/null 2>&1; then
   printf 'ok       Worker CLI\n'
 else
-  printf 'MISSING  Worker CLI: Claude Code or Codex is required. Install Claude Code or Codex.\n'
+  printf 'MISSING  Worker CLI: Claude Code or Codex is required because the coordinator and reviewer need one. Install Claude Code or Codex.\n'
   missing=$((missing + 1))
 fi
 

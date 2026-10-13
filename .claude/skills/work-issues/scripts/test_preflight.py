@@ -35,7 +35,11 @@ class PreflightTests(unittest.TestCase):
             "SHOTS_PACKAGE_DIR": str(self.root),
         }
         if extra_env:
-            env.update(extra_env)
+            for key, value in extra_env.items():
+                if value is None:
+                    env.pop(key, None)
+                else:
+                    env[key] = value
         return subprocess.run(
             ["/bin/bash", str(SCRIPT)],
             check=False,
@@ -104,6 +108,8 @@ class PreflightTests(unittest.TestCase):
                 self.assertEqual(result.returncode, expected)
                 if expected:
                     self.assertIn("MISSING  Worker CLI", result.stdout)
+                    if clis == ["opencode"]:
+                        self.assertIn("coordinator and reviewer need one", result.stdout)
                 else:
                     self.assertIn("ok       Worker CLI", result.stdout)
                 for path in self.bin.iterdir():
@@ -166,7 +172,7 @@ class PreflightTests(unittest.TestCase):
         (self.home / ".codex").mkdir()
         (self.home / ".codex" / "coordinator.config.toml").write_text("profile = true\n")
         self.add("codex")
-        env = {"CODEX_HOME": ""}
+        env = {"CODEX_HOME": None}
         result = self.run_check(env)
         self.assertIn("ok       Codex coordinator profile", result.stdout)
 
