@@ -67,11 +67,11 @@ class PreflightTests(unittest.TestCase):
         (self.bin / "git").unlink()
         result = self.run_check()
         self.assertEqual(result.returncode, 1)
-        self.assertIn("MISSING  git", result.stdout)
+        self.assertIn("MISSING  git: not installed. Install Git with your system package manager.", result.stdout)
 
     def test_each_required_tool_has_a_fix_message(self):
         cases = (
-            ("python3", "Python 3", "install Python 3"),
+            ("python3", "Python 3", "Install Python 3"),
             ("node", "Node.js", "Install Node.js"),
             ("npx", "Node.js", "Install Node.js"),
             ("gh", "GitHub CLI", "cli.github.com"),

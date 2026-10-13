@@ -12,7 +12,7 @@ required() {
   if command -v "$command" >/dev/null 2>&1; then
     printf 'ok       %s\n' "$name"
   else
-    printf 'MISSING  %s: not installed. Run: %s\n' "$name" "$fix"
+    printf 'MISSING  %s: not installed. %s\n' "$name" "$fix"
     missing=$((missing + 1))
   fi
 }
@@ -22,8 +22,8 @@ warning() {
   warnings=$((warnings + 1))
 }
 
-required git git 'install Git with your system package manager'
-required 'Python 3' python3 'install Python 3 from python.org or your system package manager'
+required git git 'Install Git with your system package manager.'
+required 'Python 3' python3 'Install Python 3 from python.org or your system package manager.'
 
 if command -v node >/dev/null 2>&1 && command -v npx >/dev/null 2>&1; then
   printf 'ok       Node.js\n'
@@ -65,8 +65,7 @@ fi
 
 if command -v node >/dev/null 2>&1; then
   # Match the package lookup used by shots.mjs.
-  package_dir=${SHOTS_PACKAGE_DIR:-.}
-  if SHOTS_PACKAGE_DIR="$package_dir" node -e 'require.resolve("@playwright/test", { paths: [process.env.SHOTS_PACKAGE_DIR || "."] })' >/dev/null 2>&1; then
+  if node -e 'require.resolve("@playwright/test", { paths: [process.env.SHOTS_PACKAGE_DIR || "."] })' >/dev/null 2>&1; then
     printf 'ok       Playwright\n'
   else
     warning 'Playwright: @playwright/test not found. UI screenshots will not work.'

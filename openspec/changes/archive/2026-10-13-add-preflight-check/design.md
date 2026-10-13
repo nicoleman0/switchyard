@@ -54,8 +54,8 @@ Each `MISSING` and `warn` line names the item, what is wrong, and one fix. Exit 
 
 | Item | Probe | Fix printed |
 |---|---|---|
-| git | `command -v git` | install Git with your system package manager |
-| Python 3 | `command -v python3` | install Python 3 from python.org or your system package manager |
+| git | `command -v git` | Install Git with your system package manager. |
+| Python 3 | `command -v python3` | Install Python 3 from python.org or your system package manager. |
 | Node.js | `command -v node` and `command -v npx` | install Node.js, which brings `npx` |
 | GitHub CLI | `command -v gh` | install from https://cli.github.com |
 | GitHub CLI sign-in | `gh auth status` exits 0, run only when `gh` is found | `gh auth login` |
