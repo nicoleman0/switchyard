@@ -221,7 +221,7 @@ class Harness(unittest.TestCase):
     def test_start_failures_do_not_mutate(self):
         self.init(branch="b", path=str(self.repo), runner="headless", role="planner", backend="codex", session="old")
         before = self.record()
-        for args in [("8", "unknown", "claude"), ("8", "planner", "bad"), ("8", "planner", "ClaUde"), ("8", "planner", "foo/bar"), ("99", "planner", "claude")]:
+        for args in [("8", "unknown", "claude"), ("8", "planner", "bad"), ("8", "planner", "ClaUde"), ("8", "planner", "foo/bar"), ("8", "planner", "eval"), ("99", "planner", "claude")]:
             result = self.script("start-worker.sh", *args)
             self.assertNotEqual(result.returncode, 0)
             if args[2] != "claude":
@@ -295,6 +295,28 @@ class Harness(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.record()["backend"], "claude")
         self.assertEqual(self.script("start-worker.sh", "8", "reviewer", "opencode", env=same).returncode, 0)
+
+    def test_opencode_same_provider_reviewer_needs_override(self):
+        self.init(branch="b", path=str(self.repo), runner="headless")
+        self.assertEqual(self.script("start-worker.sh", "8", "implementer", "opencode").returncode, 0)
+
+        result = self.script("start-worker.sh", "8", "reviewer", "opencode")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("another provider", result.stderr)
+
+        same = self.env.copy()
+        same["SWITCHYARD_SAME_PROVIDER"] = "1"
+        result = self.script("start-worker.sh", "8", "reviewer", "opencode", env=same)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.record()["backend"], "opencode")
+
+    def test_opencode_reviewer_after_claude_needs_no_override(self):
+        self.init(branch="b", path=str(self.repo), runner="headless")
+        self.assertEqual(self.script("start-worker.sh", "8", "implementer", "claude").returncode, 0)
+
+        result = self.script("start-worker.sh", "8", "reviewer", "opencode")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.record()["backend"], "opencode")
 
     def test_reviewer_starts_in_herdr_pane(self):
         self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")

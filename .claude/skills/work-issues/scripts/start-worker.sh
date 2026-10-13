@@ -13,7 +13,7 @@ if [ "${1:-}" = -- ]; then shift; fi
 script_dir=$(cd "$(dirname "$0")" && pwd)
 skill_dir=$(cd "$script_dir/.." && pwd)
 [ -f "$skill_dir/roles/$role.md" ] || { echo "Unknown role: $role" >&2; exit 1; }
-if [[ ! "$backend" =~ ^[a-z][a-z0-9_-]*$ ]] || ! command -v "$backend" >/dev/null 2>&1; then
+if [[ ! "$backend" =~ ^[a-z][a-z0-9_-]*$ ]] || ! type -P "$backend" >/dev/null 2>&1; then
   echo "Unknown provider: $backend is not a command on PATH. A provider is named after its CLI command." >&2
   exit 1
 fi

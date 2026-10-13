@@ -32,14 +32,14 @@ Who decides, in this order:
 2. The row in `routing.md`.
 3. Your own choice, when there is no usable row, no Providers row for the provider, or no file. Pick a provider, a model, and the command to run. Tell the maintainer what you chose and why before the worker starts. Do not wait for approval.
 
-When the maintainer names a model, use that provider's row for the role with the model replaced. When the row has no model flag, use the provider's own default unless the maintainer names a model.
+When the maintainer names a model, use that provider's row for the role with the model replaced. When the row has no model flag and the maintainer names a model, add the model flag using the syntax in that provider's note in `routing.md`. Otherwise use the provider's own default.
 
 - A row is usable when its provider's CLI is installed and the provider is under the usage threshold.
 - Planner: use the Planner row for your provider. If there is none, use the first Planner row.
 - Implementers: rotate through providers with an Implementer row, in the order they first appear. Leave out a provider whose CLI is not installed.
 - The first row for a role and provider is the default. Use a later row only when its Use cell says so or the maintainer names it.
 - A row marked `when named` is used only when the maintainer names its provider.
-- Skip a provider when more than about 70% of its usage window is used. The provider notes in `routing.md` say how to read each one. Ask the maintainer when a provider has no note.
+- Skip a provider when more than about 70% of its usage window is used. The provider notes in `routing.md` say how to read each one. Ask the maintainer when a provider has no note or its note says usage cannot be read.
 - Say which provider and model each issue got.
 
 The reviewer uses the first Reviewer row whose provider differs from the implementer's. When there is none, or it is not usable, review on the implementer's provider with `SWITCHYARD_SAME_PROVIDER=1` on that `start-worker.sh` command. Tell the maintainer once per batch that the review is not independent, and write "same provider, not independent" in the PR body's Review section. A choice under rule 3 still prefers another provider than the implementer's.
@@ -116,7 +116,7 @@ The reviewer checks the diff against the change. Read its review, not the diff. 
 After `Verdict: pass`:
 1. Run `scripts/check-scope.sh <issue>`. It lists the files the branch changed outside its owned paths. The change's files under `openspec/` are always in scope. Rule on each listed file: accept an appended section in a shared doc, and send anything else back as a fix round.
 2. From the main checkout, push with `git push -u origin <branch>`. On Codex, request the push outside the sandbox, so the prompt goes to the maintainer.
-3. Fill the Review section of `.claude/pr-body.md` with the reviewer's backend, the verdict, and the number of rounds.
+3. Fill the Review section of `.claude/pr-body.md` with the reviewer's provider, the verdict, and the number of rounds.
 4. Fill the Screenshots section. If your harness can publish a page, as Claude Code's Artifact tool can, publish `<path>/.claude/shots/compare.html` and put the link there. Otherwise write that the comparison page was not published, and give its local path.
 5. Run `gh pr create --head <branch> --body-file <path>/.claude/pr-body.md`. Add `--milestone <milestone>` when the brief names one.
 

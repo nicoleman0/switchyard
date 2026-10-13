@@ -26,7 +26,7 @@ One session coordinates. For each issue, a planner writes a spec change, an impl
 Each piece covers a gap the others leave:
 
 - **Issue, then spec, then code.** Every behaviour change starts as a short GitHub issue, becomes exactly one [OpenSpec](https://github.com/Fission-AI/OpenSpec) change, and ships as one PR. The PR archives the change into `openspec/specs/`, so the specs always describe what the code does.
-- **Planning and building are separate sessions.** The planner can use more effort than the implementer and stops at a plan. The implementer starts fresh and reads the plan from disk. Its session does not inherit the planner's context.
+- **Planning and building are separate sessions.** The planner and implementer can use different effort settings, and the planner stops at a plan. The implementer starts fresh and reads the plan from disk. Its session does not inherit the planner's context.
 - **Two reviews, two reviewers.** The coordinator checks the plan before any code is written. A reviewer checks the diff against the change before anything is pushed, on another provider when one is available.
 - **Files carry every handoff.** The brief, the answers, the change, and the review live in the worktree. Each session reads them from disk, so no stage works from another session's summary, and the coordinator holds verdicts, not diffs.
 - **One worktree per issue.** Each issue gets its own branch, ports, and data. Issues that own different folders run in parallel.
@@ -90,7 +90,7 @@ You are asked something at three points: before work starts, after the plan, and
 - `git`, Python 3, and Node.js (OpenSpec runs through `npx`).
 - The [GitHub CLI](https://cli.github.com), signed in.
 - Any agent CLI with a worker row in `routing.md`. The coordinator runs on Claude Code or Codex.
-- With one provider, the reviewer runs on the implementer's provider and the review is not independent.
+- With one provider, keep only that provider's rows in the Providers table. The reviewer then runs on the implementer's provider, and the review is not independent.
 - Recommended: [Herdr](https://herdr.dev), a terminal workspace manager for coding agents. See [Runners](#runners).
 - For UI screenshots: Playwright in your project, and `sips` (macOS) or ImageMagick.
 - Check them with `.claude/skills/work-issues/scripts/preflight.sh <provider>...`, passing the providers in `routing.md`.
@@ -134,7 +134,7 @@ Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` li
 | `.claude/skills/work-issues/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
 | `.claude/skills/work-issues/brief-template.md`, Isolation section | Rules every worker must follow, such as how to start a dev server on its own port. |
 | `.claude/skills/work-issues/scripts/shots.mjs` | The routes to screenshot, if the project has a UI. |
-| `.claude/skills/work-issues/routing.md` | Providers, models, effort, flags, and commands for workers and coordinators. Shipped values are examples. This file belongs to your project. |
+| `.claude/skills/work-issues/routing.md` | The Providers table holds each provider's commands. The Workers table holds providers, models, effort, and flags. Shipped values are examples. This file belongs to your project. |
 
 A Codex coordinator needs a one-time profile. The skill's "Codex coordinator profile" section has the file.
 
