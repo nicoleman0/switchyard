@@ -16,6 +16,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 - Workers use any provider named after its CLI command. `start-worker.sh` accepts `--turns`, gives each turns worker a fresh session, and no longer refuses an opencode reviewer or a missing `routing.md`. When the file does not settle a choice, the coordinator chooses and reports it. `preflight.sh` takes provider names, and runner commands come from `routing.md`.
 - Updating from 0.5.0 adds Codex and opencode rows without model IDs. Those workers use the CLI's default model until the project pins one. See the provider notes in `routing.md`: use `-m <model>` for Codex and `--model <provider/model>` for opencode.
 
+### Fixed
+
+- `teardown-worktree.sh` now removes the record even when the remote branch delete fails, and a branch GitHub deletes between the check and the push no longer fails the teardown. A remote branch that still exists after a rejected delete prints an error and exits non-zero.
+
 ## [0.5.0] - 2026-10-11
 
 ### Added

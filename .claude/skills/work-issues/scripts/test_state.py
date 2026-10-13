@@ -148,6 +148,37 @@ class Harness(unittest.TestCase):
         result = self.script("teardown-worktree.sh", "77", "topic")
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def stub_teardown_git(self, branch, on_delete):
+        real = shutil.which("git")
+        origin = str(self.origin)
+        self.stub("git", f'''if [ "$1 $2 $3" = "push origin --delete" ] && [ "$4" = "{branch}" ]; then
+  {on_delete}
+fi
+exec "{real}" "$@"''')
+
+    def test_teardown_tolerates_branch_deleted_between_check_and_push(self):
+        self.assertEqual(self.script("setup-worktree.sh", "39", "race").returncode, 0)
+        subprocess.run(["git", "-C", str(self.repo), "push", "-q", "origin", "race"], capture_output=True)
+        # The wrapper deletes the ref right before its own push --delete runs,
+        # so the push is rejected the way the bare repo rejects a missing ref.
+        self.stub_teardown_git("race", f'"{shutil.which("git")}" -C "{self.origin}" update-ref -d refs/heads/race')
+        down = self.script("teardown-worktree.sh", "39", "race")
+        self.assertEqual(down.returncode, 0, down.stderr)
+        self.assertEqual(subprocess.run(["git", "ls-remote", "--heads", str(self.origin), "race"], capture_output=True, text=True).stdout, "")
+        self.assertFalse((self.repo / ".claude/state/39.json").exists())
+
+    def test_teardown_reports_failed_remote_delete_and_removes_record(self):
+        self.assertEqual(self.script("setup-worktree.sh", "39", "race").returncode, 0)
+        subprocess.run(["git", "-C", str(self.repo), "push", "-q", "origin", "race"], capture_output=True)
+        self.stub_teardown_git("race", 'echo "push failed" >&2; exit 1')
+        down = self.script("teardown-worktree.sh", "39", "race")
+        self.assertNotEqual(down.returncode, 0)
+        self.assertIn("race", down.stderr)
+        self.assertIn("still exists", down.stderr)
+        hinted = subprocess.run(["git", "ls-remote", "--heads", str(self.origin), "race"], capture_output=True, text=True).stdout
+        self.assertIn("refs/heads/race", hinted)
+        self.assertFalse((self.repo / ".claude/state/39.json").exists())
+
     def test_setup_herdr_records_pane(self):
         env = self.env.copy(); env["HERDR_ENV"] = "1"
         env["HERDR_CREATE_RESULT"] = '{"result":{"root_pane":{"cwd":"' + str(self.base / "herdr-tree") + '","pane_id":"w9:p2","workspace_id":"ws9"}}}'
