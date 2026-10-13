@@ -119,7 +119,7 @@ After `Verdict: pass`:
 2. From the main checkout, push with `git push -u origin <branch>`. On Codex, request the push outside the sandbox, so the prompt goes to the maintainer.
 3. Fill the Review section of `.claude/pr-body.md` with the reviewer's backend, the verdict, and the number of rounds.
 4. Fill the Screenshots section. If your harness can publish a page, as Claude Code's Artifact tool can, publish `<path>/.claude/shots/compare.html` and put the link there. Otherwise write that the comparison page was not published, and give its local path.
-5. Run `gh pr create --head <branch> --milestone <milestone> --body-file <path>/.claude/pr-body.md`.
+5. Run `gh pr create --head <branch> --body-file <path>/.claude/pr-body.md`. Add `--milestone <milestone>` when the brief names one.
 
 ## Several PRs
 

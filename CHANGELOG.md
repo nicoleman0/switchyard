@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Changed
+
+- Milestones are optional. The workflow passes `--milestone` to `gh pr create` only for an issue that has one.
+
 ## [0.5.0] - 2026-10-11
 
 ### Added
