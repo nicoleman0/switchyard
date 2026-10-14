@@ -45,7 +45,7 @@ Each piece covers a gap the others leave:
 
 ### One issue, start to finish
 
-![One issue's path as a rail line: issue, plan, build, review, pull request, and merge. A fix-round loop runs from review back to build. You decide at issue, plan, and merge.](docs/workflow.svg)
+![A sequence diagram drawn as rail tracks, one track per role. You hand the coordinator an issue and answer its questions. The coordinator briefs the planner and brings you the plan's decisions. Build and review repeat until the verdict is pass. You approve the pull request and the coordinator merges.](docs/workflow.svg)
 
 1. **You open an issue.** State the problem. Pick a milestone if the project uses them. Keep it short: acceptance criteria belong in the change, not the issue.
 2. **You ask the coordinator to work on it.** It reads the issue against the code and asks you about anything the issue does not settle. With several issues, it splits them by the folders each one owns and runs the independent ones in parallel.
