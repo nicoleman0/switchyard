@@ -121,3 +121,7 @@ For each PR still open:
 3. Run every check in `AGENTS.md`.
 4. From the main checkout, push with `git push --force-with-lease origin <branch>`.
 5. Wait for CI, then merge it and tear it down the same way.
+
+## Abandon an issue
+
+When an issue is dropped before its worktree is committed, run `scripts/teardown-worktree.sh --abandon <issue> <branch>`. It prints the uncommitted files and the local-only commits it is about to discard, then removes the worktree, the branch, and the record. Passing `--abandon` is the consent; it never prompts. Ordinary teardown stops instead of removing a dirty worktree.

@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 ### Added
 
 - A preflight check reports missing batch requirements before a worktree is created.
+- `teardown-worktree.sh` takes `--abandon`: it prints the uncommitted files and local-only commits it is about to discard, then removes the worktree, branches, and record without a prompt. Ordinary teardown now stops before the down hook when the worktree holds uncommitted changes and says to use `--abandon`.
 - Planner, implementer, and reviewer roles run on any provider listed in `routing.md`. pi ships as example rows.
 
 ### Changed
