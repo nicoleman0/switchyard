@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Draw the Switchyard banner and social preview as pixel art.
 Usage: python3 docs/pixelart.py docs
-Writes switchyard.svg and social-preview.png into the folder.
+Writes switchyard.svg, workflow.svg, and social-preview.png into the folder.
 The banner is animated with CSS, in whole-pixel steps.
 """
 import random
@@ -23,6 +23,7 @@ GRN, GRN_DK = "#4CC38A", "#2F9C68"
 BRN, BRN_DK = "#C4905A", "#A9743F"
 GREY, GLASS, WHITE = "#5B6470", "#CFE8F3", "#FFFFFF"
 STONE, STONE_DK = "#C9CFC4", "#A8B0A4"
+SKIN = "#F2C9A0"
 
 
 class Canvas:
@@ -416,6 +417,10 @@ FONT3 = {
     "S": [".##", "#..", ".#.", "..#", "##."], "T": ["###", ".#.", ".#.", ".#.", ".#."],
     "U": ["#.#", "#.#", "#.#", "#.#", "###"], "V": ["#.#", "#.#", "#.#", "#.#", ".#."],
     "W": ["#...#", "#...#", "#.#.#", "##.##", "#...#"], ".": ["...", "...", "...", "...", ".#."],
+    "B": ["##.", "#.#", "##.", "#.#", "##."], "C": [".##", "#..", "#..", "#..", ".##"],
+    "F": ["###", "#..", "##.", "#..", "#.."], "G": [".##", "#..", "#.#", "#.#", ".##"],
+    "M": ["#...#", "##.##", "#.#.#", "#...#", "#...#"], "X": ["#.#", "#.#", ".#.", "#.#", "#.#"],
+    "Y": ["#.#", "#.#", ".#.", ".#.", ".#."],
     " ": ["...", "...", "...", "...", "..."],
 }
 
@@ -475,8 +480,66 @@ def social():
     return cv
 
 
+def text_width(s, font):
+    return sum(len(font[ch][0]) + 1 for ch in s) - 1
+
+
+PERSON = [".HH.", ".HH.", "SSSS", "SSSS", ".SS.", ".KK.", "K..K"]
+
+
+def person(cv, x, y):
+    cv.sprite(x, y, PERSON, {"H": SKIN, "S": YEL, "K": DARK})
+
+
+def workflow():
+    """One issue's path as a rail line: a station per stage, and a loop for fix rounds."""
+    cv = Canvas(200, 62)
+    backdrop(cv, 12, 5, [(10, 1, 14), (150, 2, 16)])
+    rail = 42
+    track_h(cv, 0, 199, rail)
+    # The fix round leaves the line after review and rejoins it before build.
+    track_d(cv, 94, rail + 6, 6, -1)
+    track_d(cv, 104, rail + 6, 6, 1)
+    track_h(cv, 94, 105, rail + 6)
+    switch(cv, 88, rail)
+    switch(cv, 110, rail)
+    text(cv, 99 - text_width("FIX ROUND", FONT3) // 2, rail + 10, "FIX ROUND", FONT3, 1, NAVY)
+
+    stations = [("ISSUE", YEL, True), ("PLAN", TEAL, True), ("BUILD", RED, False),
+                ("REVIEW", NAVY_LT, False), ("PR", BRN, False), ("MERGE", GRN, True)]
+    for i, (name, stripe, you) in enumerate(stations):
+        cx = 18 + 32 * i
+        w = text_width(name, FONT3) + 4
+        x = cx - w // 2
+        cv.rect(cx, 29, 1, rail - 29, DARK)
+        cv.rect(x - 1, 19, w + 2, 11, DARK)
+        cv.rect(x, 20, w, 9, WHITE)
+        cv.rect(x, 20, w, 1, stripe)
+        text(cv, x + 2, 23, name, FONT3, 1, NAVY)
+        if you:
+            person(cv, cx - 2, 12)
+
+    engine(cv, 25, rail)
+    signal(cv, 196, rail, True)
+    person(cv, 4, 52)
+    text(cv, 10, 54, "YOU DECIDE", FONT3, 1, NAVY)
+    return cv
+
+
+def static_svg(cv, scale, title):
+    return "\n".join([
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {cv.w} {cv.h}" '
+        f'width="{cv.w * scale}" height="{cv.h * scale}" shape-rendering="crispEdges" '
+        f'role="img" aria-labelledby="title">',
+        f'<title id="title">{title}</title>',
+        *cv.paths(),
+        "</svg>",
+    ]) + "\n"
+
+
 if __name__ == "__main__":
     out = Path(sys.argv[1])
     s = social()
     (out / "switchyard.svg").write_text(banner_svg(4, "Pixel art of a rail yard. A steam engine brings wagons in on the main line. Switches sort one wagon onto each of three sidings, each siding ends at a signal, and a signal box watches over the yard."))
+    (out / "workflow.svg").write_text(static_svg(workflow(), 4, "One issue's path as a rail line with six stations: issue, plan, build, review, pull request, and merge. A loop marked fix round runs from review back to build. A figure stands at the three stations where you decide: issue, plan, and merge."))
     (out / "social-preview.png").write_bytes(s.png(8))

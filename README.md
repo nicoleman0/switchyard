@@ -45,32 +45,7 @@ Each piece covers a gap the others leave:
 
 ### One issue, start to finish
 
-```mermaid
-sequenceDiagram
-    actor You
-    participant C as Coordinator
-    participant P as Planner
-    participant I as Implementer
-    participant R as Reviewer
-    You->>C: Work on issue 12
-    C->>You: Anything the issue leaves undecided
-    C->>P: Worktree and brief
-    P->>C: OpenSpec change and numbered questions
-    C->>You: Product decisions only
-    C->>I: Reviewed change and answers
-    I->>C: Commit, check results, PR body
-    C->>R: Review the commit
-    R->>C: Verdict file
-    opt Changes requested
-        C->>I: Review file, fresh session
-        I->>C: Fix commit
-        C->>R: Review again
-        R->>C: Verdict file
-    end
-    C->>You: Pull request
-    You->>C: Approve
-    C->>C: Squash-merge and tear down
-```
+![One issue's path as a rail line: issue, plan, build, review, pull request, and merge. A fix-round loop runs from review back to build. You decide at issue, plan, and merge.](docs/workflow.svg)
 
 1. **You open an issue.** State the problem. Pick a milestone if the project uses them. Keep it short: acceptance criteria belong in the change, not the issue.
 2. **You ask the coordinator to work on it.** It reads the issue against the code and asks you about anything the issue does not settle. With several issues, it splits them by the folders each one owns and runs the independent ones in parallel.
@@ -126,7 +101,7 @@ Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` li
 |---|---|
 | `README.md` | This guide describes the workflow, not your project. Keep it with `git mv README.md docs/WORKFLOW.md` (after `mkdir docs`), then write your own README. |
 | `LICENSE` | Replace it with your project's license, or delete it. |
-| `CHANGELOG.md`, `docs/switchyard.svg`, `docs/social-preview.png`, `docs/pixelart.py` | Switchyard's release notes, banner, social preview image, and the script that draws both. Start your own changelog. Delete the three files and the banner's line at the top of the guide. |
+| `CHANGELOG.md`, `docs/switchyard.svg`, `docs/social-preview.png`, `docs/workflow.svg`, `docs/pixelart.py` | Switchyard's release notes, banner, social preview image, workflow chart, and the script that draws them. Start your own changelog. Delete the banner, the social preview, and the banner's line at the top of the guide. Keep the chart if you keep the guide; after `git mv README.md docs/WORKFLOW.md`, change its path in the guide to `workflow.svg`. |
 | `CONTRIBUTING.md` | Switchyard's contributing guide. Replace it with your own, or delete it. |
 | `.github/workflows/` | `switchyard.yml` checks the workflow's own files and follows releases. Put your project's checks in a workflow of their own, such as `ci.yml`. |
 | `AGENTS.md`, Project section | Your checks, shared services, and conventions. Every agent reads it. |
