@@ -22,6 +22,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 - `teardown-worktree.sh` now removes the record even when the remote branch delete fails, and a branch GitHub deletes between the check and the push no longer fails the teardown. A remote branch that still exists after a rejected delete prints an error and exits non-zero.
 - `check-scope.sh` no longer fails under bash 3.2 when an issue owns no paths. It now reports every changed file outside `openspec/` and exits 1.
+- On the headless runner, the Claude coordinator note now runs each worker turn in the background and reads the turn log when the command exits, because Claude Code stops a foreground command after 10 minutes. The updater never changes `routing.md`, so update your project's own Claude note to match.
 
 ## [0.5.0] - 2026-10-11
 

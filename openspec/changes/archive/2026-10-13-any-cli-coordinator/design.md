@@ -56,7 +56,7 @@ Change only the approved intro sentence to: “The coordinator runs on any CLI t
 
 ### Prove the shortest end-to-end coordinator path
 
-The coordinator of this issue batch ran one real OpenCode coordinator session, using OpenCode's default model on this machine, against scratch issue #45 in a temporary clone. The session read `AGENTS.md` and the skill, ran preflight, created a worktree, wrote a brief, and started a real planner turn. OpenCode 2.0.20 used `glm-5.3-flash` on the headless runner. The uncommitted draft prevented `teardown-worktree.sh` from removing the worktree, so the session removed the disposable worktree, branch, and state entry directly. The proof is recorded in `.claude/answers/proof.md`; the PR body retains the coordinator-owned proof line for the coordinator to fill in.
+The coordinator of this issue batch ran one real OpenCode coordinator session, using OpenCode's default model on this machine, against scratch issue #45 in a temporary clone. The session read `AGENTS.md` and the skill, ran preflight, created a worktree, wrote a brief, and started a real planner turn. OpenCode 2.0.20 used `glm-5.3-flash` on the headless runner. The uncommitted draft prevented `teardown-worktree.sh` from removing the worktree, so the session removed the disposable worktree, branch, and state entry directly. The proof is recorded in PR #48.
 
 This is the smallest proof that exercises the handoff to a worker and cleanup as well as reading the instructions and running preflight. A scripted imitation would not show that OpenCode can interpret the files and carry out the coordinator steps.
 
