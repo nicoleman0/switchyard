@@ -32,12 +32,34 @@ else
 fi
 
 git branch -D "$branch"
-if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
-  git push origin --delete "$branch"
+
+# ls-remote --exit-code: 0 when the ref exists, 2 when it is already gone.
+remote_branch_state() {
+  git ls-remote --exit-code --heads origin "$1" >/dev/null
+}
+
+push_failed=
+if remote_branch_state "$branch"; then
+  if ! git push origin --delete "$branch"; then
+    # GitHub may delete the branch between the check and the push, so a
+    # rejected push only means failure while the branch is still there.
+    if remote_branch_state "$branch"; then
+      push_failed=exists
+    elif [ $? -ne 2 ]; then
+      push_failed=unknown
+    fi
+  fi
 else
   status=$?
-  # 2: the branch is already gone, for example deleted when merging on GitHub.
   [ "$status" -eq 2 ] || exit "$status"
 fi
 python3 .claude/skills/work-issues/scripts/state.py rm "$issue"
+if [ -n "$push_failed" ]; then
+  if [ "$push_failed" = exists ]; then
+    echo "Failed to delete remote branch $branch on origin: it still exists." >&2
+  else
+    echo "Failed to delete remote branch $branch on origin: could not confirm it is gone." >&2
+  fi
+  exit 1
+fi
 echo "Removed worktree $path and branch $branch (local and remote)."
