@@ -13,7 +13,7 @@ Switchyard is a template repository that was born out of my own personal AI deve
 
 Start a new project from it, and the project begins with a delivery workflow for coding agents already in place: issues, specs, isolated worktrees, and review gates.
 
-To adopt it, [start a new project](#start-a-new-project) from the template with one command, or [add the workflow to a repo you already have](#add-it-to-an-existing-repo) with a few copy commands and three hand merges.
+To adopt it, [start a new project](#start-a-new-project) from the template with one command, or [add the workflow to a repo you already have](#add-it-to-an-existing-repo) with one install command.
 
 It does not depend on one AI provider. Use any agent CLI for the worker roles, and change a provider or a model by editing one file, `.claude/skills/work-issues/routing.md`. The values it ships with are examples. The coordinator runs on any CLI that reads `AGENTS.md` and can run the skill's scripts.
 
@@ -83,17 +83,23 @@ The new repo has every file here and none of this repo's history. Then [make it 
 
 ## Add it to an existing repo
 
-From a clone of this repo beside yours:
+From the root of the repo:
 
 ```sh
-mkdir -p .claude/agents .claude/skills .github/workflows
-cp -R ../switchyard/.claude/agents/. .claude/agents/
-cp -R ../switchyard/.claude/skills/work-issues .claude/skills/
-cp ../switchyard/.github/workflows/switchyard.yml .github/workflows/
-npx @fission-ai/openspec init --tools claude,codex,opencode
+git clone https://github.com/nicoleman0/switchyard.git ../switchyard
+python3 ../switchyard/.claude/skills/work-issues/scripts/update-switchyard.py --install
 ```
 
-Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` lines of `.gitignore`, and the `rules` in `openspec/config.yaml`.
+The clone beside the repo holds the updater; the default `--source` fetches the release. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
+
+- `AGENTS.md` gains the Workflow and Writing sections; a repo without an `AGENTS.md` gets the release's whole file, Project placeholder included.
+- `.gitignore` gains the `.claude` lines it is missing.
+- `openspec/config.yaml` gains the Switchyard `rules` entries without replacing `context` or the project's own rules.
+- `.claude/skills/work-issues/routing.md` is added when it is missing and never replaced.
+
+The report lists each file as `added`, `merged`, or `conflict`, then the totals, and writes `VERSION` naming the release. Conflict markers name the two sides and stay inside the owned section or rule list; every other line of the file is untouched. Resolve them, review the diff, and commit. To undo before committing: `git restore .`, remove files reported as `added`, and remove `VERSION`.
+
+If the repo has no `openspec/` directory, install prints the next step, `npx @fission-ai/openspec init --tools claude,codex,opencode`; install writes `openspec/config.yaml` first, and init keeps it.
 
 ## Make it yours
 
@@ -137,6 +143,8 @@ The updater adds `.claude/skills/work-issues/routing.md` when it is missing, the
 The updater covers paths listed in its target release. It skips OpenSpec-generated files, which `npx @fission-ai/openspec update` refreshes, and Switchyard's README, license, changelog, contributing guide, and banner. See the [Switchyard releases](https://github.com/nicoleman0/switchyard/releases) for release notes.
 
 The updater clones the release source, so a Codex session needs network access. Run it outside the sandbox if the session cannot access the network.
+
+A repository that never had the workflow at all does not update from a release: it takes [install](#add-it-to-an-existing-repo), which needs no `--from`.
 
 ## Use it
 
