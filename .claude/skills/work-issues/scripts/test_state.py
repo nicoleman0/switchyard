@@ -179,6 +179,102 @@ exec "{real}" "$@"''')
         self.assertIn("refs/heads/race", hinted)
         self.assertFalse((self.repo / ".claude/state/39.json").exists())
 
+    def make_dirty(self, tree):
+        # Modified, staged, and untracked files, as git's plain removal refuses.
+        (tree / ".keep").write_text("changed\n")
+        (tree / "staged.txt").write_text("x\n")
+        (tree / "untracked.txt").write_text("x\n")
+        subprocess.run(["git", "-C", str(tree), "add", "staged.txt"], check=True)
+
+    def test_teardown_refuses_dirty_worktree_before_the_hook(self):
+        self.down_hook.write_text('#!/bin/sh\necho down >> "$MAIN_CHECKOUT/hook-log"\n')
+        self.assertEqual(self.script("setup-worktree.sh", "8", "topic").returncode, 0)
+        tree = Path(self.record()["path"])
+        self.make_dirty(tree)
+        down = self.script("teardown-worktree.sh", "8", "topic")
+        self.assertNotEqual(down.returncode, 0)
+        self.assertIn("--abandon", down.stderr)
+        self.assertIn("untracked.txt", down.stderr)
+        self.assertIn(" M .keep", down.stderr)
+        self.assertTrue((self.repo / ".claude/state/8.json").exists())
+        self.assertTrue(tree.exists())
+        self.assertEqual(subprocess.run(["git", "-C", str(self.repo), "branch", "--list", "topic"], capture_output=True, text=True).stdout.count("topic"), 1)
+        self.assertFalse((self.repo / "hook-log").exists())
+
+    def test_teardown_rejects_unknown_options(self):
+        self.assertEqual(self.script("setup-worktree.sh", "8", "topic").returncode, 0)
+        tree = Path(self.record()["path"])
+        self.make_dirty(tree)
+        down = self.script("teardown-worktree.sh", "--force", "8", "topic")
+        self.assertEqual(down.returncode, 2)
+        self.assertIn("Usage: teardown-worktree.sh", down.stderr)
+        self.assertTrue((self.repo / ".claude/state/8.json").exists())
+        self.assertTrue(tree.exists())
+
+    def test_abandon_reports_and_discards_dirty_worktree(self):
+        self.down_hook.write_text('#!/bin/sh\necho down >> "$MAIN_CHECKOUT/hook-log"\n')
+        self.assertEqual(self.script("setup-worktree.sh", "8", "topic").returncode, 0)
+        tree = Path(self.record()["path"])
+        self.make_dirty(tree)
+        draft = subprocess.run(["git", "-C", str(tree), "commit", "-qm", "draft change", "staged.txt"], capture_output=True, text=True)
+        self.assertEqual(draft.returncode, 0, draft.stderr)
+        down = self.script("teardown-worktree.sh", "--abandon", "8", "topic")
+        self.assertEqual(down.returncode, 0, down.stderr)
+        self.assertEqual(down.stderr, "")
+        self.assertIn("?? untracked.txt", down.stdout)
+        self.assertIn(" M .keep", down.stdout)
+        self.assertIn("draft change", down.stdout)
+        self.assertTrue((self.repo / "hook-log").exists())
+        self.assertFalse((self.repo / ".claude/state/8.json").exists())
+        self.assertFalse(tree.exists())
+        self.assertEqual(subprocess.run(["git", "-C", str(self.repo), "branch", "--list", "topic"], capture_output=True, text=True).stdout, "")
+        self.assertEqual(subprocess.run(["git", "ls-remote", "--heads", str(self.origin), "topic"], capture_output=True, text=True).stdout, "")
+
+    def test_abandon_deletes_the_remote_branch(self):
+        self.assertEqual(self.script("setup-worktree.sh", "39", "race").returncode, 0)
+        subprocess.run(["git", "-C", str(self.repo), "push", "-q", "origin", "race"], capture_output=True)
+        down = self.script("teardown-worktree.sh", "--abandon", "39", "race")
+        self.assertEqual(down.returncode, 0, down.stderr)
+        self.assertEqual(subprocess.run(["git", "ls-remote", "--heads", str(self.origin), "race"], capture_output=True, text=True).stdout, "")
+        self.assertFalse((self.repo / ".claude/state/39.json").exists())
+
+    def stub_teardown_herdr(self, workspace, tree):
+        # Stands in for `herdr worktree remove`, which takes the checkout with
+        # it and leaves the local branch for `git branch -D`.
+        self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\nif [ "$1 $2" = "worktree list" ]; then printf \'%s\\n\' "$HERDR_LIST_RESULT"\nelif [ "$1 $2" = "worktree remove" ]; then git worktree remove --force "$HERDR_TREE"\nelse exit 23\nfi')
+        env = self.env.copy()
+        env["HERDR_ENV"] = "1"
+        env["HERDR_LIST_RESULT"] = json.dumps({"result": {"worktrees": [{"branch": "topic", "open_workspace_id": workspace}]}})
+        env["HERDR_TREE"] = str(tree)
+        return env
+
+    def test_abandon_forces_herdr_removal_on_dirty_worktree(self):
+        self.assertEqual(self.script("setup-worktree.sh", "8", "topic").returncode, 0)
+        tree = Path(self.record()["path"])
+        self.make_dirty(tree)
+        env = self.stub_teardown_herdr("ws-open", tree)
+        down = self.script("teardown-worktree.sh", "--abandon", "8", "topic", env=env)
+        self.assertEqual(down.returncode, 0, down.stderr)
+        self.assertIn("worktree remove --workspace ws-open --force", self.log.read_text())
+        self.assertFalse(tree.exists())
+        self.assertFalse((self.repo / ".claude/state/8.json").exists())
+        self.assertEqual(subprocess.run(["git", "-C", str(self.repo), "branch", "--list", "topic"], capture_output=True, text=True).stdout, "")
+
+    def test_plain_teardown_refuses_dirty_herdr_worktree_before_removal(self):
+        self.assertEqual(self.script("setup-worktree.sh", "8", "topic").returncode, 0)
+        tree = Path(self.record()["path"])
+        self.make_dirty(tree)
+        env = self.stub_teardown_herdr("ws-open", tree)
+        down = self.script("teardown-worktree.sh", "8", "topic", env=env)
+        self.assertNotEqual(down.returncode, 0)
+        self.assertIn("--abandon", down.stderr)
+        # The stub logs every herdr call, so nothing means teardown stopped first.
+        self.assertNotIn("worktree remove", self.log.read_text() if self.log.exists() else "")
+        self.assertTrue((self.repo / ".claude/state/8.json").exists())
+        self.assertTrue(tree.exists())
+
+
+
     def test_setup_herdr_records_pane(self):
         env = self.env.copy(); env["HERDR_ENV"] = "1"
         env["HERDR_CREATE_RESULT"] = '{"result":{"root_pane":{"cwd":"' + str(self.base / "herdr-tree") + '","pane_id":"w9:p2","workspace_id":"ws9"}}}'
