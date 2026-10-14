@@ -15,7 +15,7 @@ Start a new project from it, and the project begins with a delivery workflow for
 
 To adopt it, [start a new project](#start-a-new-project) from the template with one command, or [add the workflow to a repo you already have](#add-it-to-an-existing-repo) with a few copy commands and three hand merges.
 
-It does not depend on one AI provider. Use any agent CLI for the worker roles, and change a provider or a model by editing one file, `.claude/skills/work-issues/routing.md`. The values it ships with are examples. The coordinator runs on Claude Code or Codex.
+It does not depend on one AI provider. Use any agent CLI for the worker roles, and change a provider or a model by editing one file, `.claude/skills/work-issues/routing.md`. The values it ships with are examples. The coordinator runs on any CLI that reads `AGENTS.md` and can run the skill's scripts.
 
 It holds no application code. You add your stack on top.
 
@@ -38,7 +38,7 @@ Each piece covers a gap the others leave:
 | Role | Where it runs | Does | Never |
 |---|---|---|---|
 | You | GitHub and the coordinator's chat | Open issues, answer product questions, approve merges | |
-| Coordinator | Your session on the main checkout, Claude Code or Codex | Splits the work, writes briefs, reviews plans, acts on review verdicts, pushes, opens PRs, merges, cleans up | Implements |
+| Coordinator | Your session on the main checkout, any CLI that reads `AGENTS.md` and can run the skill's scripts | Splits the work, writes briefs, reviews plans, acts on review verdicts, pushes, opens PRs, merges, cleans up | Implements |
 | Planner | The issue's worktree, any provider | Reads the issue and the code, proposes the OpenSpec change, takes before screenshots, lists open questions | Writes code |
 | Implementer | The same worktree, fresh session, any provider | Applies the change, runs every check, takes after screenshots, archives the change, commits, writes the PR body | Pushes |
 | Reviewer | The same worktree, fresh session, another provider when available | Checks the diff against the change's scenarios and tasks, runs every check, writes a verdict file | Edits code |
@@ -89,7 +89,7 @@ You are asked something at three points: before work starts, after the plan, and
 - macOS or Linux. CI lints and tests the workflow's scripts on `ubuntu-latest`, and the maintainer develops on macOS. Windows is untested. WSL should behave like Linux, but nobody has run it.
 - `git`, Python 3, and Node.js (OpenSpec runs through `npx`).
 - The [GitHub CLI](https://cli.github.com), signed in.
-- Any agent CLI with a worker row in `routing.md`. The coordinator runs on Claude Code or Codex.
+- Any agent CLI with a worker row in `routing.md`. The coordinator can run on any CLI that reads `AGENTS.md` and can run the skill's scripts; see its note in `routing.md` for setup.
 - With one provider, keep only that provider's rows in `routing.md`. The reviewer then runs on the implementer's provider, and the review is not independent.
 - Recommended: [Herdr](https://herdr.dev), a terminal workspace manager for coding agents. See [Runners](#runners).
 - For UI screenshots: Playwright in your project, and `sips` (macOS) or ImageMagick.
@@ -136,7 +136,7 @@ Then merge in the Workflow and Writing sections of `AGENTS.md`, the `.claude` li
 | `.claude/skills/work-issues/scripts/shots.mjs` | The routes to screenshot, if the project has a UI. |
 | `.claude/skills/work-issues/routing.md` | The Providers table holds each provider's commands. The Workers table holds providers, models, effort, and flags. Shipped values are examples. This file belongs to your project. |
 
-A Codex coordinator needs a one-time profile. The skill's "Codex coordinator profile" section has the file.
+The coordinator's CLI setup belongs in the project's Coordinator notes in `routing.md`.
 
 ## Take a later release
 
@@ -169,7 +169,7 @@ The updater clones the release source, so a Codex session needs network access. 
    ```sh
    gh issue create --title "Password reset emails arrive twice" --body "..."
    ```
-2. Start the coordinator on the main checkout. Open `claude` there, inside Herdr if you use it. For Codex, run `codex -p coordinator --add-dir <worktrees folder>`; the runner file names the folder.
+2. Start a CLI that reads `AGENTS.md` and can run the skill's scripts from the main checkout. Follow its Coordinator note in `routing.md` for writable worktree paths and session setup.
 3. Tell it what to deliver:
    - "Work on issue #12."
    - "Work on #12, #14, and #15."

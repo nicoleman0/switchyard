@@ -15,8 +15,6 @@ class PreflightTests(unittest.TestCase):
         self.bin.mkdir()
         self.home = self.root / "home"
         self.home.mkdir()
-        self.codex_home = self.root / "codex"
-        self.codex_home.mkdir()
 
     def tearDown(self):
         self.temp.cleanup()
@@ -31,7 +29,6 @@ class PreflightTests(unittest.TestCase):
         env = {
             "PATH": str(self.bin),
             "HOME": str(self.home),
-            "CODEX_HOME": str(self.codex_home),
             "SHOTS_PACKAGE_DIR": str(self.root),
         }
         if extra_env:
@@ -100,25 +97,19 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(sum("GitHub CLI" in line for line in result.stdout.splitlines()), 1)
 
-    def test_coordinator_cli_rules(self):
-        for clis, expected in ((["claude"], 0), (["codex"], 0), (["opencode"], 1), (["pi"], 1), ([], 1)):
-            with self.subTest(clis=clis):
-                self.add_base(*clis, "magick", "herdr")
-                result = self.run_check()
-                self.assertEqual(result.returncode, expected)
-                if expected:
-                    self.assertIn("MISSING  Coordinator CLI", result.stdout)
-                else:
-                    self.assertIn("ok       Coordinator CLI", result.stdout)
-                for path in self.bin.iterdir():
-                    path.unlink()
+    def test_opencode_coordinator_does_not_need_a_coordinator_cli_check(self):
+        self.add_base("opencode", "magick", "herdr")
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0)
+        self.assertNotIn("Coordinator CLI", result.stdout)
+        self.assertNotIn("Codex coordinator profile", result.stdout)
 
     def test_all_required_items_are_reported_and_counted(self):
         result = self.run_check()
         self.assertEqual(result.returncode, 1)
-        for item in ("git", "Python 3", "Node.js", "GitHub CLI", "Coordinator CLI"):
+        for item in ("git", "Python 3", "Node.js", "GitHub CLI"):
             self.assertTrue(any(line.startswith("MISSING") and item in line for line in result.stdout.splitlines()), item)
-        self.assertIn("5 missing,", result.stdout)
+        self.assertIn("4 missing,", result.stdout)
 
     def test_optional_herdr_and_image_tool_warn_without_failing(self):
         self.add_base("claude")
@@ -183,29 +174,8 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("warn     Worker providers: none of the named providers is installed.", result.stdout)
 
-    def test_codex_profile_path_and_absence(self):
-        self.add_base("codex", "magick", "herdr")
-        result = self.run_check()
-        self.assertIn("warn     Codex coordinator profile:", result.stdout)
-        (self.codex_home / "coordinator.config.toml").write_text("profile = true\n")
-        result = self.run_check()
-        self.assertIn("ok       Codex coordinator profile", result.stdout)
-
-        (self.bin / "codex").unlink()
-        result = self.run_check()
-        self.assertNotIn("Codex coordinator profile", result.stdout)
-
-        (self.codex_home / "coordinator.config.toml").unlink()
-        (self.home / ".codex").mkdir()
-        (self.home / ".codex" / "coordinator.config.toml").write_text("profile = true\n")
-        self.add("codex")
-        env = {"CODEX_HOME": None}
-        result = self.run_check(env)
-        self.assertIn("ok       Codex coordinator profile", result.stdout)
-
     def test_full_pass_has_no_missing_or_warnings(self):
         self.add_base("claude", "codex", "herdr", "magick")
-        (self.codex_home / "coordinator.config.toml").write_text("profile = true\n")
         result = self.run_check(providers=("claude", "codex"))
         self.assertEqual(result.returncode, 0)
         self.assertNotIn("MISSING", result.stdout)

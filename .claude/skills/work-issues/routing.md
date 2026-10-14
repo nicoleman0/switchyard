@@ -41,9 +41,37 @@ Provider notes:
 
 ## Coordinator
 
+Add a note for every CLI this project uses as a coordinator. Each note states how to start it on the main checkout, what it needs writable, how it asks for approval, and how it waits for a worker.
+
 | Provider | Model | Effort |
 |---|---|---|
 | claude | `opus` | high |
 | codex | | medium |
+| opencode | | |
 
-An empty Model cell means the CLI's own default. The Claude row gives settings for the maintainer's own session. The Codex row fills the Codex coordinator profile.
+An empty Model cell means the CLI's own default. These values are examples. The maintainer sets them in their own session; each note says how.
+
+Run as coordinator: Claude Code and Codex in regular use, and opencode in the proof for #41 on the headless runner.
+
+### Coordinator notes
+
+- **claude:** Start `claude` from the main checkout, inside Herdr if you use it. The coordinator needs write access to the worktree folder named in the selected runner file. Claude Code permission prompts can request access, but merge only after the maintainer explicitly approves in the coordinator conversation. On headless, wait for the worker command to exit. In Herdr, run `scripts/wait-agents.sh` in the background so the session resumes when it returns.
+- **codex:** `codex -p coordinator` layers `~/.codex/coordinator.config.toml` over the user config. The file lives outside the repo, so create it once:
+
+  ```toml
+  model_reasoning_effort = "<Coordinator table effort>"
+  approvals_reviewer = "user"
+  ```
+
+  Copy the values from the `codex` row of the Coordinator table in `.claude/skills/work-issues/routing.md`. Add `model = "<Coordinator table model>"` only when that Model cell is not empty.
+
+  `approvals_reviewer = "user"` sends approval requests to the maintainer, as Claude's permission prompts do. Without it they go to Codex's automatic reviewer, which decides case by case and has refused pushes. Workers keep `--approve-for-me`.
+
+  The Codex sandbox can write the checkout, apart from `.git`, and nothing outside the checkout. Worktrees live outside it, so start Codex with the `--add-dir` the runner file names, which makes them writable for briefs and answers. Request everything else that writes outside the sandbox up front: the two worktree scripts, and git commands that change refs (`push`, `fetch`, `rebase`, `merge`). A sandboxed `git push` still reaches the remote but cannot record the upstream.
+
+  At an approval prompt, the maintainer answers "Yes, proceed". "Don't ask again" saves an allow rule under `~/.codex/rules/`, which every Codex session reads, workers included. This setting does not replace explicit maintainer approval before a merge.
+
+  Start Codex on the main checkout with `codex -p coordinator --add-dir <worktrees folder>`; the runner file names the folder.
+
+  Run preflight outside the sandbox because it calls GitHub. Run `setup-worktree.sh` outside the sandbox because a failure halfway through leaves a worktree the script cannot resume. On headless, wait for the worker command to exit. In Herdr, run `scripts/wait-agents.sh` and wait for it to return.
+- **opencode:** Start `opencode` from the main checkout for an interactive session, or use `opencode run --auto "<request>"` for one request. The coordinator needs write access to the worktree folder named in the selected runner file. In the proof for #41, `--auto` ran every command without asking, so the merge rule in `SKILL.md` is the only gate: merge only after the maintainer explicitly approves in the coordinator conversation. On the headless runner, a worker turn is a blocking command and the session waited for it to exit. Not tried: opencode as coordinator inside Herdr. Not tried: a session without `--auto`; opencode requires the `external_directory` permission for paths outside its working directory, and the worktrees are outside the main checkout. Interactive opencode reopens the last model picked, so the empty Model cell means that model.

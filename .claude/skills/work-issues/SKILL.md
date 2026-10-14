@@ -52,22 +52,9 @@ Workers never push. Implementers commit and write `.claude/pr-body.md`, then sto
 
 Escalate a single issue only when the plan review shows judgment the plan cannot capture. To escalate, run that issue's implementer with the `escalation` row's flags, and tell the maintainer you did it.
 
-## Codex coordinator profile
+## Coordinator
 
-`codex -p coordinator` layers `~/.codex/coordinator.config.toml` over the user config. The file lives outside the repo, so create it once:
-
-```toml
-model_reasoning_effort = "<Coordinator table effort>"
-approvals_reviewer = "user"
-```
-
-Copy the values from the `codex` row of the Coordinator table in `.claude/skills/work-issues/routing.md`. Add `model = "<Coordinator table model>"` only when that Model cell is not empty.
-
-`approvals_reviewer = "user"` sends approval requests to the maintainer, as Claude's permission prompts do. Without it they go to Codex's automatic reviewer, which decides case by case and has refused pushes. Workers keep `--approve-for-me`.
-
-The Codex sandbox can write the checkout, apart from `.git`, and nothing outside the checkout. Worktrees live outside it, so start Codex with the `--add-dir` the runner file names, which makes them writable for briefs and answers. Request everything else that writes outside the sandbox up front: the two worktree scripts, and git commands that change refs (`push`, `fetch`, `rebase`, `merge`). A sandboxed `git push` still reaches the remote but cannot record the upstream.
-
-At an approval prompt, the maintainer answers "Yes, proceed". "Don't ask again" saves an allow rule under `~/.codex/rules/`, which every Codex session reads, workers included.
+The coordinator must be able to read `AGENTS.md` and this skill, run the skill's scripts, write to issue worktrees, and push from the main checkout. It must get explicit maintainer approval before merging. These requirements apply even when the CLI runs commands without permission prompts. Follow the matching coordinator note in `.claude/skills/work-issues/routing.md` for setup, permissions, and waiting behavior.
 
 ## Batch state
 
@@ -75,7 +62,7 @@ Issue records live in `.claude/state/<issue>.json` in the main checkout. `setup-
 
 ## Before starting
 
-Run `scripts/preflight.sh <provider>...` first, passing the provider names in `routing.md`. It checks the requirements and says how to fix each missing one. Stop on a non-zero exit and tell the maintainer what is missing. Pass its warnings on. On Codex, run it outside the sandbox, because it calls GitHub.
+Run `scripts/preflight.sh <provider>...` first, passing the provider names in `routing.md`. It checks the requirements and says how to fix each missing one. Stop on a non-zero exit and tell the maintainer what is missing. Pass its warnings on.
 
 1. Read the issues and `AGENTS.md`. Check the issues against the code. For each one, write down anything the issue leaves undecided, and ask the maintainer before any agent starts.
 2. Split the issues by ownership. Each issue owns folders that no other issue in the batch edits. Issues that touch the same files run one after another, not in parallel. Run first the one whose result the others build on.
@@ -83,7 +70,7 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
 
 ## Per issue
 
-1. **Set up.** Run `scripts/setup-worktree.sh <issue> <branch>`. It records the issue and prints the worktree path, the runner's handles, and the isolation values from the project's `hooks/worktree-up.sh`. Keep them for the brief. On Codex, run it outside the sandbox: a sandbox failure halfway leaves a worktree the script cannot resume.
+1. **Set up.** Run `scripts/setup-worktree.sh <issue> <branch>`. It records the issue and prints the worktree path, the runner's handles, and the isolation values from the project's `hooks/worktree-up.sh`. Keep them for the brief.
 2. **Brief.** Copy `brief-template.md` to `<path>/.claude/brief.md` and fill every `{placeholder}`. Under the coordinator notes, put:
    - the decisions already made,
    - what is out of scope and which issue owns it,
@@ -91,7 +78,7 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
    `.claude/` is git-ignored apart from agents, skills, and commands.
 
    Record the owned paths for the scope check: `python3 scripts/state.py set <issue> "owned=<path> <path>"`. Separate them with spaces and end folders with `/`.
-3. **Plan.** Start the planner with its routing-table flags from `.claude/skills/work-issues/routing.md`, then prompt it: `Read .claude/skills/work-issues/roles/planner.md, then .claude/brief.md, and plan issue #<issue>.` The role path is in the prompt because only Claude loads it from a profile.
+3. **Plan.** Start the planner with its routing-table flags from `.claude/skills/work-issues/routing.md`, then prompt it: `Read .claude/skills/work-issues/roles/planner.md, then .claude/brief.md, and plan issue #<issue>.` Include the role path so every provider can read the same instructions.
 4. **Review the plan.**
    - Read the change on disk: the proposal, the design, the spec delta, and the tasks. The planner's last message is only its list of questions.
    - Check the change against the code and the specs. Verify any claim it makes about the code or the data before you rely on it.
@@ -115,7 +102,7 @@ The reviewer checks the diff against the change. Read its review, not the diff. 
 
 After `Verdict: pass`:
 1. Run `scripts/check-scope.sh <issue>`. It lists the files the branch changed outside its owned paths. The change's files under `openspec/` are always in scope. Rule on each listed file: accept an appended section in a shared doc, and send anything else back as a fix round.
-2. From the main checkout, push with `git push -u origin <branch>`. On Codex, request the push outside the sandbox, so the prompt goes to the maintainer.
+2. From the main checkout, push with `git push -u origin <branch>`.
 3. Fill the Review section of `.claude/pr-body.md` with the reviewer's provider, the verdict, and the number of rounds.
 4. Fill the Screenshots section. If your harness can publish a page, as Claude Code's Artifact tool can, publish `<path>/.claude/shots/compare.html` and put the link there. Otherwise write that the comparison page was not published, and give its local path.
 5. Run `gh pr create --head <branch> --body-file <path>/.claude/pr-body.md`. Add `--milestone <milestone>` when the brief names one.
@@ -126,7 +113,7 @@ With several PRs in flight, merge every branch into a throwaway worktree off `or
 
 ## Merge and clean up
 
-Merge only when the maintainer approves. Squash-merge one PR with `gh pr merge <pr> --squash`, without `--delete-branch`. Then end its worker's session and run `scripts/teardown-worktree.sh <issue> <branch>`. It runs the project's `hooks/worktree-down.sh`, removes the worktree, deletes the local and remote branch, and removes the record.
+Merge only after the maintainer explicitly approves. This rule applies on every CLI, including those that can run commands without a permission prompt. A CLI prompt is not maintainer approval. Squash-merge one PR with `gh pr merge <pr> --squash`, without `--delete-branch`. Then end its worker's session and run `scripts/teardown-worktree.sh <issue> <branch>`. It runs the project's `hooks/worktree-down.sh`, removes the worktree, deletes the local and remote branch, and removes the record.
 
 For each PR still open:
 1. Rebase its branch in its worktree onto `origin/main`.
