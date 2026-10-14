@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Draw the Switchyard banner and social preview as pixel art.
 Usage: python3 docs/pixelart.py docs
-Writes switchyard.svg and social-preview.png into the folder.
+Writes switchyard.svg, workflow.svg, and social-preview.png into the folder.
 The banner is animated with CSS, in whole-pixel steps.
 """
 import random
@@ -23,6 +23,7 @@ GRN, GRN_DK = "#4CC38A", "#2F9C68"
 BRN, BRN_DK = "#C4905A", "#A9743F"
 GREY, GLASS, WHITE = "#5B6470", "#CFE8F3", "#FFFFFF"
 STONE, STONE_DK = "#C9CFC4", "#A8B0A4"
+SKIN = "#F2C9A0"
 
 
 class Canvas:
@@ -416,6 +417,10 @@ FONT3 = {
     "S": [".##", "#..", ".#.", "..#", "##."], "T": ["###", ".#.", ".#.", ".#.", ".#."],
     "U": ["#.#", "#.#", "#.#", "#.#", "###"], "V": ["#.#", "#.#", "#.#", "#.#", ".#."],
     "W": ["#...#", "#...#", "#.#.#", "##.##", "#...#"], ".": ["...", "...", "...", "...", ".#."],
+    "B": ["##.", "#.#", "##.", "#.#", "##."], "C": [".##", "#..", "#..", "#..", ".##"],
+    "F": ["###", "#..", "##.", "#..", "#.."], "G": [".##", "#..", "#.#", "#.#", ".##"],
+    "M": ["#...#", "##.##", "#.#.#", "#...#", "#...#"], "X": ["#.#", "#.#", ".#.", "#.#", "#.#"],
+    "Y": ["#.#", "#.#", ".#.", ".#.", ".#."],
     " ": ["...", "...", "...", "...", "..."],
 }
 
@@ -475,8 +480,125 @@ def social():
     return cv
 
 
+def text_width(s, font):
+    return sum(len(font[ch][0]) + 1 for ch in s) - 1
+
+
+PERSON = [".HH.", ".HH.", "SSSS", "SSSS", ".SS.", ".KK.", "K..K"]
+
+
+def person(cv, x, y):
+    cv.sprite(x, y, PERSON, {"H": SKIN, "S": YEL, "K": DARK})
+
+
+PAPER = "#F7F9F3"
+
+
+def track_v(cv, x, y0, y1):
+    """A quiet vertical track: one role's line through the whole run."""
+    for y in range(y0, y1 + 1):
+        if y % 3 == 0:
+            cv.dot(x - 1, y, STONE)
+            cv.dot(x + 1, y, STONE)
+    cv.rect(x, y0, 1, y1 - y0 + 1, STONE_DK)
+
+
+def handoff(cv, x0, x1, y, label):
+    """Work moving from one role's track to another's: a switch where it leaves, an arrow where it lands."""
+    step = 1 if x1 > x0 else -1
+    end = x1 - 3 * step
+    track_h(cv, min(x0, end), max(x0, end), y)
+    for i, half in enumerate([2, 1, 0]):
+        cv.rect(end + step * i, y - half, 1, 2 * half + 1, DARK)
+    switch(cv, x0, y)
+    w = text_width(label, FONT3)
+    text(cv, (x0 + x1) // 2 - w // 2, y - 8, label, FONT3, 1, NAVY)
+
+
+def dotted_frame(cv, x0, y0, x1, y1):
+    for x in range(x0, x1 + 1, 2):
+        cv.dot(x, y0, GREY)
+        cv.dot(x, y1, GREY)
+    for y in range(y0, y1 + 1, 2):
+        cv.dot(x0, y, GREY)
+        cv.dot(x1, y, GREY)
+
+
+def workflow():
+    """One issue as a sequence diagram: a track per role, a handoff per message."""
+    roles = [("YOU", YEL), ("COORDINATOR", NAVY_LT), ("PLANNER", TEAL), ("IMPLEMENTER", RED), ("REVIEWER", GRN)]
+    gap, box = 56, 52
+    xs = [30 + gap * i for i in range(len(roles))]
+    you, coord, plan, build, check = xs
+    steps = [
+        (you, coord, "ISSUE"), (coord, you, "QUESTIONS"), (coord, plan, "BRIEF"), (plan, coord, "PLAN"),
+        (coord, you, "DECISIONS"), None, (coord, build, "ANSWERS"), (build, coord, "COMMIT"),
+        (coord, check, "REVIEW"), (check, coord, "VERDICT"), None, (coord, you, "PULL REQUEST"),
+        (you, coord, "APPROVE"),
+    ]
+    rows, y = [], 30
+    for i, s in enumerate(steps):
+        if s is None:
+            # Room above the loop frame for its tab, and below it for the next label.
+            y += 12 if i == 5 else 6
+            rows.append(None)
+            continue
+        rows.append(y)
+        y += 13
+    merge_y = y + 2
+    cv = Canvas(xs[-1] + 30, merge_y + 14, PAPER)
+    for x in xs:
+        track_v(cv, x, 15, cv.h - 3)
+
+    # The fix round: after a failing verdict, build and review run again.
+    loop = [r for r in rows[6:10]]
+    fx0, fy0, fx1, fy1 = coord - 6, loop[0] - 18, check + 6, loop[-1] + 4
+    dotted_frame(cv, fx0, fy0, fx1, fy1)
+    tab = "UNTIL PASS"
+    tw = text_width(tab, FONT3) + 4
+    cv.rect(fx0, fy0, tw, 8, STONE)
+    text(cv, fx0 + 2, fy0 + 2, tab, FONT3, 1, NAVY)
+
+    for s, ry in zip(steps, rows):
+        if s:
+            handoff(cv, s[0], s[1], ry, s[2])
+
+    for (name, stripe), x in zip(roles, xs):
+        bx = x - box // 2
+        cv.rect(bx - 1, 2, box + 2, 13, DARK)
+        cv.rect(bx, 3, box, 11, WHITE)
+        cv.rect(bx, 3, box, 1, stripe)
+        w = text_width(name, FONT3)
+        if name == "YOU":
+            person(cv, x - (w + 6) // 2, 6)
+            text(cv, x - (w + 6) // 2 + 6, 7, name, FONT3, 1, NAVY)
+        else:
+            text(cv, x - w // 2, 7, name, FONT3, 1, NAVY)
+
+    # The coordinator merges, then the line ends at a clear signal.
+    label = "MERGE"
+    w = text_width(label, FONT3) + 4
+    cv.rect(coord - w // 2 - 1, merge_y - 1, w + 2, 9, DARK)
+    cv.rect(coord - w // 2, merge_y, w, 7, WHITE)
+    cv.rect(coord - w // 2, merge_y, w, 1, GRN)
+    text(cv, coord - w // 2 + 2, merge_y + 2, label, FONT3, 1, NAVY)
+    return cv
+
+
+def static_svg(cv, scale, title):
+    return "\n".join([
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {cv.w} {cv.h}" '
+        f'width="{cv.w * scale}" height="{cv.h * scale}" shape-rendering="crispEdges" '
+        f'role="img" aria-labelledby="title">',
+        f'<title id="title">{title}</title>',
+        *cv.paths(),
+        "</svg>",
+    ]) + "\n"
+
+
 if __name__ == "__main__":
     out = Path(sys.argv[1])
     s = social()
     (out / "switchyard.svg").write_text(banner_svg(4, "Pixel art of a rail yard. A steam engine brings wagons in on the main line. Switches sort one wagon onto each of three sidings, each siding ends at a signal, and a signal box watches over the yard."))
+    (out / "workflow.svg").write_text(static_svg(workflow(), 3, "A sequence diagram drawn as rail tracks, one vertical track per role: you, coordinator, planner, implementer, and reviewer. You hand the coordinator an issue and answer its questions. The coordinator briefs the planner, gets the plan back, and brings you the decisions. It passes the answers to the implementer, gets a commit, sends it to the reviewer, and gets a verdict, repeating build and review until the verdict is pass. The coordinator opens a pull request, you approve it, and the coordinator merges."))
     (out / "social-preview.png").write_bytes(s.png(8))
