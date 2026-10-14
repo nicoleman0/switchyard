@@ -97,7 +97,7 @@ The clone beside the repo holds the updater; the default `--source` fetches the 
 - `openspec/config.yaml` gains the Switchyard `rules` entries without replacing `context` or the project's own rules.
 - `.claude/skills/work-issues/routing.md` is added when it is missing and never replaced.
 
-The report lists each file as `added`, `merged`, or `conflict`, then the totals, and writes `VERSION` naming the release. Conflict markers name the two sides and stay inside the owned section or rule list; every other line of the file is untouched. Resolve them, review the diff, and commit. To undo before committing: `git restore .`, remove files reported as `added`, and remove `VERSION`.
+The report lists each file as `added`, `merged`, or `conflict`, then the totals, and writes `VERSION` naming the release. Conflict markers name the two sides. In `AGENTS.md`, `.gitignore`, and `openspec/config.yaml`, they stay inside the owned section or rule list. Any other existing workflow file that differs gets markers around the whole file. Resolve them, review the diff, and commit. To undo before committing: `git restore .`, remove files reported as `added`, and remove `VERSION`.
 
 If the repo has no `openspec/` directory, install prints the next step, `npx @fission-ai/openspec init --tools claude,codex,opencode`; install writes `openspec/config.yaml` first, and init keeps it.
 
