@@ -158,12 +158,65 @@ class InitProjectTests(unittest.TestCase):
 
     def test_an_uncommitted_guide_is_not_moved(self):
         self.fresh_project()
-        (self.project / "README.md").write_text("my notes\n")
+        edited = "# Switchyard: an agent coordination framework\n\nmy notes\n"
+        (self.project / "README.md").write_text(edited)
         result = self.run_init()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("skipped   README.md (uncommitted changes)", result.stdout)
         self.assertFalse((self.project / GUIDE).exists())
-        self.assertEqual((self.project / "README.md").read_text(), "my notes\n")
+        self.assertEqual((self.project / "README.md").read_text(), edited)
+
+    def assert_refused(self, deciding: str) -> None:
+        before = {
+            str(p.relative_to(self.project)): p.read_bytes()
+            for p in self.project.rglob("*")
+            if p.is_file() and ".git" not in p.relative_to(self.project).parts
+        }
+        result = self.run_init()
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("not a fresh copy", result.stderr)
+        self.assertIn(deciding, result.stderr)
+        after = {
+            str(p.relative_to(self.project)): p.read_bytes()
+            for p in self.project.rglob("*")
+            if p.is_file() and ".git" not in p.relative_to(self.project).parts
+        }
+        self.assertEqual(before, after)
+
+    def test_refuses_a_readme_that_is_not_the_guide(self):
+        self.fresh_project()
+        (self.project / "README.md").write_text("# My project\n")
+        self.git("commit", "-qam", "own readme")
+        self.assert_refused("README.md")
+
+    def test_refuses_when_the_marker_is_not_on_the_first_line(self):
+        self.fresh_project()
+        (self.project / "README.md").write_text("\n# Switchyard: an agent coordination framework\n")
+        self.git("commit", "-qam", "blank first line")
+        self.assert_refused("README.md")
+
+    def test_refuses_with_no_readme_and_no_guide(self):
+        self.fresh_project()
+        (self.project / "README.md").unlink()
+        self.git("commit", "-qam", "no readme")
+        self.assert_refused("README.md")
+
+    def test_refuses_with_no_readme_and_a_foreign_guide(self):
+        self.fresh_project()
+        (self.project / "README.md").unlink()
+        (self.project / "docs").mkdir(exist_ok=True)
+        (self.project / GUIDE).write_text("# Our workflow\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "foreign guide")
+        self.assert_refused(GUIDE)
+
+    def test_a_reworded_tagline_still_passes(self):
+        self.fresh_project()
+        (self.project / "README.md").write_text("# Switchyard for teams\n\nBody.\n")
+        self.git("commit", "-qam", "reworded")
+        result = self.run_init()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("moved     README.md -> docs/WORKFLOW.md", result.stdout)
 
     def test_a_clean_listed_path_is_still_deleted_when_another_is_uncommitted(self):
         # The git-status gate only skips the paths it catches, not the rest.
