@@ -4,8 +4,8 @@
 Moves the workflow guide to docs/WORKFLOW.md and deletes Switchyard-only
 files, including locally edited ones: a committed copy stays in git history.
 Skips listed paths with uncommitted changes, because git could not restore
-those, stops before any change when the directory has no git work tree,
-and never commits.
+those, stops before any change when the directory has no git work tree
+or when the guide does not start with Switchyard's heading, and never commits.
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ DELETED_PATHS = [
     Path("docs/social-preview.png"),
     Path("docs/pixelart.py"),
 ]
+TEMPLATE_HEADING = "# Switchyard"
 BANNER_TARGET = "(docs/switchyard.svg)"
 CHART_REF = "(docs/workflow.svg)"
 
@@ -52,6 +53,29 @@ def verify_work_tree(root: Path) -> None:
             "This directory is not inside a git work tree, so git could not restore "
             "deleted or moved files. Run init from the project root of a repository "
             "made from Switchyard."
+        )
+
+
+def has_template_heading(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip("\ufeff")
+    return text.startswith(TEMPLATE_HEADING)
+
+
+def verify_template(root: Path) -> None:
+    if (root / README).exists():
+        if not has_template_heading(root / README):
+            stop(
+                f'{README} does not start with Switchyard\'s heading ("{TEMPLATE_HEADING}"), '
+                "so this is not a fresh copy of the template. Init changed nothing. "
+                "Run it only in a new project made from Switchyard."
+            )
+    elif not has_template_heading(root / GUIDE):
+        stop(
+            f'Neither {README} nor {GUIDE} starts with Switchyard\'s heading ("{TEMPLATE_HEADING}"), '
+            "so this is not a fresh copy of the template. Init changed nothing. "
+            "Run it only in a new project made from Switchyard."
         )
 
 
@@ -106,6 +130,7 @@ def edit_guide(text: str) -> str:
 def main() -> None:
     root = Path.cwd()
     verify_work_tree(root)
+    verify_template(root)
     changed = changed_paths(root)
 
     def skip_reason(path: Path) -> str | None:
