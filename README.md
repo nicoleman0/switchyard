@@ -77,9 +77,12 @@ Click **Use this template** on GitHub, or run:
 ```sh
 gh repo create my-project --template nicoleman0/switchyard --private --clone
 cd my-project
+python3 .claude/skills/work-issues/scripts/init-project.py
 ```
 
-The new repo has every file here and none of this repo's history. Then [make it yours](#make-it-yours) before the first issue.
+The new repo has every file here and none of this repo's history. Init moves this guide to `docs/WORKFLOW.md`, fixes its paths, and deletes Switchyard's own files: `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, the banner image, the social preview, and `docs/pixelart.py`. It keeps `docs/workflow.svg`, prints every move, deletion, and skip, and never commits. A committed copy of every moved and deleted file stays in git history: init refuses to run outside a git work tree and skips the listed paths with uncommitted changes. It ends by naming what to add next: your own `README.md` and `LICENSE`, for a start.
+
+Then [make it yours](#make-it-yours) before the first issue.
 
 ## Add it to an existing repo
 
@@ -103,14 +106,15 @@ If the repo has no `openspec/` directory, install prints the next step, `npx @fi
 
 ## Make it yours
 
+Init removed the Switchyard-only files and moved the guide. What is left is your project's own files and settings:
+
 | Edit | What goes there |
 |---|---|
-| `README.md` | This guide describes the workflow, not your project. Keep it with `git mv README.md docs/WORKFLOW.md` (after `mkdir docs`), then write your own README. |
-| `LICENSE` | Replace it with your project's license, or delete it. |
-| `CHANGELOG.md`, `docs/switchyard.svg`, `docs/social-preview.png`, `docs/workflow.svg`, `docs/pixelart.py` | Switchyard's release notes, banner, social preview image, workflow chart, and the script that draws them. Start your own changelog. Delete the banner, the social preview, and the banner's line at the top of the guide. Keep the chart if you keep the guide; after `git mv README.md docs/WORKFLOW.md`, change its path in the guide to `workflow.svg`. |
-| `CONTRIBUTING.md` | Switchyard's contributing guide. Replace it with your own, or delete it. |
+| `README.md`, `LICENSE` | Add your project's README and license. |
+| `CHANGELOG.md`, `docs/workflow.svg` | Start your own changelog. Init kept the workflow chart next to the guide, which now reads it from `workflow.svg`. |
+| `CONTRIBUTING.md` | Write your project's contributing guide, or leave it out. |
 | `.github/workflows/` | `switchyard.yml` checks the workflow's own files and follows releases. Put your project's checks in a workflow of their own, such as `ci.yml`. |
-| `AGENTS.md`, Project section | Your checks, shared services, and conventions. Every agent reads it. |
+| `AGENTS.md`, Project section | Your checks, shared services, and conventions. Every agent reads it. Preflight warns while the shipped placeholder is still there. |
 | `openspec/config.yaml`, `context` | What the product is and what is out of scope. |
 | `.claude/skills/work-issues/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
 | `.claude/skills/work-issues/brief-template.md`, Isolation section | Rules every worker must follow, such as how to start a dev server on its own port. |
