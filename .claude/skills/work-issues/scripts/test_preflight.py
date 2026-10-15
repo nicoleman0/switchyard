@@ -5,6 +5,7 @@ import unittest
 
 
 SCRIPT = Path(__file__).with_name("preflight.sh").resolve()
+PLACEHOLDER = "Replace this section with your project's rules. Agents read it on every task."
 
 
 class PreflightTests(unittest.TestCase):
@@ -25,7 +26,7 @@ class PreflightTests(unittest.TestCase):
         path.chmod(0o755)
         return path
 
-    def run_check(self, extra_env=None, providers=()):
+    def run_check(self, extra_env=None, providers=(), cwd=None):
         env = {
             "PATH": str(self.bin),
             "HOME": str(self.home),
@@ -43,6 +44,24 @@ class PreflightTests(unittest.TestCase):
             capture_output=True,
             text=True,
             env=env,
+            cwd=str(cwd or self.root),
+        )
+
+    def write_agents(self, project=None):  # type: (str | None) -> None
+        section = project or ""
+        (self.root / "AGENTS.md").write_text(
+            "# Working in this repository\n"
+            "\n"
+            "## Workflow\n"
+            "\n"
+            "- Deliver issues through the work-issues skill.\n"
+            "\n"
+            "## Project\n"
+            "\n"
+            f"{section}\n\n"
+            "## Writing\n"
+            "\n"
+            "- Use plain, short sentences.\n"
         )
 
     def add_base(self, *extra):
@@ -179,6 +198,53 @@ class PreflightTests(unittest.TestCase):
         result = self.run_check(providers=("claude", "codex"))
         self.assertEqual(result.returncode, 0)
         self.assertNotIn("MISSING", result.stdout)
+        self.assertFalse(any(line.startswith("warn ") for line in result.stdout.splitlines()))
+
+    def test_placeholder_project_section_warns_but_does_not_fail(self):
+        self.add_base("claude", "codex", "magick", "herdr")
+        self.write_agents(PLACEHOLDER)
+        result = self.run_check(providers=("claude", "codex"))
+        self.assertEqual(result.returncode, 0)
+        self.assertIn(
+            "warn     AGENTS.md Project section: still the shipped placeholder. Fill it in with your checks, shared services, and conventions; every session reads it.",
+            result.stdout,
+        )
+        self.assertIn("1 warning(s)", result.stdout)
+
+    def test_edited_project_section_does_not_warn(self):
+        self.add_base("claude", "codex", "magick", "herdr")
+        self.write_agents("Checks: python3 -m unittest discover -s .claude/skills/work-issues/scripts -p 'test_*.py'.")
+        result = self.run_check(providers=("claude", "codex"))
+        self.assertEqual(result.returncode, 0)
+        self.assertNotIn("AGENTS.md Project", result.stdout)
+        self.assertFalse(any(line.startswith("warn ") for line in result.stdout.splitlines()))
+
+    def test_missing_project_section_and_missing_file_do_not_warn(self):
+        self.add_base("claude", "codex", "magick", "herdr")
+        self.write_agents()
+        result = self.run_check(providers=("claude", "codex"))
+        self.assertEqual(result.returncode, 0)
+        self.assertFalse(any(line.startswith("warn ") for line in result.stdout.splitlines()))
+
+        (self.root / "AGENTS.md").unlink()
+        result = self.run_check(providers=("claude", "codex"))
+        self.assertEqual(result.returncode, 0)
+        self.assertFalse(any(line.startswith("warn ") for line in result.stdout.splitlines()))
+
+    def test_placeholder_outside_the_project_section_does_not_warn(self):
+        self.add_base("claude", "codex", "magick", "herdr")
+        (self.root / "AGENTS.md").write_text(
+            "# Working in this repository\n"
+            "\n"
+            f"## Workflow\n\n{PLACEHOLDER}\n\n"
+            "## Project\n\n"
+            "Checks: python3 -m unittest.\n"
+            "\n"
+            "## Writing\n"
+        )
+        result = self.run_check(providers=("claude", "codex"))
+        self.assertEqual(result.returncode, 0)
+        self.assertNotIn("AGENTS.md Project", result.stdout)
         self.assertFalse(any(line.startswith("warn ") for line in result.stdout.splitlines()))
 
 

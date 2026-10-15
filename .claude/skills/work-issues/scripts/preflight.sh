@@ -93,5 +93,20 @@ else
   warning 'Image tool: install sips or ImageMagick. The comparison page cannot be built.'
 fi
 
+if [ -f AGENTS.md ]; then
+  placeholder="Replace this section with your project's rules."
+  in_project=0
+  while IFS= read -r line; do
+    case $line in
+      '## Project') in_project=1 ;;
+      '## '*) in_project=0 ;;
+    esac
+    if [ "$in_project" -eq 1 ] && [[ $line == *"$placeholder"* ]]; then
+      warning 'AGENTS.md Project section: still the shipped placeholder. Fill it in with your checks, shared services, and conventions; every session reads it.'
+      break
+    fi
+  done < AGENTS.md
+fi
+
 printf '%s missing, %s warning(s)\n' "$missing" "$warnings"
 [ "$missing" -eq 0 ]
