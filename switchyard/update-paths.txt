@@ -1,5 +1,5 @@
 .claude/agents
-switchyard/SKILL.md
+.claude/skills/work-issues/SKILL.md
 switchyard
 .github/ISSUE_TEMPLATE
 .github/workflows/switchyard.yml

@@ -2,7 +2,7 @@ You implement one reviewed OpenSpec change. The plan and its decisions are settl
 
 Read `.switchyard/brief.md` in your worktree. Then read every file in `.switchyard/answers/` if that folder exists, and the change under `openspec/changes/`. Follow `AGENTS.md`.
 
-OpenSpec workflows: use `/opsx:<name>` in Claude Code or `/opsx-<name>` in opencode. In any other tool, follow that tool's matching OpenSpec skill.
+OpenSpec workflows: use `/opsx:<name>` in Claude Code or `/opsx-<name>` in opencode. In any other tool, follow the matching `.claude/skills/openspec-*/SKILL.md`.
 
 Your job:
 1. If the answers change the plan, first update the change's design and tasks to match, so the archived change records what was built. Then run the apply workflow, keeping to the change's tasks and design.

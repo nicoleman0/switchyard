@@ -48,8 +48,7 @@ RELEASE_CONFIG = (
 )
 RELEASE_GITIGNORE = (
     b"node_modules/\n\n"
-    b""
-    b"# .switchyard runtime files.\n.switchyard/\n"
+    b".switchyard/\n"
 )
 DEFAULT_FILES = {
     ".claude/agents/worker.md": b"worker v1\n",
@@ -85,6 +84,11 @@ class UpdateSwitchyardTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+
+    def test_shipped_update_paths_names_the_claude_stub(self) -> None:
+        shipped = Path(__file__).parents[2] / PATHS
+        self.assertEqual(shipped.read_text().splitlines(), COVERED)
+        self.assertIn(".claude/skills/work-issues/SKILL.md", shipped.read_text().splitlines())
 
     def git(self, repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
         result = subprocess.run(["git", *args], cwd=repo, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -508,6 +512,8 @@ class UpdateSwitchyardTests(unittest.TestCase):
                          "local version\n")
         self.assertTrue(untracked.exists())
         self.assertEqual(sorted(path.name for path in legacy_root.iterdir()), ["SKILL.md", "untracked.txt"])
+        self.assertEqual((legacy_root / "SKILL.md").read_bytes(),
+                         (self.source / ".claude/skills/work-issues/SKILL.md").read_bytes())
         self.assertEqual((self.project / VERSION).read_text(), "0.7.0\n")
         self.assertFalse((legacy_root / "VERSION").exists())
         self.git(self.project, "add", "-A")

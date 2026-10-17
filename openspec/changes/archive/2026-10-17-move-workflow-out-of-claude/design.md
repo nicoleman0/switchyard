@@ -52,7 +52,7 @@ Effect on adopters: a pi row that still names `.claude/sessions/` writes session
 ### The updater works on the new layout
 
 - `VERSION_PATH = "switchyard/VERSION"`, `PATHS_PATH = "switchyard/update-paths.txt"`, `PROJECT_OWNED = {"switchyard/routing.md"}`.
-- `switchyard/update-paths.txt` lists `.claude/agents`, `.claude/skills/work-issues/SKILL.md`, `switchyard`, `.github/ISSUE_TEMPLATE`, `.github/workflows/switchyard.yml`, `.gitignore`, `AGENTS.md`, `openspec/config.yaml`. It names the stub file, not its folder, so the compat file below never reaches a project.
+- `switchyard/update-paths.txt` lists `.claude/agents`, `.claude/skills/work-issues/SKILL.md`, `switchyard`, `.github/ISSUE_TEMPLATE`, `.github/workflows/switchyard.yml`, `.gitignore`, `AGENTS.md`, `openspec/config.yaml`. It names the stub so it reaches projects on each update.
 - A target release without `switchyard/update-paths.txt` predates the move. The updater refuses: "<target> predates the switchyard/ layout; run that release's own updater".
 
 ### The updater migrates a legacy install

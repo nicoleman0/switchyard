@@ -139,6 +139,8 @@ git clone https://github.com/nicoleman0/switchyard.git ../switchyard
 python3 ../switchyard/switchyard/scripts/update-switchyard.py
 ```
 
+To undo this 0.6.0 migration, run `git restore .` and `rm -r switchyard/` before committing.
+
 Review the diff and resolve conflicts. If `routing.md` has a pi row that names `.claude/sessions/`, change it to `.switchyard/sessions/`.
 
 Projects made from 0.1.0 or 0.2.0 have no updater or `VERSION` file. For those, use the `--from` command below; pass the release the project started from, or use the oldest release if unsure:

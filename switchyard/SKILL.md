@@ -13,7 +13,7 @@ You are the coordinator. You run on the main checkout. You never implement an is
 - relaying questions to the maintainer,
 - merging and cleaning up.
 
-Agents do the planning, the building, and the review of the diff. Scripts do the mechanical steps. Paths below are relative to this skill's folder unless they start with a dot.
+Agents do the planning, the building, and the review of the diff. Scripts do the mechanical steps. Paths below are relative to this skill's folder unless they start with `switchyard/` or a dot.
 
 ## Runner
 
