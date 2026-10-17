@@ -17,6 +17,7 @@ PATHS = "switchyard/update-paths.txt"
 UPDATER = "switchyard/scripts/update-switchyard.py"
 COVERED = [
     ".claude/agents",
+    ".claude/skills/work-issues/SKILL.md",
     "switchyard",
     ".github/ISSUE_TEMPLATE",
     ".github/workflows/switchyard.yml",
@@ -47,11 +48,12 @@ RELEASE_CONFIG = (
 )
 RELEASE_GITIGNORE = (
     b"node_modules/\n\n"
-    b"# Briefs, answers, screenshots, and PR bodies stay local to each worktree.\n"
-    b".claude/*\n!.claude/skills/\n!.claude/commands/\n!.claude/agents/\n"
+    b""
+    b"# .switchyard runtime files.\n.switchyard/\n"
 )
 DEFAULT_FILES = {
     ".claude/agents/worker.md": b"worker v1\n",
+    ".claude/skills/work-issues/SKILL.md": b"---\nname: work-issues\n---\nStub\n",
     "switchyard/workflow.txt": b"first line\nstable line\nlast line\n",
     ".github/ISSUE_TEMPLATE/issue.yml": b"issue\n",
     ".github/workflows/switchyard.yml": b"ci v1\n",
@@ -496,12 +498,12 @@ class UpdateSwitchyardTests(unittest.TestCase):
                      ".github/ISSUE_TEMPLATE/issue.yml", ".github/workflows/switchyard.yml",
                      "AGENTS.md", ".gitignore", "openspec/config.yaml"):
             self.assertIn(("added: " + path).encode(), result.stdout, path)
-        self.assertIn(b"added: 8", result.stdout)
+        self.assertIn(b"added: 9", result.stdout)
         self.assertEqual((self.project / VERSION).read_text(), "0.2.0\n")
         self.assertEqual((self.project / "README.md").read_bytes(), b"mine\n")
         self.assertEqual((self.project / "AGENTS.md").read_bytes(), RELEASE_AGENTS)
         self.assertEqual((self.project / ".gitignore").read_bytes(),
-                         b".claude/*\n!.claude/skills/\n!.claude/commands/\n!.claude/agents/\n")
+                         b".switchyard/\n")
         self.assertEqual((self.project / "openspec/config.yaml").read_bytes(),
                          b"schema: spec-driven\n\n"
                          b"rules:\n"
@@ -539,7 +541,7 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertIn(b"merged: openspec/config.yaml", result.stdout)
         self.assertIn(b"merged: AGENTS.md", result.stdout)
         self.assertEqual((self.project / ".gitignore").read_bytes(),
-                         b"node_modules/\n.env\n.claude/*\n!.claude/skills/\n!.claude/commands/\n!.claude/agents/\n")
+                         b"node_modules/\n.env\n.switchyard/\n")
         self.assertEqual((self.project / "openspec/config.yaml").read_bytes(),
                          b"schema: spec-driven\n"
                          b"context: |\n"
@@ -561,12 +563,12 @@ class UpdateSwitchyardTests(unittest.TestCase):
 
     def test_install_gitignore_adds_only_missing_lines(self) -> None:
         self.make_target()
-        self.make_project(files={".gitignore": b".claude/*\n"}, version=None)
+        self.make_project(files={".gitignore": b".env\n"}, version=None)
         result = self.run_update("--install")
         self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
         self.assertIn(b"merged: .gitignore", result.stdout)
         self.assertEqual((self.project / ".gitignore").read_bytes(),
-                         b".claude/*\n!.claude/skills/\n!.claude/commands/\n!.claude/agents/\n")
+                         b".env\n.switchyard/\n")
 
     def test_install_agents_conflict_keeps_local_content(self) -> None:
         self.make_target()

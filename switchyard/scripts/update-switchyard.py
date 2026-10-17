@@ -340,10 +340,10 @@ def rules_block(text: str, path: str) -> tuple[list[tuple[str, str | None, int]]
 
 
 def install_gitignore_merge(release: bytes, local: bytes | None) -> tuple[bytes | None, str | None]:
-    """Add the release's `.claude` lines; existing lines are never rewritten."""
+    """Add the release's `.switchyard` line; existing lines are never rewritten."""
     release_text = file_text(GITIGNORE_PATH, release, release=True)
     patterns = [line.rstrip() for line in release_text.split("\n")
-                if ".claude" in line and not line.lstrip().startswith("#")]
+                if ".switchyard" in line and not line.lstrip().startswith("#")]
     if local is None:
         if not patterns:
             return None, None

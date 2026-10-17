@@ -13,7 +13,7 @@ You are the coordinator. You run on the main checkout. You never implement an is
 - relaying questions to the maintainer,
 - merging and cleaning up.
 
-Agents do the planning, the building, and the review of the diff. Scripts do the mechanical steps. Paths below are relative to this skill's folder unless they start with `.claude/`.
+Agents do the planning, the building, and the review of the diff. Scripts do the mechanical steps. Paths below are relative to this skill's folder unless they start with a dot.
 
 ## Runner
 
@@ -48,7 +48,7 @@ For escalation, use the Implementer row marked `escalation`. Without one, follow
 
 Each phase starts a fresh session, fix rounds included. Every handoff is a file in the worktree: the brief, the answers, the change, and the review. A worker reads them from disk, not from another session's context or from your summary, so the expensive context is not carried into the cheap phase.
 
-Workers never push. Implementers commit and write `.claude/pr-body.md`, then stop, so nothing reaches the remote before the review passes. `setup-worktree.sh` disables the push URL in each worktree, so a push works only from the main checkout. The coordinator pushes from there and opens the PR.
+Workers never push. Implementers commit and write `.switchyard/pr-body.md`, then stop, so nothing reaches the remote before the review passes. `setup-worktree.sh` disables the push URL in each worktree, so a push works only from the main checkout. The coordinator pushes from there and opens the PR.
 
 Escalate a single issue only when the plan review shows judgment the plan cannot capture. To escalate, run that issue's implementer with the `escalation` row's flags, and tell the maintainer you did it.
 
@@ -58,7 +58,7 @@ The coordinator must be able to read `AGENTS.md` and this skill, run the skill's
 
 ## Batch state
 
-Issue records live in `.claude/state/<issue>.json` in the main checkout. `setup-worktree.sh`, `start-worker.sh`, and `teardown-worktree.sh` write or remove them. Run `python3 switchyard/scripts/state.py status` first in a new coordinator session, then read each worker with the runner's Read command. On headless, read the newest log in `<path>/.claude/turns/`.
+Issue records live in `.switchyard/state/<issue>.json` in the main checkout. `setup-worktree.sh`, `start-worker.sh`, and `teardown-worktree.sh` write or remove them. Run `python3 switchyard/scripts/state.py status` first in a new coordinator session, then read each worker with the runner's Read command. On headless, read the newest log in `<path>/.switchyard/turns/`.
 
 ## Before starting
 
@@ -71,41 +71,41 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
 ## Per issue
 
 1. **Set up.** Run `scripts/setup-worktree.sh <issue> <branch>`. It records the issue and prints the worktree path, the runner's handles, and the isolation values from the project's `hooks/worktree-up.sh`. Keep them for the brief.
-2. **Brief.** Copy `brief-template.md` to `<path>/.claude/brief.md` and fill every `{placeholder}`. Under the coordinator notes, put:
+2. **Brief.** Copy `brief-template.md` to `<path>/.switchyard/brief.md` and fill every `{placeholder}`. Under the coordinator notes, put:
    - the decisions already made,
    - what is out of scope and which issue owns it,
    - any known traps.
-   `.claude/` is git-ignored apart from agents, skills, and commands.
+   `.switchyard/` holds the ignored runtime files.
 
    Record the owned paths for the scope check: `python3 scripts/state.py set <issue> "owned=<path> <path>"`. Separate them with spaces and end folders with `/`.
-3. **Plan.** Start the planner with its routing-table flags from `switchyard/routing.md`, then prompt it: `Read switchyard/roles/planner.md, then .claude/brief.md, and plan issue #<issue>.` Include the role path so every provider can read the same instructions.
+3. **Plan.** Start the planner with its routing-table flags from `switchyard/routing.md`, then prompt it: `Read switchyard/roles/planner.md, then .switchyard/brief.md, and plan issue #<issue>.` Include the role path so every provider can read the same instructions.
 4. **Review the plan.**
    - Read the change on disk: the proposal, the design, the spec delta, and the tasks. The planner's last message is only its list of questions.
    - Check the change against the code and the specs. Verify any claim it makes about the code or the data before you rely on it.
    - Answer what you can.
    - Bring product decisions to the maintainer: anything that changes behaviour the issue does not settle, or that reaches past the paths the issue owns.
-   - Write the answers to `<path>/.claude/answers/plan.md`.
-5. **Implement.** End the planner's session. Pick the implementer provider from the routing table in `switchyard/routing.md` and start it in the same worktree. Then prompt it: `Read switchyard/roles/implementer.md, then .claude/brief.md and .claude/answers/, and implement the change for issue #<issue>.`
-6. **Watch.** Wait for the worker, then read its report. Answer it with a file in `.claude/answers/` and a one-line prompt that points to the file.
-7. **Review.** When the implementer reports its commit, end its session. Start the reviewer on another usable provider when available. Otherwise set `SWITCHYARD_SAME_PROVIDER=1` and use the implementer's provider. Pass the selected row's flags from `switchyard/routing.md`, then prompt it: `Read switchyard/roles/reviewer.md and follow it for issue #<issue>.` Wait for it, then read the newest file in `<path>/.claude/reviews/`.
+   - Write the answers to `<path>/.switchyard/answers/plan.md`.
+5. **Implement.** End the planner's session. Pick the implementer provider from the routing table in `switchyard/routing.md` and start it in the same worktree. Then prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md and .switchyard/answers/, and implement the change for issue #<issue>.`
+6. **Watch.** Wait for the worker, then read its report. Answer it with a file in `.switchyard/answers/` and a one-line prompt that points to the file.
+7. **Review.** When the implementer reports its commit, end its session. Start the reviewer on another usable provider when available. Otherwise set `SWITCHYARD_SAME_PROVIDER=1` and use the implementer's provider. Pass the selected row's flags from `switchyard/routing.md`, then prompt it: `Read switchyard/roles/reviewer.md and follow it for issue #<issue>.` Wait for it, then read the newest file in `<path>/.switchyard/reviews/`.
 
 ## Act on the verdict
 
 The reviewer checks the diff against the change. Read its review, not the diff. Open the diff only to rule on a finding the implementer disputes or a question the reviewer raises.
 
 - **`Verdict: pass`:** open the PR.
-- **`Verdict: changes requested`:** end the reviewer's session and start a new implementer session. Prompt it: `Read switchyard/roles/implementer.md, then .claude/brief.md, .claude/answers/, and the newest file in .claude/reviews/, and fix the findings for issue #<issue>.` Do not restate the findings. Then run step 7 again with a new reviewer session.
+- **`Verdict: changes requested`:** end the reviewer's session and start a new implementer session. Prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md, .switchyard/answers/, and the newest file in .switchyard/reviews/, and fix the findings for issue #<issue>.` Do not restate the findings. Then run step 7 again with a new reviewer session.
 - **A second `changes requested`:** stop. Bring the open findings to the maintainer.
-- **Questions for the coordinator:** answer what you can in `.claude/answers/`, and bring product decisions to the maintainer. If an answer changes the change, run a fix round.
+- **Questions for the coordinator:** answer what you can in `.switchyard/answers/`, and bring product decisions to the maintainer. If an answer changes the change, run a fix round.
 
 ## Open the PR
 
 After `Verdict: pass`:
 1. Run `scripts/check-scope.sh <issue>`. It lists the files the branch changed outside its owned paths. The change's files under `openspec/` are always in scope. Rule on each listed file: accept an appended section in a shared doc, and send anything else back as a fix round.
 2. From the main checkout, push with `git push -u origin <branch>`.
-3. Fill the Review section of `.claude/pr-body.md` with the reviewer's provider, the verdict, and the number of rounds.
-4. Fill the Screenshots section. If your harness can publish a page, as Claude Code's Artifact tool can, publish `<path>/.claude/shots/compare.html` and put the link there. Otherwise write that the comparison page was not published, and give its local path.
-5. Run `gh pr create --head <branch> --body-file <path>/.claude/pr-body.md`. Add `--milestone <milestone>` when the brief names one.
+3. Fill the Review section of `.switchyard/pr-body.md` with the reviewer's provider, the verdict, and the number of rounds.
+4. Fill the Screenshots section. If your harness can publish a page, as Claude Code's Artifact tool can, publish `<path>/.switchyard/shots/compare.html` and put the link there. Otherwise write that the comparison page was not published, and give its local path.
+5. Run `gh pr create --head <branch> --body-file <path>/.switchyard/pr-body.md`. Add `--milestone <milestone>` when the brief names one.
 
 ## Several PRs
 
