@@ -30,7 +30,7 @@ class Harness(unittest.TestCase):
         self.origin = self.base / "origin.git"
         subprocess.run(["git", "init", "--bare", "-q", str(self.origin)], check=True)
         subprocess.run(["git", "-C", str(self.repo), "remote", "add", "origin", str(self.origin)], check=True)
-        self.skill = self.repo / ".claude/skills/work-issues"
+        self.skill = self.repo / "switchyard"
         shutil.copytree(SOURCE_SKILL, self.skill)
         (self.skill / "routing.md").write_text("# Routing\n")
         (self.skill / "roles/planner.md").write_text("role")

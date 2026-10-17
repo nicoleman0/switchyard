@@ -15,7 +15,7 @@ Start a new project from it, and the project begins with a delivery workflow for
 
 To adopt it, [start a new project](#start-a-new-project) from the template with one command, or [add the workflow to a repo you already have](#add-it-to-an-existing-repo) with one install command.
 
-It does not depend on one AI provider. Use any agent CLI for the worker roles, and change a provider or a model by editing one file, `.claude/skills/work-issues/routing.md`. The values it ships with are examples. The coordinator runs on any CLI that reads `AGENTS.md` and can run the skill's scripts.
+It does not depend on one AI provider. Use any agent CLI for the worker roles, and change a provider or a model by editing one file, `switchyard/routing.md`. The values it ships with are examples. The coordinator runs on any CLI that reads `AGENTS.md` and can run the skill's scripts.
 
 It holds no application code. You add your stack on top.
 
@@ -68,7 +68,7 @@ You are asked something at three points: before work starts, after the plan, and
 - With one provider, keep only that provider's rows in `routing.md`. The reviewer then runs on the implementer's provider, and the review is not independent.
 - Recommended: [Herdr](https://herdr.dev), a terminal workspace manager for coding agents. See [Runners](#runners).
 - For UI screenshots: Playwright in your project, and `sips` (macOS) or ImageMagick.
-- Check them with `.claude/skills/work-issues/scripts/preflight.sh <provider>...`, passing the providers in `routing.md`.
+- Check them with `switchyard/scripts/preflight.sh <provider>...`, passing the providers in `routing.md`.
 
 ## Start a new project
 
@@ -77,7 +77,7 @@ Click **Use this template** on GitHub, or run:
 ```sh
 gh repo create my-project --template nicoleman0/switchyard --private --clone
 cd my-project
-python3 .claude/skills/work-issues/scripts/init-project.py
+python3 switchyard/scripts/init-project.py
 ```
 
 The new repo has every file here and none of this repo's history. Init moves this guide to `docs/WORKFLOW.md`, fixes its paths, and deletes Switchyard's own files: `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, the banner image, the social preview, and `docs/pixelart.py`. It keeps `docs/workflow.svg`, prints every move, deletion, and skip, and never commits. A committed copy of every moved and deleted file stays in git history: init refuses to run outside a git work tree and skips the listed paths with uncommitted changes. It ends by naming what to add next: your own `README.md` and `LICENSE`, for a start.
@@ -90,7 +90,7 @@ From the root of the repo:
 
 ```sh
 git clone https://github.com/nicoleman0/switchyard.git ../switchyard
-python3 ../switchyard/.claude/skills/work-issues/scripts/update-switchyard.py --install
+python3 ../switchyard/switchyard/scripts/update-switchyard.py --install
 ```
 
 The clone beside the repo holds the updater; the default `--source` fetches the release. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
@@ -98,7 +98,7 @@ The clone beside the repo holds the updater; the default `--source` fetches the 
 - `AGENTS.md` gains the Workflow and Writing sections; a repo without an `AGENTS.md` gets the release's whole file, Project placeholder included.
 - `.gitignore` gains the `.claude` lines it is missing.
 - `openspec/config.yaml` gains the Switchyard `rules` entries without replacing `context` or the project's own rules.
-- `.claude/skills/work-issues/routing.md` is added when it is missing and never replaced.
+- `switchyard/routing.md` is added when it is missing and never replaced.
 
 The report lists each file as `added`, `merged`, or `conflict`, then the totals, and writes `VERSION` naming the release. Conflict markers name the two sides. In `AGENTS.md`, `.gitignore`, and `openspec/config.yaml`, they stay inside the owned section or rule list. Any other existing workflow file that differs gets markers around the whole file. Resolve them, review the diff, and commit. To undo before committing: `git restore .`, remove files reported as `added`, and remove `VERSION`.
 
@@ -116,10 +116,10 @@ Init removed the Switchyard-only files and moved the guide. What is left is your
 | `.github/workflows/` | `switchyard.yml` checks the workflow's own files and follows releases. Put your project's checks in a workflow of their own, such as `ci.yml`. |
 | `AGENTS.md`, Project section | Your checks, shared services, and conventions. Every agent reads it. Preflight warns while the shipped placeholder is still there. |
 | `openspec/config.yaml`, `context` | What the product is and what is out of scope. |
-| `.claude/skills/work-issues/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
-| `.claude/skills/work-issues/brief-template.md`, Isolation section | Rules every worker must follow, such as how to start a dev server on its own port. |
-| `.claude/skills/work-issues/scripts/shots.mjs` | The routes to screenshot, if the project has a UI. |
-| `.claude/skills/work-issues/routing.md` | The Providers table holds each provider's commands. The Workers table holds providers, models, effort, and flags. Shipped values are examples. This file belongs to your project. |
+| `switchyard/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
+| `switchyard/brief-template.md`, Isolation section | Rules every worker must follow, such as how to start a dev server on its own port. |
+| `switchyard/scripts/shots.mjs` | The routes to screenshot, if the project has a UI. |
+| `switchyard/routing.md` | The Providers table holds each provider's commands. The Workers table holds providers, models, effort, and flags. Shipped values are examples. This file belongs to your project. |
 
 The coordinator's CLI setup belongs in the project's Coordinator notes in `routing.md`.
 
@@ -129,20 +129,20 @@ Start from a clean checkout on a new branch, then run:
 
 ```sh
 git switch -c update-switchyard
-python3 .claude/skills/work-issues/scripts/update-switchyard.py
+python3 switchyard/scripts/update-switchyard.py
 ```
 
 Projects made from 0.1.0 or 0.2.0 do not have the updater or a `VERSION` file. Clone Switchyard beside the project and run its updater from the project directory. Pass the release the project started from; use the oldest release if you are unsure:
 
 ```sh
 git clone https://github.com/nicoleman0/switchyard.git ../switchyard
-python3 ../switchyard/.claude/skills/work-issues/scripts/update-switchyard.py \
+python3 ../switchyard/switchyard/scripts/update-switchyard.py \
   --source ../switchyard --from 0.1.0
 ```
 
 The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, or `kept`. Review the diff and resolve conflict markers. The updater does not commit. To undo, restore changed and removed files with `git restore .`, remove files reported as added, and remove `VERSION` if the project did not have one before the update.
 
-The updater adds `.claude/skills/work-issues/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
+The updater adds `switchyard/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
 
 The updater covers paths listed in its target release. It skips OpenSpec-generated files, which `npx @fission-ai/openspec update` refreshes, and Switchyard's README, license, changelog, contributing guide, and banner. See the [Switchyard releases](https://github.com/nicoleman0/switchyard/releases) for release notes.
 
@@ -162,7 +162,7 @@ A repository that never had the workflow at all does not update from a release: 
    - "Work on #12, #14, and #15."
    - "Run the next steps of milestone M2."
    - "Put #14 on Codex."
-4. See the batch with `python3 .claude/skills/work-issues/scripts/state.py status`.
+4. See the batch with `python3 switchyard/scripts/state.py status`.
 5. Answer its questions, review the PR it opens, and tell it to merge.
 
 `AGENTS.md` tells any session asked to deliver issues to act as the coordinator and follow the skill, so there is nothing to invoke by name.
@@ -184,7 +184,7 @@ The runner is how the coordinator starts a worker, prompts it, waits for it, and
 | Watching | Live. You can read a pane or type into it. | Each turn's output is logged to `.claude/turns/` in the worktree. |
 | Worktrees | `~/.herdr/worktrees/<repo>` | `../<repo>.worktrees/<branch>` |
 
-The commands are in `.claude/skills/work-issues/runners/`.
+The commands are in `switchyard/runners/`.
 
 ## Layout
 
@@ -201,13 +201,14 @@ openspec/
   changes/                       one folder per change in flight, plus archive/
 .claude/
   agents/                        Claude role profiles
-  skills/work-issues/
-    SKILL.md                     the coordinator's playbook and routing rules
-    routing.md                   project-owned providers, models, effort, flags, and commands
-    roles/                       planner, implementer, and reviewer instructions, shared by every provider
-    runners/                     Herdr and headless commands
-    hooks/                       your per-issue isolation
-    brief-template.md            what each worker is told
+  skills/work-issues/SKILL.md    Claude Code entry point for the workflow
+switchyard/
+  SKILL.md                       the coordinator's playbook and routing rules
+  routing.md                     project-owned providers, models, effort, flags, and commands
+  roles/                         planner, implementer, and reviewer instructions, shared by every provider
+  runners/                       Herdr and headless commands
+  hooks/                         your per-issue isolation
+  brief-template.md              what each worker is told
     scripts/                     batch state, worktree setup and teardown, screenshots, merge helpers
     VERSION                      Switchyard release the workflow files follow
     update-paths.txt             files brought forward by the release updater

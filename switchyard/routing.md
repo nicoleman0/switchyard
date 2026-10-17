@@ -63,7 +63,7 @@ Run as coordinator: Claude Code and Codex in regular use, and opencode in the pr
   approvals_reviewer = "user"
   ```
 
-  Copy the values from the `codex` row of the Coordinator table in `.claude/skills/work-issues/routing.md`. Add `model = "<Coordinator table model>"` only when that Model cell is not empty.
+  Copy the values from the `codex` row of the Coordinator table in `switchyard/routing.md`. Add `model = "<Coordinator table model>"` only when that Model cell is not empty.
 
   `approvals_reviewer = "user"` sends approval requests to the maintainer, as Claude's permission prompts do. Without it they go to Codex's automatic reviewer, which decides case by case and has refused pushes. Workers keep `--approve-for-me`.
 

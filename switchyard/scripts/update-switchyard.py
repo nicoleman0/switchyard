@@ -19,9 +19,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_SOURCE = "https://github.com/nicoleman0/switchyard.git"
-VERSION_PATH = ".claude/skills/work-issues/VERSION"
-PROJECT_OWNED = {".claude/skills/work-issues/routing.md"}
-PATHS_PATH = ".claude/skills/work-issues/update-paths.txt"
+VERSION_PATH = "switchyard/VERSION"
+PROJECT_OWNED = {"switchyard/routing.md"}
+PATHS_PATH = "switchyard/update-paths.txt"
 VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 AGENTS_PATH = "AGENTS.md"
 AGENTS_SECTIONS = ("Workflow", "Writing")

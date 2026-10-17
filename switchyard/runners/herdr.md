@@ -2,7 +2,7 @@
 
 Use this when the coordinator runs inside Herdr (`HERDR_ENV=1`). Each worker is an interactive agent in its own pane, so the maintainer can watch it and step in.
 
-`setup-worktree.sh` creates the worktree under `~/.herdr/worktrees/<repo>` and prints its `pane` and `workspace`. The coordinator must be able to write to `~/.herdr/worktrees/<repo>`; its setup note is in the Coordinator section of `.claude/skills/work-issues/routing.md`.
+`setup-worktree.sh` creates the worktree under `~/.herdr/worktrees/<repo>` and prints its `pane` and `workspace`. The coordinator must be able to write to `~/.herdr/worktrees/<repo>`; its setup note is in the Coordinator section of `switchyard/routing.md`.
 
 | Verb | Command |
 |---|---|
@@ -13,7 +13,7 @@ Use this when the coordinator runs inside Herdr (`HERDR_ENV=1`). Each worker is 
 | Read | `herdr agent read <name> --source recent-unwrapped --lines 80` |
 | End | Send the provider's End cell to the agent |
 
-Read the provider's commands, flags, and End value from `.claude/skills/work-issues/routing.md`. The script names agents `<role>-<issue>`. A name is free again once its agent has exited, so fix rounds reuse `implementer-<issue>` and `reviewer-<issue>`. Herdr rejects names that start with a digit; names must start with a lowercase letter.
+Read the provider's commands, flags, and End value from `switchyard/routing.md`. The script names agents `<role>-<issue>`. A name is free again once its agent has exited, so fix rounds reuse `implementer-<issue>` and `reviewer-<issue>`. Herdr rejects names that start with a digit; names must start with a lowercase letter.
 
 Multi-line prompt text does not submit reliably. Put the content in a file and prompt with one line that points to it.
 
