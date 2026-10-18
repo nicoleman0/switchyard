@@ -30,7 +30,7 @@ class Harness(unittest.TestCase):
         self.origin = self.base / "origin.git"
         subprocess.run(["git", "init", "--bare", "-q", str(self.origin)], check=True)
         subprocess.run(["git", "-C", str(self.repo), "remote", "add", "origin", str(self.origin)], check=True)
-        self.skill = self.repo / ".claude/skills/work-issues"
+        self.skill = self.repo / "switchyard"
         shutil.copytree(SOURCE_SKILL, self.skill)
         (self.skill / "routing.md").write_text("# Routing\n")
         (self.skill / "roles/planner.md").write_text("role")
@@ -75,7 +75,7 @@ class Harness(unittest.TestCase):
         return self.run_cmd(str(self.skill / "scripts" / name), *args, env=env, bash=True)
 
     def record(self, issue="8"):
-        return json.loads((self.repo / f".claude/state/{issue}.json").read_text())
+        return json.loads((self.repo / f".switchyard/state/{issue}.json").read_text())
 
     def test_commands_and_validation(self):
         self.init(branch="old")
@@ -100,7 +100,7 @@ class Harness(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.repo), "worktree", "add", "-qb", "linked", str(branch)], check=True)
         result = subprocess.run(["python3", str(self.skill / "scripts/state.py"), "init", "42", "x=y"], cwd=branch, env=self.env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue((self.repo / ".claude/state/42.json").exists())
+        self.assertTrue((self.repo / ".switchyard/state/42.json").exists())
 
     def test_status_table_and_live_lookups(self):
         self.init("2", branch="b2", path=str(self.repo), runner="herdr", worker="planner-2", pane="p2", role="planner")
@@ -131,7 +131,7 @@ class Harness(unittest.TestCase):
         self.assertEqual(Path(self.record()["path"]), (self.base / "repo.worktrees/topic").resolve())
         down = self.script("teardown-worktree.sh", "8", "topic")
         self.assertEqual(down.returncode, 0, down.stderr)
-        self.assertFalse((self.repo / ".claude/state/8.json").exists())
+        self.assertFalse((self.repo / ".switchyard/state/8.json").exists())
 
     def test_setup_hook_failure_keeps_record_and_teardown_failure_keeps_record(self):
         env = self.env.copy(); env["FAIL_HOOK"] = "1"
@@ -140,7 +140,7 @@ class Harness(unittest.TestCase):
         self.assertEqual(self.get("8", "runner"), "headless")
         down = self.script("teardown-worktree.sh", "8", "topic", env=env)
         self.assertNotEqual(down.returncode, 0)
-        self.assertTrue((self.repo / ".claude/state/8.json").exists())
+        self.assertTrue((self.repo / ".switchyard/state/8.json").exists())
 
     def test_teardown_without_record_succeeds(self):
         path = self.base / "repo.worktrees/topic"
@@ -165,7 +165,7 @@ exec "{real}" "$@"''')
         down = self.script("teardown-worktree.sh", "39", "race")
         self.assertEqual(down.returncode, 0, down.stderr)
         self.assertEqual(subprocess.run(["git", "ls-remote", "--heads", str(self.origin), "race"], capture_output=True, text=True).stdout, "")
-        self.assertFalse((self.repo / ".claude/state/39.json").exists())
+        self.assertFalse((self.repo / ".switchyard/state/39.json").exists())
 
     def test_teardown_reports_failed_remote_delete_and_removes_record(self):
         self.assertEqual(self.script("setup-worktree.sh", "39", "race").returncode, 0)
@@ -177,7 +177,7 @@ exec "{real}" "$@"''')
         self.assertIn("still exists", down.stderr)
         hinted = subprocess.run(["git", "ls-remote", "--heads", str(self.origin), "race"], capture_output=True, text=True).stdout
         self.assertIn("refs/heads/race", hinted)
-        self.assertFalse((self.repo / ".claude/state/39.json").exists())
+        self.assertFalse((self.repo / ".switchyard/state/39.json").exists())
 
     def make_dirty(self, tree):
         # Modified, staged, and untracked files, as git's plain removal refuses.
@@ -196,7 +196,7 @@ exec "{real}" "$@"''')
         self.assertIn("--abandon", down.stderr)
         self.assertIn("untracked.txt", down.stderr)
         self.assertIn(" M .keep", down.stderr)
-        self.assertTrue((self.repo / ".claude/state/8.json").exists())
+        self.assertTrue((self.repo / ".switchyard/state/8.json").exists())
         self.assertTrue(tree.exists())
         self.assertEqual(subprocess.run(["git", "-C", str(self.repo), "branch", "--list", "topic"], capture_output=True, text=True).stdout.count("topic"), 1)
         self.assertFalse((self.repo / "hook-log").exists())
@@ -208,7 +208,7 @@ exec "{real}" "$@"''')
         down = self.script("teardown-worktree.sh", "--force", "8", "topic")
         self.assertEqual(down.returncode, 2)
         self.assertIn("Usage: teardown-worktree.sh", down.stderr)
-        self.assertTrue((self.repo / ".claude/state/8.json").exists())
+        self.assertTrue((self.repo / ".switchyard/state/8.json").exists())
         self.assertTrue(tree.exists())
 
     def test_abandon_reports_and_discards_dirty_worktree(self):
@@ -225,7 +225,7 @@ exec "{real}" "$@"''')
         self.assertIn(" M .keep", down.stdout)
         self.assertIn("draft change", down.stdout)
         self.assertTrue((self.repo / "hook-log").exists())
-        self.assertFalse((self.repo / ".claude/state/8.json").exists())
+        self.assertFalse((self.repo / ".switchyard/state/8.json").exists())
         self.assertFalse(tree.exists())
         self.assertEqual(subprocess.run(["git", "-C", str(self.repo), "branch", "--list", "topic"], capture_output=True, text=True).stdout, "")
         self.assertEqual(subprocess.run(["git", "ls-remote", "--heads", str(self.origin), "topic"], capture_output=True, text=True).stdout, "")
@@ -236,7 +236,7 @@ exec "{real}" "$@"''')
         down = self.script("teardown-worktree.sh", "--abandon", "39", "race")
         self.assertEqual(down.returncode, 0, down.stderr)
         self.assertEqual(subprocess.run(["git", "ls-remote", "--heads", str(self.origin), "race"], capture_output=True, text=True).stdout, "")
-        self.assertFalse((self.repo / ".claude/state/39.json").exists())
+        self.assertFalse((self.repo / ".switchyard/state/39.json").exists())
 
     def stub_teardown_herdr(self, workspace, tree):
         # Stands in for `herdr worktree remove`, which takes the checkout with
@@ -257,7 +257,7 @@ exec "{real}" "$@"''')
         self.assertEqual(down.returncode, 0, down.stderr)
         self.assertIn("worktree remove --workspace ws-open --force", self.log.read_text())
         self.assertFalse(tree.exists())
-        self.assertFalse((self.repo / ".claude/state/8.json").exists())
+        self.assertFalse((self.repo / ".switchyard/state/8.json").exists())
         self.assertEqual(subprocess.run(["git", "-C", str(self.repo), "branch", "--list", "topic"], capture_output=True, text=True).stdout, "")
 
     def test_plain_teardown_refuses_dirty_herdr_worktree_before_removal(self):
@@ -270,7 +270,7 @@ exec "{real}" "$@"''')
         self.assertIn("--abandon", down.stderr)
         # The stub logs every herdr call, so nothing means teardown stopped first.
         self.assertNotIn("worktree remove", self.log.read_text() if self.log.exists() else "")
-        self.assertTrue((self.repo / ".claude/state/8.json").exists())
+        self.assertTrue((self.repo / ".switchyard/state/8.json").exists())
         self.assertTrue(tree.exists())
 
 

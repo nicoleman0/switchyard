@@ -6,8 +6,4 @@ node_modules/
 __pycache__/
 .codex/
 
-# Briefs, answers, screenshots, and PR bodies stay local to each worktree.
-.claude/*
-!.claude/skills/
-!.claude/commands/
-!.claude/agents/
+.switchyard/

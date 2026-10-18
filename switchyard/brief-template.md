@@ -1,6 +1,6 @@
 # Brief: issue #{issue}
 
-You work on one issue in your own git worktree. A coordinator session reviews the plan and relays questions to the maintainer. A reviewer session checks the commit against the change, on another provider when the project has one. Answers to your questions arrive as files in `.claude/answers/`.
+You work on one issue in your own git worktree. A coordinator session reviews the plan and relays questions to the maintainer. A reviewer session checks the commit against the change, on another provider when the project has one. Answers to your questions arrive as files in `.switchyard/answers/`.
 
 - Issue: #{issue}, {title}. Read it with `gh issue view {issue} --comments`.
 - Worktree: `{path}`, branch `{branch}`.
@@ -21,7 +21,7 @@ Shared services run from the main checkout and are already up. Use only the isol
 
 ## Screenshots (UI changes only)
 
-From the worktree root, with the dev server running, run `SHOTS_BASE=http://127.0.0.1:<port> node .claude/skills/work-issues/scripts/shots.mjs .claude/shots/<before|after>`. The planner takes the before shots and the implementer takes the after shots. `.claude/shots/` is git-ignored, and both sessions can read it. Build the comparison page with `.claude/skills/work-issues/scripts/compare.py` into `.claude/shots/compare.html`; its usage is in the file header.
+From the worktree root, with the dev server running, run `SHOTS_BASE=http://127.0.0.1:<port> node switchyard/scripts/shots.mjs .switchyard/shots/<before|after>`. The planner takes the before shots and the implementer takes the after shots. `.switchyard/shots/` is git-ignored, and both sessions can read it. Build the comparison page with `switchyard/scripts/compare.py` into `.switchyard/shots/compare.html`; its usage is in the file header.
 
 ## Shared files
 
