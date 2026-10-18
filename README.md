@@ -50,7 +50,7 @@ Each piece covers a gap the others leave:
 1. **You open an issue.** State the problem. Pick a milestone if the project uses them. Keep it short: acceptance criteria belong in the change, not the issue.
 2. **You ask the coordinator to work on it.** It reads the issue against the code and asks you about anything the issue does not settle. With several issues, it splits them by the folders each one owns and runs the independent ones in parallel.
 3. **The coordinator sets up.** A script creates the worktree and runs your isolation hook. The coordinator writes a brief there: the issue, the paths it owns, its ports, and the decisions so far.
-4. **The planner proposes the change.** It writes the proposal, design, spec delta, and tasks under `openspec/changes/<name>`, links the change from the issue, and stops with numbered questions, each with options and a recommendation.
+4. **The planner proposes the change.** It writes the proposal, optional design, and tasks under `openspec/changes/<name>`, plus a spec delta when the change has one. It links the change from the issue and stops with numbered questions, each with options and a recommendation. A change with `skip_specs: true` has no spec delta.
 5. **The coordinator reviews the plan.** It checks the plan's claims against the code, answers what it can, and brings you the product decisions. The answers go into a file in the worktree.
 6. **The implementer builds it.** A fresh session applies the tasks, runs every check, syncs the spec delta into `openspec/specs/`, archives the change, commits, and writes the PR body. It asks before it decides anything the plan does not cover.
 7. **The reviewer checks the diff.** A fresh session, on another provider when available, reads the change and the diff. It checks each scenario and task, scope, tests, duplication, and the screenshots, runs every check, and writes a verdict to a file in the worktree.
@@ -163,7 +163,7 @@ Not everything needs the crew:
 
 - An idea that is still vague: `/opsx:explore`.
 - One change you want to drive yourself: `/opsx:propose`, `/opsx:apply`, `/opsx:archive` in a single session.
-- Work that changes no observable behaviour, such as tooling, refactors, or a bug where the code diverges from the spec: an issue and a PR, with no OpenSpec change.
+- Work through the crew that changes no observable behaviour, such as tooling, refactors, or a bug where the code diverges from the spec: use a change with `skip_specs: true`. A hand-made PR outside the crew needs no change.
 
 ## Runners
 
