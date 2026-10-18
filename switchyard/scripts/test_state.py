@@ -374,8 +374,17 @@ if [ "$1 $2" = "agent get" ]; then
   if [ -f "$AGENT_GONE" ]; then echo '{"error":{"code":"agent_not_found"}}' >&2; exit 1; fi
   printf '{"result":{"agent":{"agent_status":"%s"}}}\\n' "$AGENT_STATE"
 elif [ "$1 $2" = "agent prompt" ]; then
+  if [ "${RACE_GONE:-}" = 1 ]; then
+    touch "$AGENT_GONE"
+    echo '{"error":{"code":"agent_not_found"}}' >&2
+    exit 1
+  fi
+  if [ "${PROMPT_BLOCKED:-}" = 1 ]; then
+    echo '{"error":{"code":"agent_blocked"}}' >&2
+    exit 1
+  fi
   printf '{"result":{"prompted":true}}\\n'
-  if [ "${RACE_GONE:-}" = 1 ] || [ "${NO_END:-}" != 1 ]; then touch "$AGENT_GONE"; fi
+  if [ "${NO_END:-}" != 1 ]; then touch "$AGENT_GONE"; fi
 elif [ "$1 $2" = "pane process-info" ]; then
   printf '{"result":{"process_info":{"shell_pid":123,"foreground_process_group_id":123}}}\\n'
 elif [ "$1 $2" = "pane send-keys" ]; then printf '{"result":{"sent":true}}\\n'
@@ -413,6 +422,14 @@ fi'''
         self.assertEqual(raced.stdout, "ended=implementer-8\n")
         self.assertIn("agent prompt implementer-8 /exit", self.log.read_text())
         self.assertIn("pane send-keys w1:p1 ctrl+u", self.log.read_text())
+
+        self.log.write_text("")
+        blocked_env = self.stub_end_worker(); blocked_env["PROMPT_BLOCKED"] = "1"
+        Path(blocked_env["AGENT_GONE"]).unlink(missing_ok=True)
+        blocked = self.script("end-worker.sh", "8", env=blocked_env)
+        self.assertEqual(blocked.returncode, 1)
+        self.assertIn("agent_blocked", blocked.stderr)
+        self.assertNotIn("ended=", blocked.stdout)
 
     def test_end_worker_refuses_active_agents_and_bad_routing(self):
         self.init("8", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", worker="implementer-8", backend="claude")
