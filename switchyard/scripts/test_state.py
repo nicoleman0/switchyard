@@ -355,6 +355,112 @@ exec "{real}" "$@"''')
                 self.assertIn(args[2], result.stderr)
         self.assertEqual(self.record(), before)
 
+    def test_start_worker_records_agent_blocked_at_startup(self):
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
+        self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\nif [ "$1 $2" = "agent start" ]; then echo \'{"error":{"code":"agent_not_ready","message":"blocked during startup"}}\' >&2; exit 1; fi\nexit 23')
+        env = self.env.copy(); env["HERDR_ENV"] = "1"
+        result = self.script("start-worker.sh", "10", "implementer", "codex", env=env)
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertEqual(self.record("10")["role"], "implementer")
+        self.assertEqual(self.record("10")["worker"], "implementer-10")
+        self.assertEqual(self.record("10")["implementer_backend"], "codex")
+        self.assertTrue(result.stdout.endswith("status=blocked\n"))
+        self.assertIn("blocked at startup", result.stderr)
+
+    def stub_end_worker(self, status="idle"):
+        gone = self.base / "agent-gone"
+        body = '''echo "$*" >> "$CALL_LOG"
+if [ "$1 $2" = "agent get" ]; then
+  if [ -f "$AGENT_GONE" ]; then echo '{"error":{"code":"agent_not_found"}}' >&2; exit 1; fi
+  printf '{"result":{"agent":{"agent_status":"%s"}}}\\n' "$AGENT_STATE"
+elif [ "$1 $2" = "agent prompt" ]; then
+  if [ "${RACE_GONE:-}" = 1 ]; then
+    touch "$AGENT_GONE"
+    echo '{"error":{"code":"agent_not_found"}}' >&2
+    exit 1
+  fi
+  if [ "${PROMPT_BLOCKED:-}" = 1 ]; then
+    echo '{"error":{"code":"agent_blocked"}}' >&2
+    exit 1
+  fi
+  printf '{"result":{"prompted":true}}\\n'
+  if [ "${NO_END:-}" != 1 ]; then touch "$AGENT_GONE"; fi
+elif [ "$1 $2" = "pane process-info" ]; then
+  printf '{"result":{"process_info":{"shell_pid":123,"foreground_process_group_id":123}}}\\n'
+elif [ "$1 $2" = "pane send-keys" ]; then printf '{"result":{"sent":true}}\\n'
+else exit 23
+fi'''
+        self.stub("herdr", body.replace('"%s"', f'"{status}"'))
+        env = self.env.copy()
+        env.update(HERDR_ENV="1", AGENT_GONE=str(gone), AGENT_STATE=status)
+        return env
+
+    def test_end_worker_lifecycle_cases(self):
+        self.init("8", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", worker="implementer-8", backend="claude")
+        (self.skill / "routing.md").write_text("| Provider | On Herdr | End |\n|---|---|---|\n| claude | agent | `/exit` |\n")
+        live_env = self.stub_end_worker()
+        ended = self.script("end-worker.sh", "8", env=live_env)
+        self.assertEqual(ended.returncode, 0, ended.stderr)
+        self.assertEqual(ended.stdout, "ended=implementer-8\n")
+        calls = self.log.read_text()
+        self.assertIn("agent prompt implementer-8 /exit", calls)
+        self.assertIn("pane send-keys w1:p1 ctrl+u", calls)
+
+        self.log.write_text("")
+        gone_env = self.stub_end_worker()
+        (Path(gone_env["AGENT_GONE"])).write_text("gone")
+        already = self.script("end-worker.sh", "8", env=gone_env)
+        self.assertEqual(already.returncode, 0, already.stderr)
+        self.assertNotIn("agent prompt", self.log.read_text())
+        self.assertIn("pane send-keys w1:p1 ctrl+u", self.log.read_text())
+
+        self.log.write_text("")
+        race_env = self.stub_end_worker(); race_env["RACE_GONE"] = "1"
+        Path(race_env["AGENT_GONE"]).unlink(missing_ok=True)
+        raced = self.script("end-worker.sh", "8", env=race_env)
+        self.assertEqual(raced.returncode, 0, raced.stderr)
+        self.assertEqual(raced.stdout, "ended=implementer-8\n")
+        self.assertIn("agent prompt implementer-8 /exit", self.log.read_text())
+        self.assertIn("pane send-keys w1:p1 ctrl+u", self.log.read_text())
+
+        self.log.write_text("")
+        blocked_env = self.stub_end_worker(); blocked_env["PROMPT_BLOCKED"] = "1"
+        Path(blocked_env["AGENT_GONE"]).unlink(missing_ok=True)
+        blocked = self.script("end-worker.sh", "8", env=blocked_env)
+        self.assertEqual(blocked.returncode, 1)
+        self.assertIn("agent_blocked", blocked.stderr)
+        self.assertNotIn("ended=", blocked.stdout)
+
+    def test_end_worker_refuses_active_agents_and_bad_routing(self):
+        self.init("8", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", worker="implementer-8", backend="claude")
+        (self.skill / "routing.md").write_text("| Provider | On Herdr | End |\n|---|---|---|\n| claude | agent | `/exit` |\n")
+        for state in ("working", "blocked"):
+            self.log.write_text("")
+            result = self.script("end-worker.sh", "8", env=self.stub_end_worker(state))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(state, result.stderr)
+            self.assertNotIn("agent prompt", self.log.read_text())
+        (self.skill / "routing.md").write_text("| Provider | On Herdr | End |\n|---|---|---|\n| claude | agent | |\n")
+        result = self.script("end-worker.sh", "8", env=self.stub_end_worker())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("claude", result.stderr)
+
+    def test_end_worker_empty_worker_headless_and_timeout(self):
+        self.init("8", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", worker="", backend="opencode")
+        empty = self.script("end-worker.sh", "8")
+        self.assertEqual(empty.returncode, 0, empty.stderr)
+        self.assertFalse(self.log.exists())
+        self.init("9", branch="b", path=str(self.repo), runner="headless", worker="x", backend="claude")
+        headless = self.script("end-worker.sh", "9")
+        self.assertNotEqual(headless.returncode, 0)
+        self.assertIn("Herdr", headless.stderr)
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", worker="implementer-10", backend="claude")
+        (self.skill / "routing.md").write_text("| Provider | On Herdr | End |\n|---|---|---|\n| claude | agent | `/exit` |\n")
+        env = self.stub_end_worker(); env["NO_END"] = "1"; env["END_WORKER_TIMEOUT_SECONDS"] = "1"
+        timed = self.script("end-worker.sh", "10", env=env)
+        self.assertNotEqual(timed.returncode, 0)
+        self.assertIn("last state", timed.stderr)
+
     def test_start_without_routing_file_succeeds(self):
         self.init(branch="b", path=str(self.repo), runner="headless", role="planner", backend="codex", session="old")
         (self.skill / "routing.md").unlink()
