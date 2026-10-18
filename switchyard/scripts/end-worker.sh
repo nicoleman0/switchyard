@@ -33,7 +33,7 @@ else
     working|blocked) echo "Issue $issue: $worker is $status; wait for or read the agent before ending it" >&2; exit 1 ;;
   esac
 
-  end_value=$(python3 - "$skill_dir/routing.md" "$backend" <<'PY'
+  end_value=$(python3 - "$skill_dir/routing.md" "$backend" <<'PY' 2>&1
 from pathlib import Path
 import sys
 
@@ -64,10 +64,14 @@ for line in lines:
             raise SystemExit(f"End value is empty for provider {provider} in routing.md")
     elif table:
         break
-raise SystemExit(f"Providers table, End column, or provider {provider} is missing in routing.md")
+raise SystemExit(f"provider {provider} or Providers table End column is missing in routing.md")
 PY
 ) || { echo "Issue $issue: $end_value" >&2; exit 1; }
-  herdr agent prompt "$worker" "$end_value"
+  prompt_result=$(herdr agent prompt "$worker" "$end_value" 2>&1 >/dev/null) || prompt_rc=$?
+  if [ "${prompt_rc:-0}" -ne 0 ] && [[ "$prompt_result" != *agent_not_found* ]]; then
+    echo "$prompt_result" >&2
+    exit 1
+  fi
 fi
 
 timeout=${END_WORKER_TIMEOUT_SECONDS:-30}
@@ -84,7 +88,7 @@ for ((elapsed=0; elapsed<timeout; elapsed++)); do
       read -r shell_pid foreground_pid < <(python3 -c 'import json,sys; d=json.load(sys.stdin); r=d.get("result", d); r=r.get("process_info", r); print(r["shell_pid"], r["foreground_process_group_id"])' <<<"$pane_result")
       last_state=agent_not_found
       if [ "$shell_pid" = "$foreground_pid" ]; then
-        herdr pane send-keys "$pane" ctrl+u
+        herdr pane send-keys "$pane" ctrl+u >/dev/null 2>&1
         printf 'ended=%s\n' "$worker"
         exit 0
       fi

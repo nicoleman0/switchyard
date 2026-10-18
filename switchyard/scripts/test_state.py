@@ -374,10 +374,11 @@ if [ "$1 $2" = "agent get" ]; then
   if [ -f "$AGENT_GONE" ]; then echo '{"error":{"code":"agent_not_found"}}' >&2; exit 1; fi
   printf '{"result":{"agent":{"agent_status":"%s"}}}\\n' "$AGENT_STATE"
 elif [ "$1 $2" = "agent prompt" ]; then
-  if [ "${NO_END:-}" != 1 ]; then touch "$AGENT_GONE"; fi
+  printf '{"result":{"prompted":true}}\\n'
+  if [ "${RACE_GONE:-}" = 1 ] || [ "${NO_END:-}" != 1 ]; then touch "$AGENT_GONE"; fi
 elif [ "$1 $2" = "pane process-info" ]; then
   printf '{"result":{"process_info":{"shell_pid":123,"foreground_process_group_id":123}}}\\n'
-elif [ "$1 $2" = "pane send-keys" ]; then :
+elif [ "$1 $2" = "pane send-keys" ]; then printf '{"result":{"sent":true}}\\n'
 else exit 23
 fi'''
         self.stub("herdr", body.replace('"%s"', f'"{status}"'))
@@ -391,7 +392,7 @@ fi'''
         live_env = self.stub_end_worker()
         ended = self.script("end-worker.sh", "8", env=live_env)
         self.assertEqual(ended.returncode, 0, ended.stderr)
-        self.assertIn("ended=implementer-8", ended.stdout)
+        self.assertEqual(ended.stdout, "ended=implementer-8\n")
         calls = self.log.read_text()
         self.assertIn("agent prompt implementer-8 /exit", calls)
         self.assertIn("pane send-keys w1:p1 ctrl+u", calls)
@@ -402,6 +403,15 @@ fi'''
         already = self.script("end-worker.sh", "8", env=gone_env)
         self.assertEqual(already.returncode, 0, already.stderr)
         self.assertNotIn("agent prompt", self.log.read_text())
+        self.assertIn("pane send-keys w1:p1 ctrl+u", self.log.read_text())
+
+        self.log.write_text("")
+        race_env = self.stub_end_worker(); race_env["RACE_GONE"] = "1"
+        Path(race_env["AGENT_GONE"]).unlink(missing_ok=True)
+        raced = self.script("end-worker.sh", "8", env=race_env)
+        self.assertEqual(raced.returncode, 0, raced.stderr)
+        self.assertEqual(raced.stdout, "ended=implementer-8\n")
+        self.assertIn("agent prompt implementer-8 /exit", self.log.read_text())
         self.assertIn("pane send-keys w1:p1 ctrl+u", self.log.read_text())
 
     def test_end_worker_refuses_active_agents_and_bad_routing(self):

@@ -4,16 +4,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Changed
+
+- Moved the provider-neutral workflow to `switchyard/` and runtime files to `.switchyard/`.
+- Projects on 0.6.0 or older must run the new updater once from a Switchyard checkout. Update any pi `routing.md` row that uses `.claude/sessions/` to `.switchyard/sessions/`.
+
 ### Fixed
 
 - #61: `start-worker.sh` records agents blocked during startup so the coordinator can recover them.
 - #62: The Herdr runner ends workers through a command that checks the agent and clears the pane input line.
 - #63: Herdr prompts wait until the agent starts working or becomes blocked before returning.
-
-### Changed
-
-- Moved the provider-neutral workflow to `switchyard/` and runtime files to `.switchyard/`.
-- Projects on 0.6.0 or older must run the new updater once from a Switchyard checkout. Update any pi `routing.md` row that uses `.claude/sessions/` to `.switchyard/sessions/`.
 
 ## [0.6.0] - 2026-10-15
 
