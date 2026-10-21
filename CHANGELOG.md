@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- The review lists up to five places a human should read first, and the coordinator puts that list at the top of the PR body.
+
 ### Changed
 
 - Moved the provider-neutral workflow to `switchyard/` and runtime files to `.switchyard/`.

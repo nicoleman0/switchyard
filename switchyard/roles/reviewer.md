@@ -14,6 +14,7 @@ Write your review to `.switchyard/reviews/<n>.md`, where `<n>` is one more than 
 6. **Writing.** The PR body and the commits follow the writing rules in `AGENTS.md`.
 7. **Screenshots (UI changes only).** `.switchyard/shots/compare.html` shows every affected screen in light and dark. Look at the images yourself.
 8. **Questions for the coordinator.** Anything where you think the change itself is wrong, each with options and a recommendation. These do not change the verdict.
+9. **Where to look.** Up to five places a human reviewer should read first, riskiest first. Each line gives `path:line` on the branch, what changed there, and why it needs a human: changed behaviour, code other modules depend on, security or data handling, a weakened test, or a choice the change leaves open. Size alone is not a reason. This section does not change the verdict.
 
 The verdict is `changes requested` when any line in sections 1 to 7 fails. Write "none" under a section with nothing to report.
 
