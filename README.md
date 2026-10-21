@@ -132,25 +132,6 @@ git switch -c update-switchyard
 python3 switchyard/scripts/update-switchyard.py
 ```
 
-Projects on 0.6.0 or older must run the new updater once from a Switchyard checkout:
-
-```sh
-git clone https://github.com/nicoleman0/switchyard.git ../switchyard
-python3 ../switchyard/switchyard/scripts/update-switchyard.py
-```
-
-To undo this 0.6.0 migration, run `git restore .` and `rm -r switchyard/` before committing.
-
-Review the diff and resolve conflicts. If `routing.md` has a pi row that names `.claude/sessions/`, change it to `.switchyard/sessions/`.
-
-Projects made from 0.1.0 or 0.2.0 have no updater or `VERSION` file. For those, use the `--from` command below; pass the release the project started from, or use the oldest release if unsure:
-
-```sh
-git clone https://github.com/nicoleman0/switchyard.git ../switchyard
-python3 ../switchyard/switchyard/scripts/update-switchyard.py \
-  --source ../switchyard --from 0.1.0
-```
-
 The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, or `kept`. Review the diff and resolve conflict markers. The updater does not commit. To undo, restore changed and removed files with `git restore .`, remove files reported as added, and remove `VERSION` if the project did not have one before the update.
 
 The updater adds `switchyard/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
