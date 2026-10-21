@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Removed
+
+- The updater no longer migrates 0.6.0 and older projects, and refuses a base release from before the `switchyard/` layout. Update those to 0.7.0 first. The `.claude/skills/work-issues/update-paths.txt` guard for old updaters is gone; a project can delete its copy.
+
 ## [0.7.0] - 2026-10-21
 
 ### Added
