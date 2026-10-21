@@ -103,7 +103,7 @@ The reviewer checks the diff against the change. Read its review, not the diff. 
 After `Verdict: pass`:
 1. Run `scripts/check-scope.sh <issue>`. It lists the files the branch changed outside its owned paths. The change's files under `openspec/` are always in scope. Rule on each listed file: accept an appended section in a shared doc, and send anything else back as a fix round.
 2. From the main checkout, push with `git push -u origin <branch>`.
-3. Fill the Review section of `.switchyard/pr-body.md` with the reviewer's provider, the verdict, and the number of rounds.
+3. Fill the Review section of `.switchyard/pr-body.md` with the reviewer's provider, the verdict, and the number of rounds. Copy the Where to look list from the passing review to the top of the PR body, under a `## Where to look` heading.
 4. Fill the Screenshots section. If your harness can publish a page, as Claude Code's Artifact tool can, publish `<path>/.switchyard/shots/compare.html` and put the link there. Otherwise write that the comparison page was not published, and give its local path.
 5. Run `gh pr create --head <branch> --body-file <path>/.switchyard/pr-body.md`. Add `--milestone <milestone>` when the brief names one.
 
