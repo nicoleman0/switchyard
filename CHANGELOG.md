@@ -4,6 +4,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-21
+
 ### Removed
 
 - The updater no longer migrates 0.6.0 and older projects, and refuses a base release from before the `switchyard/` layout. Update those to 0.7.0 first. The `.claude/skills/work-issues/update-paths.txt` guard for old updaters is gone; a project can delete its copy.
@@ -110,7 +112,8 @@ First release.
 - `AGENTS.md` with the workflow and writing rules every agent reads.
 - A README that explains the workflow and how to start a project from the template.
 
-[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/nicoleman0/switchyard/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/nicoleman0/switchyard/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/nicoleman0/switchyard/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nicoleman0/switchyard/compare/v0.4.0...v0.5.0
