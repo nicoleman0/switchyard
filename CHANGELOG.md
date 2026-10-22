@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Changed
+
+- #64: Roles now cover changes with `skip_specs: true`.
+
 ## [0.7.1] - 2026-10-21
 
 ### Removed
@@ -18,7 +22,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Changed
 
-- #64: Roles now cover changes with `skip_specs: true`.
 - Moved the provider-neutral workflow to `switchyard/` and runtime files to `.switchyard/`.
 - Projects on 0.6.0 or older must run the new updater once from a Switchyard checkout. Update any pi `routing.md` row that uses `.claude/sessions/` to `.switchyard/sessions/`.
 
