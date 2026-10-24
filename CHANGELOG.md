@@ -12,6 +12,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 - #38: compare.py and the preflight check fall back to ImageMagick 6's convert, the version Ubuntu 24.04 ships.
 
+- #56: Teardown removes issue records when worktrees or branches are already gone.
+
 ## [0.7.2] - 2026-10-22
 
 ### Changed

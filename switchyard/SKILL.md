@@ -114,7 +114,7 @@ With several PRs in flight, merge every branch into a throwaway worktree off `or
 
 ## Merge and clean up
 
-Merge only after the maintainer explicitly approves. This rule applies on every CLI, including those that can run commands without a permission prompt. A CLI prompt is not maintainer approval. Squash-merge one PR with `gh pr merge <pr> --squash`, without `--delete-branch`. Then end its worker's session and run `scripts/teardown-worktree.sh <issue> <branch>`. It runs the project's `hooks/worktree-down.sh`, removes the worktree, deletes the local and remote branch, and removes the record.
+Merge only after the maintainer explicitly approves. This rule applies on every CLI, including those that can run commands without a permission prompt. A CLI prompt is not maintainer approval. Squash-merge one PR with `gh pr merge <pr> --squash`, without `--delete-branch`. Then end its worker's session and run `scripts/teardown-worktree.sh <issue> <branch>`. It runs the project's `hooks/worktree-down.sh`, removes the worktree, deletes the local and remote branch, and removes the record. Teardown skips steps that are already done and still removes the record.
 
 For each PR still open:
 1. Rebase its branch in its worktree onto `origin/main`.

@@ -148,6 +148,44 @@ class Harness(unittest.TestCase):
         result = self.script("teardown-worktree.sh", "77", "topic")
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_teardown_missing_entry_removes_record_and_reports_skips(self):
+        self.state("init", "56", "branch=topic", f"path={self.base / 'missing'}")
+        result = self.script("teardown-worktree.sh", "56", "topic")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.count("Skipped:"), 3)
+        self.assertIn("Removed issue 56 record.", result.stdout)
+        self.assertFalse((self.repo / ".switchyard/state/56.json").exists())
+
+    def test_teardown_stale_entry_runs_hook_and_skips_herdr(self):
+        self.assertEqual(self.script("setup-worktree.sh", "56", "topic").returncode, 0)
+        record_path = self.record("56")["path"]
+        self.down_hook.write_text('#!/bin/sh\nprintf "%s" "$WORKTREE" > "$MAIN_CHECKOUT/hook-worktree"\n')
+        tree = Path(record_path)
+        shutil.rmtree(tree)
+        env = self.env.copy()
+        env["HERDR_ENV"] = "1"
+        result = self.script("teardown-worktree.sh", "56", "topic", env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.repo / "hook-worktree").read_text(), record_path)
+        self.assertNotIn("worktree remove", self.log.read_text() if self.log.exists() else "")
+        self.assertFalse((self.repo / ".switchyard/state/56.json").exists())
+
+    def test_teardown_branch_mismatch_changes_nothing(self):
+        self.assertEqual(self.script("setup-worktree.sh", "56", "topic").returncode, 0)
+        result = self.script("teardown-worktree.sh", "56", "wrong")
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue((self.repo / ".switchyard/state/56.json").exists())
+        self.assertTrue(Path(self.record("56")["path"]).exists())
+
+    def test_abandon_teardown_with_gone_folder_removes_record(self):
+        self.assertEqual(self.script("setup-worktree.sh", "56", "topic").returncode, 0)
+        tree = Path(self.record("56")["path"])
+        shutil.rmtree(tree)
+        result = self.script("teardown-worktree.sh", "--abandon", "56", "topic")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Worktree folder is gone.", result.stdout)
+        self.assertFalse((self.repo / ".switchyard/state/56.json").exists())
+
     def stub_teardown_git(self, branch, on_delete):
         real = shutil.which("git")
         origin = str(self.origin)
