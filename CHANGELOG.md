@@ -6,6 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Added
 
+- #95: The updater ends by printing the commands that undo that run.
 - #93: The updater prints release notes for each release it moves across.
 - #92: `update-switchyard.py --dry-run` prints the update report without writing files.
 - #91: `npm init switchyard@latest update` updates a repo from the releases bundled in the npm package. Install in a repo that already has Switchyard now names this command.

@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shlex
 import stat
 import subprocess
 import sys
@@ -30,6 +31,7 @@ AGENTS_PATH = "AGENTS.md"
 AGENTS_SECTIONS = ("Workflow", "Writing")
 GITIGNORE_PATH = ".gitignore"
 CONFIG_PATH = "openspec/config.yaml"
+UNDO_HEADER = "To undo this run before you stage or commit, run:"
 INIT_COMMAND = "npx @fission-ai/openspec init --tools claude,codex,opencode"
 
 
@@ -482,6 +484,48 @@ def install_config_merge(release: bytes, local: bytes | None) -> tuple[bytes | N
     return "\n".join(final_lines).encode("utf-8"), "merged"
 
 
+@dataclass
+class Undo:
+    path: str
+    kind: str  # restore, delete, or untracked
+    dirs: list[str]  # parent directories the run creates for this path
+
+
+def plan_undo(root: Path, actions: list[Action], version_existed: bool) -> list[Undo]:
+    """One entry per write, in write order, VERSION last. Call before writing."""
+    writes = [(a.path, a.status) for a in actions if a.status == "removed" or a.content is not None]
+    paths = [path for path, _ in writes] + [VERSION_PATH]
+    listed = git("--literal-pathspecs", "ls-files", "-z", "--", *paths, cwd=root).stdout
+    tracked = {os.fsdecode(item) for item in listed.split(b"\0") if item}
+    entries = []
+    for path, status in writes + [(VERSION_PATH, None if version_existed else "added")]:
+        if status == "added":
+            dirs = []
+            parent = Path(path).parent
+            while parent.parts and not (root / parent).exists():
+                dirs.append(parent.as_posix())
+                parent = parent.parent
+            entries.append(Undo(path, "delete", dirs))
+        else:
+            entries.append(Undo(path, "restore" if path in tracked else "untracked", []))
+    return entries
+
+
+def undo_block(root: Path, entries: list[Undo]) -> str:
+    """Shell commands that undo the entries, filtered by what is on disk now."""
+    restore = [e.path for e in entries if e.kind == "restore"]
+    delete = [e.path for e in entries if e.kind == "delete" and os.path.lexists(root / e.path)]
+    dirs = sorted({d for e in entries for d in e.dirs if (root / d).is_dir()},
+                  key=lambda d: (-len(Path(d).parts), d))
+    lines = [f"Not undone: {shlex.quote(e.path)} was not tracked by git; restore it by hand."
+             for e in entries if e.kind == "untracked"]
+    commands = [f"{name} -- {' '.join(shlex.quote(p) for p in group)}"
+                for name, group in (("git restore", restore), ("rm", delete), ("rmdir", dirs)) if group]
+    if commands:
+        lines += ["", UNDO_HEADER, *commands]
+    return "\n".join(lines)
+
+
 def run() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", default=DEFAULT_SOURCE, help="Switchyard repository or local clone")
@@ -659,23 +703,33 @@ def run() -> int:
 
             for action in actions:
                 local_file(project_root, action.path)
-            for action in actions:
-                full_path = project_root / action.path
+            undo = plan_undo(project_root, actions, stored is not None)
+            started = 0
+            try:
+                for action in actions:
+                    full_path = project_root / action.path
+                    if not args.dry_run and (action.status == "removed" or action.content is not None):
+                        started += 1
+                        if action.status == "removed":
+                            full_path.unlink(missing_ok=True)
+                        elif action.content is not None:
+                            full_path.parent.mkdir(parents=True, exist_ok=True)
+                            full_path.write_bytes(action.content)
+                            if action.mode is not None:
+                                full_path.chmod(0o755 if action.mode == 0o100755 else 0o644)
+                    if action.status:
+                        counts[action.status] = counts.get(action.status, 0) + 1
+                        print(f"{action.status}: {action.path}")
+                version_file = project_root / VERSION_PATH
                 if not args.dry_run:
-                    if action.status == "removed":
-                        full_path.unlink(missing_ok=True)
-                    elif action.content is not None:
-                        full_path.parent.mkdir(parents=True, exist_ok=True)
-                        full_path.write_bytes(action.content)
-                        if action.mode is not None:
-                            full_path.chmod(0o755 if action.mode == 0o100755 else 0o644)
-                if action.status:
-                    counts[action.status] = counts.get(action.status, 0) + 1
-                    print(f"{action.status}: {action.path}")
-            version_file = project_root / VERSION_PATH
-            if not args.dry_run:
-                version_file.parent.mkdir(parents=True, exist_ok=True)
-                version_file.write_text(target_label + "\n")
+                    started += 1
+                    version_file.parent.mkdir(parents=True, exist_ok=True)
+                    version_file.write_text(target_label + "\n")
+            except OSError:
+                block = undo_block(project_root, undo[:started])
+                if block:
+                    print(block)
+                raise
             for status in ("added", "updated", "removed", "merged", "conflict", "kept"):
                 if counts.get(status):
                     print(f"{status}: {counts[status]}")
@@ -691,6 +745,10 @@ def run() -> int:
                 print(notes or "")
             if args.dry_run:
                 print("Dry run: nothing was written.")
+            else:
+                block = undo_block(project_root, undo)
+                if block:
+                    print(block)
             return 1 if counts.get("conflict") or counts.get("kept") else 0
     except (OSError, Refusal) as error:
         print(f"update-switchyard: {error}", file=sys.stderr)
