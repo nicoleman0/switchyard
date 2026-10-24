@@ -171,6 +171,69 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertEqual((self.project / VERSION).read_text(), "0.2.0\n")
         self.assertIn(b"updated: switchyard/workflow.txt", result.stdout)
 
+    def test_dry_run_reports_conflict_without_writing(self) -> None:
+        self.make_target({"switchyard/workflow.txt": b"upstream\nstable line\nlast line\n",
+                          ".github/workflows/switchyard.yml": b"ci v2\n"})
+        files = {**{k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"},
+                 "switchyard/workflow.txt": b"local\nstable line\nlast line\n"}
+        self.make_project(files=files)
+
+        dry_run = self.run_update("--dry-run")
+        self.assertEqual(dry_run.returncode, 1, dry_run.stderr.decode())
+        self.assertTrue(dry_run.stdout.endswith(b"Dry run: nothing was written.\n"))
+        self.assertEqual(self.git(self.project, "status", "--porcelain").stdout, b"")
+        self.assertEqual((self.project / VERSION).read_bytes(), b"0.1.0\n")
+
+        real_run = self.run_update()
+        self.assertEqual(real_run.returncode, 1, real_run.stderr.decode())
+        self.assertEqual(dry_run.stdout, real_run.stdout + b"Dry run: nothing was written.\n")
+
+    def test_clean_dry_run_exits_zero(self) -> None:
+        self.make_target({"switchyard/workflow.txt": b"first line\nstable line\nnew last line\n"})
+        self.make_project()
+        result = self.run_update("--dry-run")
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertTrue(result.stdout.endswith(b"Dry run: nothing was written.\n"))
+        self.assertEqual(self.git(self.project, "status", "--porcelain").stdout, b"")
+        self.assertEqual((self.project / VERSION).read_bytes(), b"0.1.0\n")
+
+    def test_dry_run_already_at_target_reports_only_current_release(self) -> None:
+        self.make_target()
+        self.make_project(version=b"0.2.0\n")
+
+        result = self.run_update("--dry-run")
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual(result.stdout, b"Already at 0.2.0\n")
+        self.assertEqual(self.git(self.project, "status", "--porcelain").stdout, b"")
+        self.assertEqual((self.project / VERSION).read_bytes(), b"0.2.0\n")
+
+    def test_dry_run_refuses_dirty_project_without_writing(self) -> None:
+        self.make_target()
+        self.make_project()
+        workflow = self.project / "switchyard/workflow.txt"
+        workflow.write_bytes(b"dirty\n")
+        before = workflow.read_bytes()
+        result = self.run_update("--dry-run")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(b"uncommitted changes", result.stderr)
+        self.assertEqual(workflow.read_bytes(), before)
+        self.assertEqual((self.project / VERSION).read_bytes(), b"0.1.0\n")
+
+    def test_dry_run_binary_merge_refuses_without_writing(self) -> None:
+        self.make_target({"switchyard/workflow.txt": b"other changed\n",
+                          ".claude/agents/worker.md": b"\0upstream\n"})
+        self.make_project(files={**{k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"},
+                                 ".claude/agents/worker.md": b"\0local\n"})
+        before = self.git(self.project, "status", "--porcelain").stdout
+        workflow = (self.project / "switchyard/workflow.txt").read_bytes()
+        result = self.run_update("--dry-run")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(b"cannot merge", result.stderr)
+        self.assertEqual(self.git(self.project, "status", "--porcelain").stdout, before)
+        self.assertEqual((self.project / "switchyard/workflow.txt").read_bytes(), workflow)
+        self.assertEqual((self.project / VERSION).read_bytes(), b"0.1.0\n")
+
     def test_project_owned_routing_is_never_updated_or_removed(self) -> None:
         self.source.joinpath(ROUTING).write_bytes(b"example v1\n")
         self.commit(self.source, "add routing base")
@@ -528,6 +591,24 @@ class UpdateSwitchyardTests(unittest.TestCase):
         after = self.run_update()
         self.assertEqual(after.returncode, 0, after.stdout.decode() + after.stderr.decode())
         self.assertIn(b"Already at 0.2.0", after.stdout)
+
+    def test_install_dry_run_reports_without_creating_files(self) -> None:
+        self.make_target()
+        self.make_project(files={"README.md": b"mine\n"}, version=None)
+
+        dry_run = self.run_update("--install", "--dry-run")
+        self.assertEqual(dry_run.returncode, 0, dry_run.stdout.decode() + dry_run.stderr.decode())
+        self.assertTrue(dry_run.stdout.endswith(b"Dry run: nothing was written.\n"))
+        self.assertEqual(self.git(self.project, "status", "--porcelain").stdout, b"")
+        self.assertFalse((self.project / VERSION).exists())
+        self.assertEqual(sorted(path.relative_to(self.project).as_posix()
+                                for path in self.project.rglob("*")
+                                if path.is_file() and ".git" not in path.relative_to(self.project).parts),
+                         ["README.md"])
+
+        real_run = self.run_update("--install")
+        self.assertEqual(real_run.returncode, 0, real_run.stderr.decode())
+        self.assertEqual(dry_run.stdout, real_run.stdout + b"Dry run: nothing was written.\n")
 
     def test_install_merges_own_files(self) -> None:
         self.make_target()
