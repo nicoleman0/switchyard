@@ -52,10 +52,26 @@ def release_tuple(value: str) -> tuple[int, int, int] | None:
     return tuple(map(int, match.groups())) if match else None
 
 
+def release_tags(names: list[str]) -> list[str]:
+    tags = [name for name in names if release_tuple(name) is not None]
+    return sorted(tags, key=lambda tag: release_tuple(tag) or (0, 0, 0))
+
+
 def list_releases(git_dir: Path) -> list[str]:
     result = git("--git-dir", str(git_dir), "tag", "--list", "v*", check=False)
-    tags = [line.decode() for line in result.stdout.splitlines() if release_tuple(line.decode()) is not None]
-    return sorted(tags, key=lambda tag: release_tuple(tag) or (0, 0, 0))
+    return release_tags([line.decode() for line in result.stdout.splitlines()])
+
+
+def read_version(project_root: Path) -> str | None:
+    validate_parent_paths(project_root, VERSION_PATH)
+    version_file = project_root / VERSION_PATH
+    try:
+        version_info = version_file.lstat()
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(version_info.st_mode):
+        raise Refusal(f"{version_file.relative_to(project_root)} is not a regular local file")
+    return version_file.read_text().strip()
 
 
 def release_notes(content: bytes | None, base: tuple[int, int, int], target: tuple[int, int, int],
@@ -548,16 +564,8 @@ def run() -> int:
         if dirty:
             raise Refusal("tracked files have uncommitted changes; commit or stash them before updating")
 
-        validate_parent_paths(project_root, VERSION_PATH)
         version_file = project_root / VERSION_PATH
-        try:
-            version_info = version_file.lstat()
-        except FileNotFoundError:
-            stored = None
-        else:
-            if not stat.S_ISREG(version_info.st_mode):
-                raise Refusal(f"{version_file.relative_to(project_root)} is not a regular local file")
-            stored = version_file.read_text().strip()
+        stored = read_version(project_root)
         if args.install and stored is not None:
             raise Refusal(f"{version_file.relative_to(project_root)} already names {stored}; run the updater without --install")
         raw_base = args.base or stored
