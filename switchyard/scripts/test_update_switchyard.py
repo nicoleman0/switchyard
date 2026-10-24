@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -26,6 +27,7 @@ COVERED = [
     "AGENTS.md",
     "openspec/config.yaml",
 ]
+UNDO_HEADER = b"To undo this run before you stage or commit, run:\n"
 INIT_COMMAND = "npx @fission-ai/openspec init --tools claude,codex,opencode"
 RELEASE_AGENTS = (
     b"# Working in this repository\n\n"
@@ -163,6 +165,26 @@ class UpdateSwitchyardTests(unittest.TestCase):
                               cwd=cwd or self.project, env=env,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+    def before_undo(self, stdout: bytes) -> bytes:
+        """The output of a real run without its undo block."""
+        match = re.search(rb"Not undone: |\n" + re.escape(UNDO_HEADER), stdout)
+        return stdout if match is None else stdout[:match.start()]
+
+    def undo_commands(self, stdout: bytes) -> str:
+        self.assertIn(UNDO_HEADER, stdout)
+        return stdout.split(UNDO_HEADER, 1)[1].decode()
+
+    def snapshot(self) -> tuple[bytes, list[str]]:
+        dirs = sorted(path.relative_to(self.project).as_posix() for path in self.project.rglob("*")
+                      if path.is_dir() and ".git" not in path.relative_to(self.project).parts)
+        return self.git(self.project, "status", "--porcelain", "--untracked-files=all").stdout, dirs
+
+    def assert_undo_restores(self, result: subprocess.CompletedProcess[bytes], before: tuple[bytes, list[str]]) -> None:
+        undo = subprocess.run(["sh", "-c", self.undo_commands(result.stdout)], cwd=self.project,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertEqual(undo.returncode, 0, undo.stderr.decode())
+        self.assertEqual(self.snapshot(), before)
+
     def assert_refused_clean(self, result: subprocess.CompletedProcess[bytes], message: str) -> None:
         self.assertEqual(result.returncode, 2, result.stdout.decode() + result.stderr.decode())
         self.assertIn(message, result.stderr.decode())
@@ -178,6 +200,107 @@ class UpdateSwitchyardTests(unittest.TestCase):
                          b"first line\nstable line\nnew last line\n")
         self.assertEqual((self.project / VERSION).read_text(), "0.2.0\n")
         self.assertIn(b"updated: switchyard/workflow.txt", result.stdout)
+
+    def test_undo_restores_updated_removed_and_added_files(self) -> None:
+        self.make_target({".github/workflows/switchyard.yml": b"ci v2\n",
+                          "switchyard/workflow.txt": None,
+                          "switchyard/sub/new file.txt": b"new\n",
+                          "switchyard/it's new.txt": b"quote\n"})
+        self.make_project()
+        before = self.snapshot()
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        commands = self.undo_commands(result.stdout)
+        self.assertIn("git restore -- ", commands)
+        self.assertIn("'switchyard/sub/new file.txt'", commands)
+        self.assertIn("rmdir -- switchyard/sub", commands)
+        self.assertNotIn("#", commands)
+        self.assert_undo_restores(result, before)
+        self.assertEqual((self.project / VERSION).read_text(), "0.1.0\n")
+
+    def test_undo_deletes_version_when_project_had_none(self) -> None:
+        self.make_target({"switchyard/workflow.txt": b"first line\nstable line\nnew last line\n"})
+        self.make_project(version=None)
+        before = self.snapshot()
+        result = self.run_update("--from", "0.1.0")
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertIn("rm -- ", self.undo_commands(result.stdout))
+        self.assertIn(VERSION, self.undo_commands(result.stdout))
+        self.assert_undo_restores(result, before)
+        self.assertFalse((self.project / VERSION).exists())
+
+    def test_undo_after_install_into_empty_repo_leaves_nothing(self) -> None:
+        self.make_target()
+        self.make_project(files={"README.md": b"mine\n"}, version=None)
+        before = self.snapshot()
+        result = self.run_update("--install")
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assert_undo_restores(result, before)
+        again = self.run_update("--install")
+        self.assertEqual(again.returncode, 0, again.stderr.decode())
+        self.assertIn(("Next: run " + INIT_COMMAND).encode(), again.stdout)
+
+    def test_undo_after_install_restores_tracked_agents_file(self) -> None:
+        self.make_target()
+        self.make_project(files={"AGENTS.md": b"# Mine\n\nrules\n"}, version=None)
+        before = self.snapshot()
+        result = self.run_update("--install")
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertNotEqual((self.project / "AGENTS.md").read_bytes(), b"# Mine\n\nrules\n")
+        self.assertIn("git restore -- AGENTS.md", self.undo_commands(result.stdout))
+        self.assert_undo_restores(result, before)
+        self.assertEqual((self.project / "AGENTS.md").read_bytes(), b"# Mine\n\nrules\n")
+
+    def test_conflict_run_prints_undo_and_exits_one(self) -> None:
+        self.make_target({"switchyard/workflow.txt": b"upstream\nstable line\nlast line\n"})
+        files = {**{k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"},
+                 "switchyard/workflow.txt": b"local\nstable line\nlast line\n"}
+        self.make_project(files=files)
+        before = self.snapshot()
+        result = self.run_update()
+        self.assertEqual(result.returncode, 1, result.stderr.decode())
+        self.assertIn(b"conflict: switchyard/workflow.txt", result.stdout)
+        self.assert_undo_restores(result, before)
+
+    def test_untracked_merged_file_is_not_undone(self) -> None:
+        self.make_target()
+        self.make_project(files={"README.md": b"mine\n"}, version=None)
+        (self.project / "AGENTS.md").write_bytes(b"# Mine\n\nrules\n")
+        result = self.run_update("--install")
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        note = b"Not undone: AGENTS.md was not tracked by git; restore it by hand."
+        self.assertIn(note, result.stdout)
+        self.assertLess(result.stdout.index(note), result.stdout.index(UNDO_HEADER))
+        self.assertNotIn("AGENTS.md", self.undo_commands(result.stdout))
+
+    def test_already_at_prints_no_undo(self) -> None:
+        self.make_target()
+        self.make_project(version=b"0.2.0\n")
+        self.assertNotIn(UNDO_HEADER, self.run_update().stdout)
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root ignores directory permissions")
+    def test_failed_write_prints_undo_for_finished_writes_and_exits_two(self) -> None:
+        self.make_target({"switchyard/a/new.txt": b"new\n",
+                          "switchyard/b.txt": b"b v2\n",
+                          "switchyard/z/locked.txt": b"locked\n"})
+        self.make_project(files={**{k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"},
+                                 "switchyard/b.txt": b"b v1\n", "switchyard/z/keep.txt": b"keep\n"})
+        self.source.joinpath("switchyard/b.txt").write_bytes(b"b v2\n")
+        locked = self.project / "switchyard/z"
+        before = self.snapshot()
+        locked.chmod(0o555)
+        try:
+            result = self.run_update("--from", "0.1.0")
+        finally:
+            locked.chmod(0o755)
+        self.assertEqual(result.returncode, 2, result.stdout.decode())
+        self.assertIn("update-switchyard:", result.stderr.decode())
+        self.assertEqual((self.project / VERSION).read_text(), "0.1.0\n")
+        commands = self.undo_commands(result.stdout)
+        for name in ("switchyard/b.txt", "switchyard/a/new.txt", "rmdir -- switchyard/a"):
+            self.assertIn(name, commands)
+        self.assertNotIn("locked.txt", commands)
+        self.assert_undo_restores(result, before)
 
     def test_release_notes_cover_selected_releases_newest_first(self) -> None:
         self.make_target()
@@ -223,7 +346,8 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertTrue(dry_run.stdout.endswith(b"Dry run: nothing was written.\n"))
         real_run = self.run_update()
         self.assertEqual(real_run.returncode, 0, real_run.stderr.decode())
-        self.assertEqual(dry_run.stdout, real_run.stdout + b"Dry run: nothing was written.\n")
+        self.assertEqual(dry_run.stdout, self.before_undo(real_run.stdout) + b"Dry run: nothing was written.\n")
+        self.assertNotIn(UNDO_HEADER, dry_run.stdout)
 
     def test_already_at_has_no_release_notes_and_install_has_no_release_notes(self) -> None:
         self.make_target()
@@ -288,7 +412,8 @@ class UpdateSwitchyardTests(unittest.TestCase):
 
         real_run = self.run_update()
         self.assertEqual(real_run.returncode, 1, real_run.stderr.decode())
-        self.assertEqual(dry_run.stdout, real_run.stdout + b"Dry run: nothing was written.\n")
+        self.assertEqual(dry_run.stdout, self.before_undo(real_run.stdout) + b"Dry run: nothing was written.\n")
+        self.assertNotIn(UNDO_HEADER, dry_run.stdout)
 
     def test_clean_dry_run_exits_zero(self) -> None:
         self.make_target({"switchyard/workflow.txt": b"first line\nstable line\nnew last line\n"})
@@ -710,7 +835,8 @@ class UpdateSwitchyardTests(unittest.TestCase):
 
         real_run = self.run_update("--install")
         self.assertEqual(real_run.returncode, 0, real_run.stderr.decode())
-        self.assertEqual(dry_run.stdout, real_run.stdout + b"Dry run: nothing was written.\n")
+        self.assertEqual(dry_run.stdout, self.before_undo(real_run.stdout) + b"Dry run: nothing was written.\n")
+        self.assertNotIn(UNDO_HEADER, dry_run.stdout)
 
     def test_install_merges_own_files(self) -> None:
         self.make_target()

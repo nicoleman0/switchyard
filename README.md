@@ -89,7 +89,7 @@ npm init switchyard@latest
 - `openspec/config.yaml` gains the Switchyard `rules` entries without replacing `context` or the project's own rules.
 - `switchyard/routing.md` is added when it is missing and never replaced.
 
-The report lists each file as `added`, `merged`, or `conflict`, then the totals, and writes `VERSION` naming the release. Conflict markers name the two sides. In `AGENTS.md`, `.gitignore`, and `openspec/config.yaml`, they stay inside the owned section or rule list. Any other existing workflow file that differs gets markers around the whole file. Resolve them, review the diff, and commit. To undo before committing: `git restore .`, remove files reported as `added`, and remove `VERSION`.
+The report lists each file as `added`, `merged`, or `conflict`, then the totals, and writes `VERSION` naming the release. Conflict markers name the two sides. In `AGENTS.md`, `.gitignore`, and `openspec/config.yaml`, they stay inside the owned section or rule list. Any other existing workflow file that differs gets markers around the whole file. Resolve them, review the diff, and commit. The updater ends by printing the commands that undo the run.
 
 If the repo has no `openspec/` directory, install prints the next step, `npx @fission-ai/openspec init --tools claude,codex,opencode`; install writes `openspec/config.yaml` first, and init keeps it.
 
@@ -137,7 +137,7 @@ npm init switchyard@latest update
 
 `npx create-switchyard@latest update` does the same. It updates to the newest release the package holds. Without Node, run the updater installed in your repo instead: `python3 switchyard/scripts/update-switchyard.py`.
 
-The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, or `kept`. Review the diff and resolve conflict markers. The updater does not commit. To undo, restore changed and removed files with `git restore .`, remove files reported as added, and remove `VERSION` if the project did not have one before the update.
+The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, or `kept`. Review the diff and resolve conflict markers. The updater does not commit. It ends by printing the commands that undo the run.
 
 `npm init switchyard@latest update -- --dry-run` and `python3 switchyard/scripts/update-switchyard.py --dry-run` print the report a real run would print and write nothing. Without the `--`, the npm form is also safe, but npm can fail with an `enoent` error on a first run.
 
