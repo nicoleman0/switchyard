@@ -14,7 +14,7 @@ Switchyard is a delivery workflow for coding agents, born out of my own personal
 Add it to any git repo, new or existing, from the repo's root:
 
 ```sh
-npx create-switchyard
+npm init switchyard
 ```
 
 The repo then has the workflow in place: issues, specs, isolated worktrees, and review gates. [Install](#add-it-to-an-existing-repo) says what the command adds and merges. To start from the GitHub template instead, see [Start a new project](#start-a-new-project).
@@ -79,10 +79,10 @@ You are asked something at three points: before work starts, after the plan, and
 Run it from the root of the repo. A new, empty repo works too:
 
 ```sh
-npx create-switchyard
+npm init switchyard
 ```
 
-`npm init switchyard` does the same. The package holds one release and runs its `update-switchyard.py --install`, so it needs Python 3 and works offline once npm has fetched it. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
+`npx create-switchyard` does the same. The package holds one release and runs its `update-switchyard.py --install`, so it needs Python 3 and works offline once npm has fetched it. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
 
 - `AGENTS.md` gains the Workflow and Writing sections; a repo without an `AGENTS.md` gets the release's whole file, Project placeholder included.
 - `.gitignore` gains the `.switchyard/` line when it is missing.
