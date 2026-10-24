@@ -9,11 +9,15 @@
 [![Herdr](https://img.shields.io/badge/Herdr-1F3A5F)](https://herdr.dev)
 [![GitHub CLI](https://img.shields.io/badge/GitHub_CLI-1F3A5F?logo=github&logoColor=white)](https://cli.github.com)
 
-Switchyard is a template repository that was born out of my own personal AI development setup.
+Switchyard is a delivery workflow for coding agents, born out of my own personal AI development setup.
 
-Start a new project from it, and the project begins with a delivery workflow for coding agents already in place: issues, specs, isolated worktrees, and review gates.
+Add it to any git repo, new or existing, from the repo's root:
 
-To adopt it, [start a new project](#start-a-new-project) from the template with one command, or [add the workflow to a repo you already have](#add-it-to-an-existing-repo) with one install command.
+```sh
+npx create-switchyard
+```
+
+The repo then has the workflow in place: issues, specs, isolated worktrees, and review gates. [Install](#add-it-to-an-existing-repo) says what the command adds and merges. To start from the GitHub template instead, see [Start a new project](#start-a-new-project).
 
 It does not depend on one AI provider. Use any agent CLI for the worker roles, and change a provider or a model by editing one file, `switchyard/routing.md`. The values it ships with are examples. The coordinator runs on any CLI that reads `AGENTS.md` and can run the skill's scripts.
 
@@ -70,23 +74,9 @@ You are asked something at three points: before work starts, after the plan, and
 - For UI screenshots: Playwright in your project, and `sips` (macOS) or ImageMagick.
 - Check them with `switchyard/scripts/preflight.sh <provider>...`, passing the providers in `routing.md`.
 
-## Start a new project
-
-Click **Use this template** on GitHub, or run:
-
-```sh
-gh repo create my-project --template nicoleman0/switchyard --private --clone
-cd my-project
-python3 switchyard/scripts/init-project.py
-```
-
-The new repo has every file here and none of this repo's history. Init moves this guide to `docs/WORKFLOW.md`, fixes its paths, and deletes Switchyard's own files: the `create-switchyard/` folder, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, the banner image, the social preview, and `docs/pixelart.py`. It keeps `docs/workflow.svg`, prints every move, deletion, and skip, and never commits. A committed copy of every moved and deleted file stays in git history: init refuses to run outside a git work tree and skips the listed paths with uncommitted changes. It ends by naming what to add next: your own `README.md` and `LICENSE`, for a start.
-
-Then [make it yours](#make-it-yours) before the first issue.
-
 ## Add it to an existing repo
 
-From the root of the repo:
+Run it from the root of the repo. A new, empty repo works too:
 
 ```sh
 npx create-switchyard
@@ -103,9 +93,23 @@ The report lists each file as `added`, `merged`, or `conflict`, then the totals,
 
 If the repo has no `openspec/` directory, install prints the next step, `npx @fission-ai/openspec init --tools claude,codex,opencode`; install writes `openspec/config.yaml` first, and init keeps it.
 
+## Start a new project
+
+The GitHub template is the other way in. It copies this whole repo, docs included, into a new one. Click **Use this template** on GitHub, or run:
+
+```sh
+gh repo create my-project --template nicoleman0/switchyard --private --clone
+cd my-project
+python3 switchyard/scripts/init-project.py
+```
+
+The new repo has every file here and none of this repo's history. Init moves this guide to `docs/WORKFLOW.md`, fixes its paths, and deletes Switchyard's own files: the `create-switchyard/` folder, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, the banner image, the social preview, and `docs/pixelart.py`. It keeps `docs/workflow.svg`, prints every move, deletion, and skip, and never commits. A committed copy of every moved and deleted file stays in git history: init refuses to run outside a git work tree and skips the listed paths with uncommitted changes. It ends by naming what to add next: your own `README.md` and `LICENSE`, for a start.
+
+Then [make it yours](#make-it-yours) before the first issue.
+
 ## Make it yours
 
-Init removed the Switchyard-only files and moved the guide. What is left is your project's own files and settings:
+These are your project's own files and settings. The first two rows apply only to projects made from the template, after init:
 
 | Edit | What goes there |
 |---|---|
