@@ -4,7 +4,7 @@
 
 - [x] 1.1 Add `--dry-run` to the argument parser in `switchyard/scripts/update-switchyard.py`. Verify `python3 switchyard/scripts/update-switchyard.py --help` lists it.
 - [x] 1.2 In the write loop, skip the file writes, removals, `mkdir`, `chmod`, and the `VERSION` write when `--dry-run` is set. Keep the prints, counts, totals, `Next:` lines, and return value. Print `Dry run: nothing was written.` as the last line. Verify with the tests in 1.3.
-- [x] 1.3 Add tests to `switchyard/scripts/test_update_switchyard.py`, reusing `make_target`, `make_project`, and `run_update`: a mixed-status update (dry run leaves `git status --porcelain` empty and `VERSION` unchanged; its stdout equals a following real run's stdout plus the final line; same exit code, 1 with `conflict` or `kept`); a clean update exiting 0; `--install --dry-run` creating no files and matching a real install; a dirty tree and a binary merge both refused with exit 2 and no changes. Verify with `python3 -m unittest discover -s switchyard/scripts -p 'test_*.py'`.
+- [x] 1.3 Add tests to `switchyard/scripts/test_update_switchyard.py`, reusing `make_target`, `make_project`, and `run_update`: a mixed-status update (dry run leaves `git status --porcelain` empty and `VERSION` unchanged; its stdout equals a following real run's stdout plus the final line; same exit code, 1 with `conflict` or `kept`); a clean update exiting 0; already at the target printing only `Already at X` and exiting 0; `--install --dry-run` creating no files and matching a real install; a dirty tree and a binary merge both refused with exit 2 and no changes. Verify with `python3 -m unittest discover -s switchyard/scripts -p 'test_*.py'`.
 
 ## 2. Docs
 

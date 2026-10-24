@@ -13,7 +13,7 @@ So everything a dry run needs to report is known before the first write.
 ## Goals / Non-Goals
 
 **Goals:**
-- A dry run prints the same lines as a real run, in the same order, plus one final line.
+- A dry run prints the same lines as a real run, in the same order, plus one final line. If the project is already at the target release, it prints only `Already at X` and exits 0.
 - A dry run leaves the project byte-for-byte unchanged, tracked and untracked files alike.
 
 **Non-Goals:**
@@ -35,6 +35,7 @@ Alternative: split the loop into a "plan" function and an "apply" function. Reje
 - `--install --dry-run` into a repo without the workflow creates no files, and its stdout and exit code match a real install plus the final line.
 - `--dry-run` with uncommitted tracked changes is refused with exit 2, as today.
 - `--dry-run` with a binary file that cannot merge is refused with exit 2 and changes nothing.
+- `--dry-run` when already at the target release prints only `Already at X` and exits 0.
 - The final line is printed once, as the last line of stdout.
 
 ### Temporary files

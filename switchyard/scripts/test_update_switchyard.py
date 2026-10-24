@@ -197,6 +197,17 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertEqual(self.git(self.project, "status", "--porcelain").stdout, b"")
         self.assertEqual((self.project / VERSION).read_bytes(), b"0.1.0\n")
 
+    def test_dry_run_already_at_target_reports_only_current_release(self) -> None:
+        self.make_target()
+        self.make_project(version=b"0.2.0\n")
+
+        result = self.run_update("--dry-run")
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual(result.stdout, b"Already at 0.2.0\n")
+        self.assertEqual(self.git(self.project, "status", "--porcelain").stdout, b"")
+        self.assertEqual((self.project / VERSION).read_bytes(), b"0.2.0\n")
+
     def test_dry_run_refuses_dirty_project_without_writing(self) -> None:
         self.make_target()
         self.make_project()
