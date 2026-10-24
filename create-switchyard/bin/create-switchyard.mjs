@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const usage = `usage: npm init switchyard@latest                    install into this git repo
        npm init switchyard@latest update             update to the newest bundled release
        npm init switchyard@latest update -- ARGS     pass ARGS to the updater, such as --to X.Y.Z
+--dry-run works with or without the --.
 npx create-switchyard@latest takes the same arguments, without the --.`;
 const args = process.argv.slice(2);
 const dist = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
@@ -50,7 +51,10 @@ if (args[0] === "update") {
     console.error(`create-switchyard: update sets --source and --install itself; remove ${refused.join(" ")}`);
     process.exit(2);
   }
-  updater(["--source", bundle, ...args.slice(1)]);
+  const forwarded = args.slice(1);
+  // npm keeps --dry-run given without -- for itself and only sets this variable.
+  if (process.env.npm_config_dry_run === "true" && !forwarded.includes("--dry-run")) forwarded.push("--dry-run");
+  updater(["--source", bundle, ...forwarded]);
 }
 if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
   console.log(usage);

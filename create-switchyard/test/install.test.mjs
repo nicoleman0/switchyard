@@ -133,6 +133,17 @@ test("update forwards other arguments to the updater", () => {
   assert.match(result.stdout, /Already at 0\.7\.2/);
 });
 
+test("update forwards npm's swallowed --dry-run and writes nothing", () => {
+  const dir = releaseRepo("dry-run", "0.7.2");
+  const result = spawnSync("npm", ["exec", "--yes", `--package=${tarball}`, "--", "create-switchyard", "update"], {
+    cwd: dir, env: { ...gitEnv, npm_config_dry_run: "true" }, encoding: "utf8",
+  });
+  assert.equal(result.status, 0, output(result));
+  assert.match(result.stdout, /^Dry run: nothing was written\.$/m);
+  assert.equal(gitIn(dir, "status", "--porcelain"), "");
+  assert.equal(readFileSync(join(dir, "switchyard/VERSION"), "utf8").trim(), "0.7.2");
+});
+
 test("update refuses --source and --install in any form", () => {
   const dir = releaseRepo("refused", "0.7.2");
   for (const args of [["--source", "x"], ["--source=x"], ["--inst"], ["--install"]]) {

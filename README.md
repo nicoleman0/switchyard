@@ -139,7 +139,7 @@ npm init switchyard@latest update
 
 The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, or `kept`. Review the diff and resolve conflict markers. The updater does not commit. To undo, restore changed and removed files with `git restore .`, remove files reported as added, and remove `VERSION` if the project did not have one before the update.
 
-`--dry-run` prints the report a real run would print and writes nothing.
+`npm init switchyard@latest update --dry-run` and `python3 switchyard/scripts/update-switchyard.py --dry-run` print the report a real run would print and write nothing.
 
 The updater adds `switchyard/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
 
