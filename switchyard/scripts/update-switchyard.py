@@ -12,6 +12,7 @@ import argparse
 import os
 import re
 import shlex
+import signal
 import stat
 import subprocess
 import sys
@@ -20,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_SOURCE = "https://github.com/nicoleman0/switchyard.git"
+CHECK_TIMEOUT = 10
 VERSION_PATH = "switchyard/VERSION"
 PROJECT_OWNED = {"switchyard/routing.md"}
 PATHS_PATH = "switchyard/update-paths.txt"
@@ -52,10 +54,50 @@ def release_tuple(value: str) -> tuple[int, int, int] | None:
     return tuple(map(int, match.groups())) if match else None
 
 
+def release_tags(names: list[str]) -> list[str]:
+    tags = [name for name in names if release_tuple(name) is not None]
+    return sorted(tags, key=lambda tag: release_tuple(tag) or (0, 0, 0))
+
+
 def list_releases(git_dir: Path) -> list[str]:
     result = git("--git-dir", str(git_dir), "tag", "--list", "v*", check=False)
-    tags = [line.decode() for line in result.stdout.splitlines() if release_tuple(line.decode()) is not None]
-    return sorted(tags, key=lambda tag: release_tuple(tag) or (0, 0, 0))
+    return release_tags([line.decode() for line in result.stdout.splitlines()])
+
+
+def read_version(project_root: Path) -> str | None:
+    validate_parent_paths(project_root, VERSION_PATH)
+    version_file = project_root / VERSION_PATH
+    try:
+        version_info = version_file.lstat()
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(version_info.st_mode):
+        raise Refusal(f"{version_file.relative_to(project_root)} is not a regular local file")
+    return version_file.read_text().strip()
+
+
+def remote_releases(source: str, timeout: float) -> tuple[list[str] | None, str | None]:
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        process = subprocess.Popen(
+            ["git", "ls-remote", "--tags", "--refs", source, "v*"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            env=env, start_new_session=True,
+        )
+    except OSError as error:
+        return None, str(error)
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        return None, f"timed out after {timeout:g}s"
+    if process.returncode:
+        return None, stderr.decode(errors="replace").strip() or f"git exited {process.returncode}"
+    names = [line.split(b"\t", 1)[1].decode(errors="replace").removeprefix("refs/tags/")
+             for line in stdout.splitlines() if b"\trefs/tags/" in line]
+    return release_tags(names), None
 
 
 def release_notes(content: bytes | None, base: tuple[int, int, int], target: tuple[int, int, int],
@@ -535,9 +577,44 @@ def run() -> int:
                         help="install the workflow into a repository that has no VERSION file")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the report without writing any file")
+    parser.add_argument("--check", action="store_true",
+                        help="report whether VERSION is behind the newest release; writes nothing")
     args = parser.parse_args()
 
     try:
+        if args.check:
+            if args.install or args.base or args.target or args.dry_run:
+                raise Refusal("--check cannot be combined with --install, --from, --to, or --dry-run")
+            root_result = git("rev-parse", "--show-toplevel", check=False)
+            if root_result.returncode:
+                raise Refusal("run this command inside a git work tree")
+            project_root = Path(os.fsdecode(root_result.stdout.strip()))
+            stored = read_version(project_root)
+            if stored is None:
+                raise Refusal("no VERSION found; nothing to compare")
+            current = release_tuple(stored)
+            if current is None:
+                raise Refusal(f"invalid VERSION {stored!r}; use X.Y.Z or vX.Y.Z")
+            releases, reason = remote_releases(args.source, CHECK_TIMEOUT)
+            if releases is None:
+                print(f"update-switchyard: could not reach {args.source}: {reason}", file=sys.stderr)
+                return 4
+            if not releases:
+                raise Refusal("source has no release tags")
+            newest = release_tuple(releases[-1])
+            assert newest is not None
+            current_label = ".".join(map(str, current))
+            newest_label = ".".join(map(str, newest))
+            if current < newest:
+                print(f"{current_label} is behind the newest release, {newest_label}. "
+                      "Update with: npm init switchyard@latest update")
+                return 3
+            if current == newest:
+                print(f"{current_label} is the newest release")
+            else:
+                print(f"{current_label} is newer than the newest release, {newest_label}")
+            return 0
+
         if args.install and args.base:
             raise Refusal("--install starts from nothing; it does not take --from")
         root_result = git("rev-parse", "--show-toplevel", check=False)
@@ -548,16 +625,8 @@ def run() -> int:
         if dirty:
             raise Refusal("tracked files have uncommitted changes; commit or stash them before updating")
 
-        validate_parent_paths(project_root, VERSION_PATH)
         version_file = project_root / VERSION_PATH
-        try:
-            version_info = version_file.lstat()
-        except FileNotFoundError:
-            stored = None
-        else:
-            if not stat.S_ISREG(version_info.st_mode):
-                raise Refusal(f"{version_file.relative_to(project_root)} is not a regular local file")
-            stored = version_file.read_text().strip()
+        stored = read_version(project_root)
         if args.install and stored is not None:
             raise Refusal(f"{version_file.relative_to(project_root)} already names {stored}; run the updater without --install")
         raw_base = args.base or stored

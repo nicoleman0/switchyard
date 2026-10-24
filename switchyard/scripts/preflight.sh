@@ -109,5 +109,19 @@ if [ -f AGENTS.md ]; then
   done < AGENTS.md
 fi
 
+if command -v python3 >/dev/null 2>&1; then
+  script_dir=${BASH_SOURCE[0]%/*}
+  [ "$script_dir" != "${BASH_SOURCE[0]}" ] || script_dir=.
+  updater="$script_dir/update-switchyard.py"
+  release_output=$(python3 "$updater" --check 2>&1)
+  release_status=$?
+  case $release_status in
+    0) printf 'ok       Switchyard release\n' ;;
+    3) warning "Switchyard release: $release_output" ;;
+    4) ;;
+    *) warning "Switchyard release: could not check. $release_output" ;;
+  esac
+fi
+
 printf '%s missing, %s warning(s)\n' "$missing" "$warnings"
 [ "$missing" -eq 0 ]
