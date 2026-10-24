@@ -8,7 +8,9 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -238,13 +240,17 @@ class UpdateSwitchyardTests(unittest.TestCase):
     def test_remote_release_timeout_kills_git_process_group(self) -> None:
         module_spec = importlib.util.spec_from_file_location("update_switchyard", SCRIPT)
         module = importlib.util.module_from_spec(module_spec)
-        module_spec.loader.exec_module(module)
+        sys.modules[module_spec.name] = module
+        try:
+            module_spec.loader.exec_module(module)
+        finally:
+            del sys.modules[module_spec.name]
         git_bin = self.root / "slow-bin"
         git_bin.mkdir()
         stub = git_bin / "git"
         stub.write_text("#!/bin/sh\nsleep 30\n")
         stub.chmod(0o755)
-        started = __import__("time").monotonic()
+        started = time.monotonic()
         previous_path = os.environ.get("PATH", "")
         os.environ["PATH"] = str(git_bin) + os.pathsep + previous_path
         try:
@@ -253,7 +259,7 @@ class UpdateSwitchyardTests(unittest.TestCase):
             os.environ["PATH"] = previous_path
         self.assertIsNone(releases)
         self.assertIn("timed out after 0.5s", reason)
-        self.assertLess(__import__("time").monotonic() - started, 5)
+        self.assertLess(time.monotonic() - started, 5)
 
     def before_undo(self, stdout: bytes) -> bytes:
         """The output of a real run without its undo block."""
