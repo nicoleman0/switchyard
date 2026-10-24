@@ -32,4 +32,4 @@ The maintainer runs these steps.
 
 1. In one PR, set the new version in `switchyard/VERSION` and `create-switchyard/package.json`, and rename Unreleased in `CHANGELOG.md` to the version and date. CI fails if the three differ.
 2. Merge, then tag `vX.Y.Z` on the merge commit.
-3. From a clean checkout of the tag, run `cd create-switchyard && npm publish`. It builds `dist/` first and refuses to publish with uncommitted changes.
+3. From a clean checkout of the tag with every release tag fetched (`git fetch --tags`), run `cd create-switchyard && npm publish`. It builds `dist/` first, bundling every release from 0.7.0, and refuses to publish with uncommitted changes or a missing release tag.

@@ -46,6 +46,9 @@ jobs:
           PY
       - name: Test the npm installer
         if: github.repository == 'nicoleman0/switchyard'
-        run: npm test --prefix create-switchyard
+        # The package bundles every release from v0.7.0, read from their tags.
+        run: |
+          git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
+          npm test --prefix create-switchyard
       - name: Validate OpenSpec
         run: npx --yes @fission-ai/openspec validate --all --strict

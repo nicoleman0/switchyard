@@ -14,7 +14,7 @@ Switchyard is a delivery workflow for coding agents, born out of my own personal
 Add it to any git repo, new or existing, from the repo's root:
 
 ```sh
-npm init switchyard
+npm init switchyard@latest
 ```
 
 The repo then has the workflow in place: issues, specs, isolated worktrees, and review gates. [Install](#add-it-to-an-existing-repo) says what the command adds and merges. To start from the GitHub template instead, see [Start a new project](#start-a-new-project).
@@ -79,10 +79,10 @@ You are asked something at three points: before work starts, after the plan, and
 Run it from the root of the repo. A new, empty repo works too:
 
 ```sh
-npm init switchyard
+npm init switchyard@latest
 ```
 
-`npx create-switchyard` does the same. The package holds one release and runs its `update-switchyard.py --install`, so it needs Python 3 and works offline once npm has fetched it. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
+`npx create-switchyard@latest` does the same. Keep `@latest`: without it, npm can run an older copy from its cache. The package runs its bundled `update-switchyard.py --install`, so it needs Python 3. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
 
 - `AGENTS.md` gains the Workflow and Writing sections; a repo without an `AGENTS.md` gets the release's whole file, Project placeholder included.
 - `.gitignore` gains the `.switchyard/` line when it is missing.
@@ -132,20 +132,20 @@ Start from a clean checkout on a new branch, then run:
 
 ```sh
 git switch -c update-switchyard
-python3 switchyard/scripts/update-switchyard.py
+npm init switchyard@latest update
 ```
+
+`npx create-switchyard@latest update` does the same. It updates to the newest release the package holds. Without Node, run the updater installed in your repo instead: `python3 switchyard/scripts/update-switchyard.py`.
 
 The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, or `kept`. Review the diff and resolve conflict markers. The updater does not commit. To undo, restore changed and removed files with `git restore .`, remove files reported as added, and remove `VERSION` if the project did not have one before the update.
 
-`--dry-run` prints the report a real run would print and writes nothing.
-
-Later releases come through the updater installed in your repo, not through npx.
+`npm init switchyard@latest update -- --dry-run` and `python3 switchyard/scripts/update-switchyard.py --dry-run` print the report a real run would print and write nothing. Without the `--`, the npm form is also safe, but npm can fail with an `enoent` error on a first run.
 
 The updater adds `switchyard/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
 
 The updater covers paths listed in its target release. It skips OpenSpec-generated files, which `npx @fission-ai/openspec update` refreshes, and Switchyard's README, license, changelog, contributing guide, and banner. See the [Switchyard releases](https://github.com/nicoleman0/switchyard/releases) for release notes.
 
-The updater clones the release source, so a Codex session needs network access. Run it outside the sandbox if the session cannot access the network.
+Both need network access: the npm form reaches the npm registry, and the Python form clones the release source from GitHub. Run it outside the sandbox if a Codex session cannot access the network.
 
 A repository that never had the workflow at all does not update from a release: it takes [install](#add-it-to-an-existing-repo), which needs no `--from`.
 
