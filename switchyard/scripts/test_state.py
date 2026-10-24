@@ -168,7 +168,36 @@ class Harness(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.repo / "hook-worktree").read_text(), record_path)
         self.assertNotIn("worktree remove", self.log.read_text() if self.log.exists() else "")
+        worktrees = subprocess.run(
+            ["git", "-C", str(self.repo), "worktree", "list", "--porcelain"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        self.assertNotIn(record_path, worktrees)
         self.assertFalse((self.repo / ".switchyard/state/56.json").exists())
+
+    def test_teardown_refuses_existing_detached_worktree(self):
+        self.assertEqual(self.script("setup-worktree.sh", "56", "topic").returncode, 0)
+        tree = Path(self.record("56")["path"])
+        subprocess.run(["git", "-C", str(tree), "checkout", "--detach", "-q"], check=True)
+        marker = tree / "untracked.txt"
+        marker.write_text("keep me")
+        result = self.script("teardown-worktree.sh", "56", "topic")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("recorded path exists", result.stderr)
+        self.assertTrue(marker.exists())
+        self.assertTrue((self.repo / ".switchyard/state/56.json").exists())
+
+    def test_teardown_lists_removed_parts_with_comma_and_space(self):
+        self.assertEqual(self.script("setup-worktree.sh", "56", "topic").returncode, 0)
+        record_path = self.record("56")["path"]
+        result = self.script("teardown-worktree.sh", "56", "topic")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.strip().splitlines()[-1],
+            f"Removed worktree {record_path}, local branch topic.",
+        )
 
     def test_teardown_branch_mismatch_changes_nothing(self):
         self.assertEqual(self.script("setup-worktree.sh", "56", "topic").returncode, 0)

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Run the down hook, then remove an issue's worktree and branches.
-# Ordinary teardown refuses a dirty worktree; --abandon reports what it discards.
+# Remove an issue's worktree, branches, and per-issue state.
+# Ordinary teardown refuses dirty worktrees to avoid leaving a half-torn-down issue.
+# --abandon reports what it discards; missing steps are skipped.
 # Usage: teardown-worktree.sh [--abandon] <issue-number> <branch>
 set -euo pipefail
 
@@ -22,15 +23,12 @@ branch=${2:?branch name required}
 repo=$(git rev-parse --show-toplevel)
 cd "$repo"
 hook=switchyard/hooks/worktree-down.sh
-record="$repo/.switchyard/state/$issue.json"
-
-if [ -f "$record" ]; then
-  recorded_branch=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("branch", ""))' "$record")
+if recorded_branch=$(python3 switchyard/scripts/state.py get "$issue" branch 2>/dev/null); then
   if [ "$recorded_branch" != "$branch" ]; then
     echo "Issue $issue records branch $recorded_branch, not $branch." >&2
     exit 1
   fi
-  record_path=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("path", ""))' "$record")
+  record_path=$(python3 switchyard/scripts/state.py get "$issue" path)
 else
   record_path=
 fi
@@ -43,6 +41,10 @@ worktree_present=
 if [ -n "$entry_path" ] && [ -d "$entry_path" ]; then
   worktree_present=1
 else
+  if [ -z "$entry_path" ] && [ -n "$record_path" ] && [ -d "$record_path" ]; then
+    echo "No worktree has branch $branch checked out, but the recorded path exists: $record_path." >&2
+    exit 1
+  fi
   echo "Skipped: worktree for $branch is already gone."
 fi
 
@@ -53,6 +55,7 @@ else
   echo "Skipped: local branch $branch is already gone."
 fi
 
+# Check before the hook so a refusal cannot leave per-issue state half removed.
 if [ -n "$worktree_present" ] && [ -z "$abandon" ] && [ -n "$(git -C "$path" status --porcelain)" ]; then
   git -C "$path" status --short >&2
   echo "Worktree $path has uncommitted changes. Use --abandon to discard them." >&2
@@ -90,6 +93,7 @@ print(next((r.get("open_workspace_id") or "" for r in rows if r["branch"] == sys
   fi
   if [ -n "$workspace" ]; then
     if [ -n "$abandon" ]; then
+      # Herdr requires force when the worktree has uncommitted changes.
       herdr worktree remove --workspace "$workspace" --force >/dev/null
     else
       herdr worktree remove --workspace "$workspace" >/dev/null
@@ -101,22 +105,26 @@ print(next((r.get("open_workspace_id") or "" for r in rows if r["branch"] == sys
   fi
   removed+=("worktree $path")
 elif [ -n "$entry_path" ]; then
+  # Remove only this issue's stale entry; prune could affect other worktrees.
   git worktree remove "$entry_path"
   removed+=("stale worktree entry $entry_path")
 fi
 
 if [ -n "$local_present" ]; then
+  # Herdr rejects branch deletion until its worktree is removed.
   git branch -D "$branch"
   removed+=("local branch $branch")
 fi
 
 remote_branch_state() {
+  # ls-remote exits 2 when the named branch does not exist.
   git ls-remote --exit-code --heads origin "$1" >/dev/null
 }
 
 push_failed=
 if remote_branch_state "$branch"; then
   if ! git push origin --delete "$branch"; then
+    # A concurrent delete can make push fail after the branch is already gone.
     if remote_branch_state "$branch"; then
       push_failed=exists
     elif [ $? -ne 2 ]; then
@@ -144,7 +152,13 @@ if [ -n "$push_failed" ]; then
   exit 1
 fi
 if [ "${#removed[@]}" -gt 0 ]; then
-  printf 'Removed %s.\n' "$(IFS=', '; echo "${removed[*]}")"
+  printf 'Removed '
+  separator=
+  for item in "${removed[@]}"; do
+    printf '%s%s' "$separator" "$item"
+    separator=', '
+  done
+  printf '.\n'
 else
   echo "Removed issue $issue record."
 fi
