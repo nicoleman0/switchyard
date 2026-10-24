@@ -23,13 +23,17 @@ branch=${2:?branch name required}
 repo=$(git rev-parse --show-toplevel)
 cd "$repo"
 hook=switchyard/hooks/worktree-down.sh
-if recorded_branch=$(python3 switchyard/scripts/state.py get "$issue" branch 2>/dev/null); then
+if recorded_branch=$(python3 switchyard/scripts/state.py get "$issue" branch); then
   if [ "$recorded_branch" != "$branch" ]; then
     echo "Issue $issue records branch $recorded_branch, not $branch." >&2
     exit 1
   fi
   record_path=$(python3 switchyard/scripts/state.py get "$issue" path)
 else
+  state_status=$?
+  if [ "$state_status" -ne 3 ]; then
+    exit "$state_status"
+  fi
   record_path=
 fi
 
@@ -111,7 +115,7 @@ elif [ -n "$entry_path" ]; then
 fi
 
 if [ -n "$local_present" ]; then
-  # Herdr rejects branch deletion until its worktree is removed.
+  # Git refuses to delete a branch checked out in any worktree.
   git branch -D "$branch"
   removed+=("local branch $branch")
 fi

@@ -95,6 +95,27 @@ class Harness(unittest.TestCase):
         self.assertEqual(len(invalid.stderr.strip().splitlines()), 1)
         self.assertEqual(self.state("rm", "500").returncode, 0)
 
+    def test_get_missing_record_has_distinct_exit_code(self):
+        result = self.state("get", "500", "branch")
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("no record", result.stderr)
+
+    def test_get_corrupt_record_keeps_failure_exit_code(self):
+        path = self.repo / ".switchyard/state/56.json"
+        path.parent.mkdir(parents=True)
+        path.write_text("{not json")
+        result = self.script("teardown-worktree.sh", "56", "topic")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("cannot read record", result.stderr)
+        self.assertTrue(path.exists())
+
+    def test_teardown_record_without_branch_fails_and_keeps_record(self):
+        self.init("56", path=str(self.base / "missing"))
+        result = self.script("teardown-worktree.sh", "56", "topic")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("field branch is missing or empty", result.stderr)
+        self.assertTrue((self.repo / ".switchyard/state/56.json").exists())
+
     def test_record_uses_main_checkout_from_linked_worktree(self):
         branch = self.base / "linked"
         subprocess.run(["git", "-C", str(self.repo), "worktree", "add", "-qb", "linked", str(branch)], check=True)

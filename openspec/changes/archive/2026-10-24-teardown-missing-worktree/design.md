@@ -22,7 +22,7 @@ The record (`.switchyard/state/<issue>.json`) holds `branch` and `path`. Teardow
 
 ### Detect each step's state before acting
 
-- Worktree: present when the git entry exists and its folder is a directory. Gone when there is no entry, or when the folder is missing (stale entry).
+- Worktree: present when the git entry exists and its folder is a directory. Gone when there is no entry, or when the folder is missing (stale entry). If no entry has the branch but the record's path is a directory, refuse before any change because it may be a detached worktree.
 - Local branch: `git show-ref --verify --quiet refs/heads/<branch>`.
 - Remote branch: the existing `ls-remote --exit-code` check, with a skip message added.
 
@@ -44,17 +44,17 @@ Alternative: skip the hook when the folder is gone. Rejected for the leak above.
 
 It removes only that entry. `git worktree prune` would also prune other issues' stale entries, which this script does not own.
 
-### Pending coordinator answers
+### Coordinator answers
 
-The tasks follow the recommended answer to each question below. A different answer changes the named task only.
-
-1. Where the tests go (task 2.1).
-2. Whether a record whose `branch` differs from the argument stops teardown (task 1.1).
-3. What happens on the Herdr runner when the folder is gone (task 1.3).
-4. Whether `SKILL.md` and the `worktree-down.sh` header are updated (task 3.2).
+- Tests belong in `switchyard/scripts/test_state.py`, reusing `Harness`.
+- A branch mismatch exits 1 before any change.
+- When the folder is gone, do not call Herdr; remove only the stale git entry.
+- Update the teardown sentence in `switchyard/SKILL.md` and the hook header.
+- When no entry has the branch but the record path is a directory, refuse before any change because it may be a detached worktree.
+- `state.py get` uses exit 3 only when the record is absent. Teardown treats only exit 3 as no record and reports all other lookup failures.
 
 ## Risks / Trade-offs
 
-- [A typo in `<branch>` now looks like "everything already gone" and would remove the record of a live issue] → Refuse before any change when the record's `branch` differs from the argument (question 2).
+- [A typo in `<branch>` now looks like "everything already gone" and would remove the record of a live issue] → Refuse before any change when the record's `branch` differs from the argument.
 - [Hooks that `cd "$WORKTREE"` will fail when the folder is gone] → The hook failure keeps the record, so nothing is half torn down. The hook header says the folder may be gone (question 4).
 - [Herdr may still list an open workspace for a branch whose folder is gone; its behaviour on `worktree remove` in that state is unverified] → Do not call Herdr when the folder is gone (question 3).
