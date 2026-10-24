@@ -31,7 +31,7 @@ Each piece covers a gap the others leave:
 - **Files carry every handoff.** The brief, the answers, the change, and the review live in the worktree. Each session reads them from disk, so no stage works from another session's summary, and the coordinator holds verdicts, not diffs.
 - **One worktree per issue.** Each issue gets its own branch, ports, and data. Issues that own different folders run in parallel.
 - **Workers never push.** Each worktree's push URL is disabled, and a script lists any file changed outside the paths the issue owns. Nothing reaches the remote until the review passes, and nothing merges until you approve it.
-- **Several providers share the load.** Worker roles run on any agent CLI the project lists in `routing.md`, and you choose the models there. Implementers rotate across the listed providers, so one usage window does not stall a batch.
+- **Several providers share the load.** Worker roles run on any agent CLI the project lists in `routing.md`, and you choose the models there. Implementers rotate across the listed providers, so one usage window does not stall a batch. The coordinator sizes each issue and picks each role's row by that size.
 
 ### Who does what
 
@@ -118,7 +118,7 @@ Init removed the Switchyard-only files and moved the guide. What is left is your
 | `switchyard/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
 | `switchyard/brief-template.md`, Isolation section | Rules every worker must follow, such as how to start a dev server on its own port. |
 | `switchyard/scripts/shots.mjs` | The routes to screenshot, if the project has a UI. |
-| `switchyard/routing.md` | The Providers table holds each provider's commands. The Workers table holds providers, models, effort, and flags. Shipped values are examples. This file belongs to your project. |
+| `switchyard/routing.md` | The Providers table holds each provider's commands. The Workers table holds providers, models, effort, and flags, and a row can name an issue size in its Use column. Shipped values are examples. This file belongs to your project. |
 
 The coordinator's CLI setup belongs in the project's Coordinator notes in `routing.md`.
 
