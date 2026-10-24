@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 ### Added
 
 - #92: `update-switchyard.py --dry-run` prints the update report without writing files.
+- #91: `npm init switchyard@latest update` updates a repo from the releases bundled in the npm package. Install in a repo that already has Switchyard now names this command.
 
 ## [0.8.0] - 2026-10-24
 
