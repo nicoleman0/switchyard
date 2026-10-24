@@ -1,6 +1,6 @@
 # Project routing
 
-This file belongs to the project. The updater adds it when missing and never changes it. Every value here is an example: edit it to choose providers, models, effort, flags, and commands. What the maintainer names in a session wins over this file. Row selection rules are in `SKILL.md`.
+This file belongs to the project. The updater adds it when missing and never changes it. Every value here is an example: edit it to choose providers, models, effort, flags, and commands. What the maintainer names in a session wins over this file. A Use cell may name a size, `small`, `medium`, or `large`. `SKILL.md` says how sizes pick rows and how rows are selected.
 
 A provider is named after its CLI command. To add one, add a Providers row and a Workers row for each role it should run.
 
@@ -9,15 +9,22 @@ A provider is named after its CLI command. To add one, add a Providers row and a
 | Role | Provider | Flags | Use |
 |---|---|---|---|
 | Planner | claude | `--agent issue-planner --model opus --effort high --permission-mode auto` | |
+| Planner | claude | `--agent issue-planner --model sonnet --effort medium --permission-mode auto` | small |
 | Planner | codex | `-c model_reasoning_effort=high --approve-for-me` | |
+| Planner | codex | `-c model_reasoning_effort=medium --approve-for-me` | small |
 | Planner | pi | | when named |
 | Implementer | claude | `--agent issue-implementer --model sonnet --effort medium --permission-mode auto` | |
-| Implementer | claude | `--agent issue-implementer --model opus --effort high --permission-mode auto` | escalation |
+| Implementer | claude | `--agent issue-implementer --model sonnet --effort low --permission-mode auto` | small |
+| Implementer | claude | `--agent issue-implementer --model opus --effort high --permission-mode auto` | large |
 | Implementer | codex | `-c model_reasoning_effort=medium --approve-for-me` | |
+| Implementer | codex | `-c model_reasoning_effort=low --approve-for-me` | small |
+| Implementer | codex | `-c model_reasoning_effort=high --approve-for-me` | large |
 | Implementer | opencode | `--auto` | |
 | Implementer | pi | | when named |
 | Reviewer | claude | `--agent issue-reviewer --model opus --effort high --permission-mode auto` | |
+| Reviewer | claude | `--agent issue-reviewer --model sonnet --effort medium --permission-mode auto` | small |
 | Reviewer | codex | `-c model_reasoning_effort=high --approve-for-me` | |
+| Reviewer | codex | `-c model_reasoning_effort=medium --approve-for-me` | small |
 | Reviewer | pi | | when named |
 
 ## Providers

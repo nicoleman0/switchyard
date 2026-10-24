@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 ### Added
 
 - #74: `npx create-switchyard` adds Switchyard to an existing repo without cloning this one.
+- #78: The coordinator sizes each issue `small`, `medium`, or `large`, and a Workers row can name a size in its Use cell to get its own model and effort. A row with no size serves every size without its own row. A Use cell of `escalation` now counts as `large` and the separate escalation step is gone, so an older `routing.md` may run its `escalation` row more often. To opt out, delete that row and name the model in the session. A file with no sized rows works as before.
 
 ### Fixed
 
