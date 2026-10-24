@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import shutil
@@ -164,6 +165,95 @@ class UpdateSwitchyardTests(unittest.TestCase):
         return subprocess.run(["python3", str(SCRIPT), "--source", str(self.source), *args],
                               cwd=cwd or self.project, env=env,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    def run_check(self, *args: str) -> subprocess.CompletedProcess[bytes]:
+        return self.run_update("--check", *args)
+
+    def test_check_reports_current_behind_and_newer_versions(self) -> None:
+        self.make_project()
+        current = self.run_check()
+        self.assertEqual(current.returncode, 0, current.stderr.decode())
+        self.assertIn(b"0.1.0 is the newest release", current.stdout)
+
+        self.make_target()
+        behind = self.run_check()
+        self.assertEqual(behind.returncode, 3)
+        self.assertIn(b"0.1.0", behind.stdout)
+        self.assertIn(b"0.2.0", behind.stdout)
+        self.assertIn(b"npm init switchyard@latest update", behind.stdout)
+
+        (self.project / VERSION).write_text("0.3.0\n")
+        newer = self.run_check()
+        self.assertEqual(newer.returncode, 0)
+        self.assertIn(b"0.3.0 is newer than the newest release, 0.2.0", newer.stdout)
+
+    def test_check_refuses_missing_or_malformed_version(self) -> None:
+        self.make_project(version=None)
+        missing = self.run_check()
+        self.assertEqual(missing.returncode, 2)
+        self.assertIn(b"no VERSION found; nothing to compare", missing.stderr)
+
+        (self.project / VERSION).write_text("latest\n")
+        malformed = self.run_check()
+        self.assertEqual(malformed.returncode, 2)
+        self.assertIn(b"invalid VERSION", malformed.stderr)
+
+    def test_check_refuses_update_options(self) -> None:
+        self.make_project()
+        for option in (("--install",), ("--from", "0.1.0"), ("--to", "0.1.0"), ("--dry-run",)):
+            with self.subTest(option=option):
+                result = self.run_check(*option)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(b"--check cannot be combined", result.stderr)
+
+    def test_help_lists_check_flag(self) -> None:
+        result = subprocess.run(["python3", str(SCRIPT), "--help"], stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, check=False)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn(b"--check", result.stdout)
+        self.assertIn(b"nothing", result.stdout)
+
+    def test_check_allows_dirty_tree_without_writing(self) -> None:
+        self.make_project()
+        (self.project / "local.txt").write_text("dirty\n")
+        before = self.git(self.project, "status", "--porcelain", "--untracked-files=all").stdout
+        result = self.run_check()
+        after = self.git(self.project, "status", "--porcelain", "--untracked-files=all").stdout
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual(after, before)
+
+    def test_check_reports_unreachable_source_and_empty_releases(self) -> None:
+        self.make_project()
+        unreachable = self.run_check("--source", str(self.root / "missing-source"))
+        self.assertEqual(unreachable.returncode, 4)
+        self.assertIn(b"could not reach", unreachable.stderr)
+
+        empty = self.root / "empty-source"
+        self.init_repo(empty)
+        self.commit(empty, "no tags")
+        no_releases = self.run_check("--source", str(empty))
+        self.assertEqual(no_releases.returncode, 2)
+        self.assertIn(b"source has no release tags", no_releases.stderr)
+
+    def test_remote_release_timeout_kills_git_process_group(self) -> None:
+        module_spec = importlib.util.spec_from_file_location("update_switchyard", SCRIPT)
+        module = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(module)
+        git_bin = self.root / "slow-bin"
+        git_bin.mkdir()
+        stub = git_bin / "git"
+        stub.write_text("#!/bin/sh\nsleep 30\n")
+        stub.chmod(0o755)
+        started = __import__("time").monotonic()
+        previous_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = str(git_bin) + os.pathsep + previous_path
+        try:
+            releases, reason = module.remote_releases("unused", 0.5)
+        finally:
+            os.environ["PATH"] = previous_path
+        self.assertIsNone(releases)
+        self.assertIn("timed out after 0.5s", reason)
+        self.assertLess(__import__("time").monotonic() - started, 5)
 
     def before_undo(self, stdout: bytes) -> bytes:
         """The output of a real run without its undo block."""

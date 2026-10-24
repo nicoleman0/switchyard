@@ -86,6 +86,10 @@ class PreflightTests(unittest.TestCase):
         for name in ("git", "python3", "node", "npx", "gh", *extra):
             if name == "node":
                 self.add(name, 'exit "${NODE_PLAYWRIGHT_STATUS:-0}"\n')
+            elif name == "python3":
+                self.add(name, 'if [ -n "${CHECK_LOG:-}" ]; then printf "%s\\n" "$@" > "$CHECK_LOG"; fi\n'
+                                'printf "%s" "${CHECK_OUTPUT:-}"\n'
+                                'exit "${CHECK_STATUS:-0}"\n')
             elif name == "gh":
                 self.add(name, 'exit "${GH_AUTH_STATUS:-0}"\n')
             else:
@@ -102,6 +106,39 @@ class PreflightTests(unittest.TestCase):
         result = self.run_check()
         self.assertEqual(result.returncode, 1)
         self.assertIn("MISSING  git: not installed. Install Git with your system package manager.", result.stdout)
+
+    def test_switchyard_release_check_statuses_and_updater_path(self):
+        self.add_base("claude", "magick", "herdr")
+        log = self.root / "python-args"
+        result = self.run_check({"CHECK_LOG": str(log)})
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("ok       Switchyard release", result.stdout)
+        args = log.read_text().splitlines()
+        self.assertEqual(args[-1], "--check")
+        self.assertEqual(Path(args[0]), SCRIPT.with_name("update-switchyard.py"))
+
+        result = self.run_check({"CHECK_LOG": str(log), "CHECK_STATUS": "3",
+                                 "CHECK_OUTPUT": "0.1.0 is behind the newest release, 0.2.0"})
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("warn     Switchyard release: 0.1.0 is behind the newest release, 0.2.0", result.stdout)
+        self.assertIn("0 missing", result.stdout)
+        self.assertEqual(sum("Switchyard release:" in line for line in result.stdout.splitlines()), 1)
+
+        result = self.run_check({"CHECK_LOG": str(log), "CHECK_STATUS": "4",
+                                 "CHECK_OUTPUT": "could not reach source"})
+        self.assertNotIn("Switchyard release", result.stdout)
+        self.assertNotIn("Switchyard release", result.stderr)
+
+        result = self.run_check({"CHECK_LOG": str(log), "CHECK_STATUS": "2",
+                                 "CHECK_OUTPUT": "no VERSION found"})
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("warn     Switchyard release: could not check. no VERSION found", result.stdout)
+
+    def test_switchyard_release_check_is_skipped_without_python(self):
+        self.add_base("claude", "magick", "herdr")
+        (self.bin / "python3").unlink()
+        result = self.run_check()
+        self.assertNotIn("Switchyard release", result.stdout)
 
     def test_each_required_tool_has_a_fix_message(self):
         cases = (

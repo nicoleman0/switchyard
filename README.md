@@ -67,6 +67,7 @@ You are asked something at three points: before work starts, after the plan, and
 
 - macOS or Linux. CI lints and tests the workflow's scripts on `ubuntu-latest`, and the maintainer develops on macOS. Windows is untested. WSL should behave like Linux, but nobody has run it.
 - `git`, Python 3, and Node.js (OpenSpec runs through `npx`).
+- Preflight checks GitHub once for a newer Switchyard release and skips that check when offline.
 - The [GitHub CLI](https://cli.github.com), signed in.
 - Any agent CLI with a worker row in `routing.md`. The coordinator can run on any CLI that reads `AGENTS.md` and can run the skill's scripts; see its note in `routing.md` for setup.
 - With one provider, keep only that provider's rows in `routing.md`. The reviewer then runs on the implementer's provider, and the review is not independent.
@@ -142,6 +143,8 @@ The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, o
 `npm init switchyard@latest update -- --dry-run` and `python3 switchyard/scripts/update-switchyard.py --dry-run` print the report a real run would print and write nothing. Without the `--`, the npm form is also safe, but npm can fail with an `enoent` error on a first run.
 
 The updater adds `switchyard/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
+
+Preflight warns when `switchyard/VERSION` is behind the newest release. Run `python3 switchyard/scripts/update-switchyard.py --check` for the same check: it exits 0 when current, 3 when behind, and 4 when the source cannot be reached.
 
 The updater covers paths listed in its target release. It skips OpenSpec-generated files, which `npx @fission-ai/openspec update` refreshes, and Switchyard's README, license, changelog, contributing guide, and banner. It prints the changelog sections for the releases it moves across. See the [Switchyard releases](https://github.com/nicoleman0/switchyard/releases) for older notes.
 
