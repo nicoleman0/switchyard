@@ -95,6 +95,18 @@ const releases = [...older.map((release) => ({ release, entries: taggedEntries(r
   { release: version, entries: workingTreeEntries() }];
 for (const { release, entries } of releases) {
   if (entries.length === 0) fail(`v${release} has no files under the paths in update-paths.txt`);
+  let content;
+  try {
+    content = release === version
+      ? readFileSync(join(root, "CHANGELOG.md"))
+      : execFileSync("git", ["show", `v${release}:CHANGELOG.md`], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+  } catch {
+    fail(`v${release} has no CHANGELOG.md`);
+  }
+  if (!new RegExp(`^## \\[${release.replaceAll(".", "\\.")}\\] - `, "m").test(content.toString("utf8"))) {
+    fail(`CHANGELOG.md for v${release} has no ## [${release}] - heading`);
+  }
+  entries.push({ path: "CHANGELOG.md", mode: "100644", content });
 }
 
 const work = mkdtempSync(join(tmpdir(), "create-switchyard-"));

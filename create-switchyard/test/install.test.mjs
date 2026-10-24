@@ -74,6 +74,10 @@ test("the bundle holds every release from 0.7.0 through the package version", ()
   const tags = gitIn(tmp, "--git-dir", bundleGit, "tag", "--list", "v*").split("\n").filter(Boolean).map((t) => t.slice(1)).sort(cmp);
   assert.deepEqual(tags, expectedReleases);
   assert.equal(gitIn(tmp, "--git-dir", bundleGit, "rev-parse", "main").trim(), gitIn(tmp, "--git-dir", bundleGit, "rev-parse", `v${version}^{commit}`).trim());
+  for (const release of expectedReleases) {
+    const changelog = gitIn(tmp, "--git-dir", bundleGit, "show", `v${release}:CHANGELOG.md`);
+    assert.match(changelog, new RegExp(`^## \\[${release.replaceAll(".", "\\.")}\\] - `, "m"), `v${release}`);
+  }
 });
 
 test("installs the bundled release into a git repo", () => {
@@ -83,6 +87,7 @@ test("installs the bundled release into a git repo", () => {
   assert.match(readFileSync(join(repo, ".gitignore"), "utf8"), /^\.switchyard\/$/m);
   assert.ok(statSync(join(repo, "switchyard/hooks/worktree-up.sh")).mode & 0o111, "hook is executable");
   assert.ok(!existsSync(join(repo, "create-switchyard")), "package folder reached the project");
+  assert.ok(!existsSync(join(repo, "CHANGELOG.md")), "package changelog reached the project");
 });
 
 test("a second run refuses and names the update command", () => {
@@ -118,6 +123,10 @@ test("update takes an older release to the package version, then reports it is c
   let result = createIn(dir, "update");
   assert.equal(result.status, 0, output(result));
   assert.match(result.stdout, /^updated: /m);
+  assert.match(result.stdout, new RegExp(`Release notes, 0\\.7\\.2 to ${version.replaceAll(".", "\\.")}:`));
+  assert.match(result.stdout, new RegExp(`^## \\[${version.replaceAll(".", "\\.")}\\] - `, "m"));
+  assert.doesNotMatch(result.stdout, /^## \[0\.7\.2\] - /m);
+  assert.doesNotMatch(result.stdout, /^## \[Unreleased\]$/m);
   assert.equal(readFileSync(join(dir, "switchyard/VERSION"), "utf8").trim(), version);
   gitIn(dir, "add", "-A");
   gitIn(dir, "commit", "-qm", "update");

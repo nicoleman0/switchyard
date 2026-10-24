@@ -22,7 +22,9 @@ DEFAULT_SOURCE = "https://github.com/nicoleman0/switchyard.git"
 VERSION_PATH = "switchyard/VERSION"
 PROJECT_OWNED = {"switchyard/routing.md"}
 PATHS_PATH = "switchyard/update-paths.txt"
+CHANGELOG_PATH = "CHANGELOG.md"
 VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+CHANGELOG_RELEASE_RE = re.compile(r"^## \[(\d+\.\d+\.\d+)\] - ")
 AGENTS_PATH = "AGENTS.md"
 AGENTS_SECTIONS = ("Workflow", "Writing")
 GITIGNORE_PATH = ".gitignore"
@@ -51,6 +53,54 @@ def list_releases(git_dir: Path) -> list[str]:
     result = git("--git-dir", str(git_dir), "tag", "--list", "v*", check=False)
     tags = [line.decode() for line in result.stdout.splitlines() if release_tuple(line.decode()) is not None]
     return sorted(tags, key=lambda tag: release_tuple(tag) or (0, 0, 0))
+
+
+def release_notes(content: bytes | None, base: tuple[int, int, int], target: tuple[int, int, int],
+                  target_tag: str) -> tuple[str | None, str | None]:
+    """Return release sections newer than base, or a reason notes are unavailable."""
+    if content is None:
+        return None, f"{target_tag} has no {CHANGELOG_PATH}"
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return None, f"{CHANGELOG_PATH} in {target_tag} is not UTF-8"
+
+    lines = text.splitlines()
+    sections: list[tuple[tuple[int, int, int], list[str]]] = []
+    current_version: tuple[int, int, int] | None = None
+    current_lines: list[str] = []
+    target_found = False
+
+    def finish_section() -> None:
+        if current_version is not None:
+            sections.append((current_version, current_lines.copy()))
+
+    for line in lines:
+        if line.startswith("## "):
+            finish_section()
+            match = CHANGELOG_RELEASE_RE.match(line)
+            if line == "## [Unreleased]":
+                current_version = None
+                current_lines = []
+            elif match:
+                current_version = release_tuple(match.group(1))
+                current_lines = [line]
+                if current_version == target:
+                    target_found = True
+            else:
+                return None, f"{CHANGELOG_PATH} in {target_tag} has an unknown heading: {line}"
+            continue
+        if line.startswith("[") and re.match(r"^\[[^\]]+\]: ", line):
+            break
+        if current_version is not None:
+            current_lines.append(line)
+    finish_section()
+
+    target_label = ".".join(map(str, target))
+    if not target_found:
+        return None, f"{CHANGELOG_PATH} in {target_tag} has no {target_label} section"
+    selected = ["\n".join(section).rstrip() for version, section in sections if base < version <= target]
+    return "\n\n".join(selected), None
 
 
 def tree_entries(git_dir: Path, tag: str, paths: list[str]) -> dict[str, tuple[int, bytes]]:
@@ -517,6 +567,17 @@ def run() -> int:
                 if not any(covers(path, [listed]) for path in target_tree):
                     raise Refusal(f"path {listed} from {PATHS_PATH} is missing in {target}")
 
+            notes: str | None = None
+            notes_reason: str | None = None
+            if not args.install:
+                changelog = git("--git-dir", str(bare), "show", f"{target}:{CHANGELOG_PATH}", check=False)
+                notes, notes_reason = release_notes(
+                    changelog.stdout if changelog.returncode == 0 else None,
+                    base_version,
+                    target_version,
+                    target,
+                )
+
             actions: list[Action] = []
             counts: dict[str, int] = {}
 
@@ -622,6 +683,11 @@ def run() -> int:
                     print(f"Next: run {INIT_COMMAND} in this repository")
                 if agents_existed:
                     print("Next: list the project's checks in AGENTS.md")
+            elif notes_reason:
+                print(f"\nRelease notes unavailable: {notes_reason}")
+            else:
+                print(f"\nRelease notes, {base_label} to {target_label}:\n")
+                print(notes or "")
             if args.dry_run:
                 print("Dry run: nothing was written.")
             return 1 if counts.get("conflict") or counts.get("kept") else 0

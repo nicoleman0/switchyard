@@ -143,7 +143,7 @@ The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, o
 
 The updater adds `switchyard/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
 
-The updater covers paths listed in its target release. It skips OpenSpec-generated files, which `npx @fission-ai/openspec update` refreshes, and Switchyard's README, license, changelog, contributing guide, and banner. See the [Switchyard releases](https://github.com/nicoleman0/switchyard/releases) for release notes.
+The updater covers paths listed in its target release. It skips OpenSpec-generated files, which `npx @fission-ai/openspec update` refreshes, and Switchyard's README, license, changelog, contributing guide, and banner. It prints the changelog sections for the releases it moves across. See the [Switchyard releases](https://github.com/nicoleman0/switchyard/releases) for older notes.
 
 Both need network access: the npm form reaches the npm registry, and the Python form clones the release source from GitHub. Run it outside the sandbox if a Codex session cannot access the network.
 

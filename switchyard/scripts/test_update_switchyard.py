@@ -14,6 +14,7 @@ SCRIPT = Path(__file__).with_name("update-switchyard.py").resolve()
 VERSION = "switchyard/VERSION"
 ROUTING = "switchyard/routing.md"
 PATHS = "switchyard/update-paths.txt"
+CHANGELOG = "CHANGELOG.md"
 UPDATER = "switchyard/scripts/update-switchyard.py"
 COVERED = [
     ".claude/agents",
@@ -62,6 +63,13 @@ DEFAULT_FILES = {
     VERSION: b"0.1.0\n",
     PATHS: ("\n".join(COVERED) + "\n").encode(),
     "outside.txt": b"outside v1\n",
+    CHANGELOG: (
+        b"# Changelog\n\n"
+        b"## [Unreleased]\n\n- upcoming\n\n"
+        b"## [0.2.0] - 2026-10-11\n\n- second release\n\n"
+        b"## [0.1.0] - 2026-10-10\n\n- first release\n\n"
+        b"[Unreleased]: https://example.test/compare\n"
+    ),
 }
 
 
@@ -170,6 +178,100 @@ class UpdateSwitchyardTests(unittest.TestCase):
                          b"first line\nstable line\nnew last line\n")
         self.assertEqual((self.project / VERSION).read_text(), "0.2.0\n")
         self.assertIn(b"updated: switchyard/workflow.txt", result.stdout)
+
+    def test_release_notes_cover_selected_releases_newest_first(self) -> None:
+        self.make_target()
+        self.make_project()
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertIn(b"Release notes, 0.1.0 to 0.2.0:\n\n## [0.2.0]", result.stdout)
+        self.assertNotIn(b"## [0.1.0]", result.stdout)
+        self.assertNotIn(b"Unreleased", result.stdout)
+        self.assertNotIn(b"[Unreleased]:", result.stdout)
+        self.assertEqual((self.project / CHANGELOG).read_bytes(), DEFAULT_FILES[CHANGELOG])
+
+    def test_release_notes_order_and_target_limit(self) -> None:
+        self.make_target()
+        self.source.joinpath(CHANGELOG).write_bytes(
+            DEFAULT_FILES[CHANGELOG].replace(
+                b"## [Unreleased]",
+                b"## [0.3.0] - 2026-10-24\n\n- third release\n\n## [Unreleased]",
+            )
+        )
+        self.commit(self.source, "third release")
+        self.tag(self.source, "v0.3.0")
+        self.make_project()
+        result = self.run_update("--to", "0.3.0")
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertLess(result.stdout.index(b"## [0.3.0]"), result.stdout.index(b"## [0.2.0]"))
+        self.assertNotIn(b"## [0.1.0]", result.stdout)
+
+        other = self.root / "project-to-0.2.0"
+        self.project = other
+        self.make_project()
+        result = self.run_update("--to", "0.2.0")
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertIn(b"## [0.2.0]", result.stdout)
+        self.assertNotIn(b"## [0.3.0]", result.stdout)
+
+    def test_release_notes_are_in_dry_run_before_final_line(self) -> None:
+        self.make_target()
+        self.make_project()
+        dry_run = self.run_update("--dry-run")
+        self.assertEqual(dry_run.returncode, 0, dry_run.stderr.decode())
+        self.assertIn(b"Release notes, 0.1.0 to 0.2.0:", dry_run.stdout)
+        self.assertTrue(dry_run.stdout.endswith(b"Dry run: nothing was written.\n"))
+        real_run = self.run_update()
+        self.assertEqual(real_run.returncode, 0, real_run.stderr.decode())
+        self.assertEqual(dry_run.stdout, real_run.stdout + b"Dry run: nothing was written.\n")
+
+    def test_already_at_has_no_release_notes_and_install_has_no_release_notes(self) -> None:
+        self.make_target()
+        self.make_project(version=b"0.2.0\n")
+        already = self.run_update()
+        self.assertEqual(already.stdout, b"Already at 0.2.0\n")
+
+        install_project = self.root / "install-project"
+        self.project = install_project
+        self.make_project(files={"README.md": b"mine\n"}, version=None)
+        installed = self.run_update("--install")
+        self.assertEqual(installed.returncode, 0, installed.stderr.decode())
+        self.assertNotIn(b"Release notes", installed.stdout)
+        self.assertFalse((self.project / CHANGELOG).exists())
+
+    def test_unavailable_release_notes_do_not_change_update_status(self) -> None:
+        cases = (
+            ("missing", None, b"has no CHANGELOG.md", 0),
+            ("unknown heading", b"## [0.2.0] - date\n\n## Foo\n", b"unknown heading: ## Foo", 0),
+            ("missing target section", b"## [Unreleased]\n\n## [0.1.0] - date\n", b"has no 0.2.0 section", 0),
+            ("non-UTF-8", b"\xff", b"is not UTF-8", 0),
+        )
+        for name, changelog, reason, expected_status in cases:
+            with self.subTest(name=name):
+                shutil.rmtree(self.source)
+                self.init_repo(self.source)
+                self.write_files(self.source, DEFAULT_FILES)
+                self.commit(self.source, "base")
+                self.tag(self.source, "v0.1.0")
+                self.project = self.root / f"project-{name.replace(' ', '-') }"
+                changes = {CHANGELOG: changelog}
+                self.make_target(changes)
+                self.make_project()
+                result = self.run_update()
+                self.assertEqual(result.returncode, expected_status, result.stderr.decode())
+                self.assertEqual(result.stdout.count(b"Release notes unavailable:"), 1)
+                self.assertIn(reason, result.stdout)
+                self.assertEqual((self.project / VERSION).read_text(), "0.2.0\n")
+
+    def test_unavailable_release_notes_preserve_conflict_status(self) -> None:
+        self.make_target({CHANGELOG: None,
+                          "switchyard/workflow.txt": b"upstream\nstable line\nlast line\n"})
+        self.make_project(files={**{k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"},
+                                 "switchyard/workflow.txt": b"local\nstable line\nlast line\n"})
+        result = self.run_update()
+        self.assertEqual(result.returncode, 1, result.stderr.decode())
+        self.assertIn(b"Release notes unavailable:", result.stdout)
+        self.assertIn(b"conflict: switchyard/workflow.txt", result.stdout)
 
     def test_dry_run_reports_conflict_without_writing(self) -> None:
         self.make_target({"switchyard/workflow.txt": b"upstream\nstable line\nlast line\n",
