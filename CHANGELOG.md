@@ -4,13 +4,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-24
+
 ### Added
 
+- #91: `npm init switchyard@latest update` updates a repo from the releases bundled in the npm package. Install in a repo that already has Switchyard now names this command.
+- #92: `update-switchyard.py --dry-run` prints the update report without writing files.
+- #93: The updater prints release notes for each release it moves across.
 - #94: Preflight warns when a project is behind the newest Switchyard release.
 - #95: The updater ends by printing the commands that undo that run.
-- #93: The updater prints release notes for each release it moves across.
-- #92: `update-switchyard.py --dry-run` prints the update report without writing files.
-- #91: `npm init switchyard@latest update` updates a repo from the releases bundled in the npm package. Install in a repo that already has Switchyard now names this command.
 
 ## [0.8.0] - 2026-10-24
 
@@ -138,7 +140,8 @@ First release.
 - `AGENTS.md` with the workflow and writing rules every agent reads.
 - A README that explains the workflow and how to start a project from the template.
 
-[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/nicoleman0/switchyard/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/nicoleman0/switchyard/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/nicoleman0/switchyard/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/nicoleman0/switchyard/compare/v0.7.0...v0.7.1
