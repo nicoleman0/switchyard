@@ -5,10 +5,11 @@ import { lstatSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const usage = `usage: npm init switchyard@latest                    install into this git repo
-       npm init switchyard@latest update             update to the newest bundled release
-       npm init switchyard@latest update -- ARGS     pass ARGS to the updater, such as --to X.Y.Z
---dry-run works with or without the --.
+const usage = `usage: npm init switchyard@latest                       install into this git repo
+       npm init switchyard@latest update                update to the newest bundled release
+       npm init switchyard@latest update -- --dry-run   print the report without writing files
+       npm init switchyard@latest update -- ARGS        pass ARGS to the updater, such as --to X.Y.Z
+--dry-run without the -- is also safe, but npm can fail with an enoent error on a first run.
 npx create-switchyard@latest takes the same arguments, without the --.`;
 const args = process.argv.slice(2);
 const dist = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
