@@ -438,6 +438,8 @@ def run() -> int:
     parser.add_argument("--to", dest="target", help="target release; defaults to newest release")
     parser.add_argument("--install", action="store_true",
                         help="install the workflow into a repository that has no VERSION file")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="print the report without writing any file")
     args = parser.parse_args()
 
     try:
@@ -597,19 +599,21 @@ def run() -> int:
                 local_file(project_root, action.path)
             for action in actions:
                 full_path = project_root / action.path
-                if action.status == "removed":
-                    full_path.unlink(missing_ok=True)
-                elif action.content is not None:
-                    full_path.parent.mkdir(parents=True, exist_ok=True)
-                    full_path.write_bytes(action.content)
-                    if action.mode is not None:
-                        full_path.chmod(0o755 if action.mode == 0o100755 else 0o644)
+                if not args.dry_run:
+                    if action.status == "removed":
+                        full_path.unlink(missing_ok=True)
+                    elif action.content is not None:
+                        full_path.parent.mkdir(parents=True, exist_ok=True)
+                        full_path.write_bytes(action.content)
+                        if action.mode is not None:
+                            full_path.chmod(0o755 if action.mode == 0o100755 else 0o644)
                 if action.status:
                     counts[action.status] = counts.get(action.status, 0) + 1
                     print(f"{action.status}: {action.path}")
             version_file = project_root / VERSION_PATH
-            version_file.parent.mkdir(parents=True, exist_ok=True)
-            version_file.write_text(target_label + "\n")
+            if not args.dry_run:
+                version_file.parent.mkdir(parents=True, exist_ok=True)
+                version_file.write_text(target_label + "\n")
             for status in ("added", "updated", "removed", "merged", "conflict", "kept"):
                 if counts.get(status):
                     print(f"{status}: {counts[status]}")
@@ -618,6 +622,8 @@ def run() -> int:
                     print(f"Next: run {INIT_COMMAND} in this repository")
                 if agents_existed:
                     print("Next: list the project's checks in AGENTS.md")
+            if args.dry_run:
+                print("Dry run: nothing was written.")
             return 1 if counts.get("conflict") or counts.get("kept") else 0
     except (OSError, Refusal) as error:
         print(f"update-switchyard: {error}", file=sys.stderr)
