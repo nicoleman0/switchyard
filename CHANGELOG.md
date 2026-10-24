@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- #74: `npx create-switchyard` adds Switchyard to an existing repo without cloning this one.
+
 ## [0.7.2] - 2026-10-22
 
 ### Changed

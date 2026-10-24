@@ -25,3 +25,11 @@ Open an issue that states the problem. Keep it short. For a larger change, wait 
 - If you change `switchyard/`, say how you tested it: which runner and which providers.
 
 PRs are squash-merged.
+
+## Release
+
+The maintainer runs these steps.
+
+1. In one PR, set the new version in `switchyard/VERSION` and `create-switchyard/package.json`, and rename Unreleased in `CHANGELOG.md` to the version and date. CI fails if the three differ.
+2. Merge, then tag `vX.Y.Z` on the merge commit.
+3. From a clean checkout of the tag, run `cd create-switchyard && npm publish`. It builds `dist/` first and refuses to publish with uncommitted changes.

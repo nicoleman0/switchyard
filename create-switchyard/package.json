@@ -1,0 +1,26 @@
+{
+  "name": "create-switchyard",
+  "version": "0.7.2",
+  "description": "Add Switchyard to an existing git repo with one command.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicoleman0/switchyard.git",
+    "directory": "create-switchyard"
+  },
+  "bin": {
+    "create-switchyard": "bin/create-switchyard.mjs"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "scripts": {
+    "prepack": "node scripts/build.mjs",
+    "prepublishOnly": "node scripts/check-clean.mjs",
+    "test": "node --test test/install.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

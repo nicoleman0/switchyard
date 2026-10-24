@@ -80,7 +80,7 @@ cd my-project
 python3 switchyard/scripts/init-project.py
 ```
 
-The new repo has every file here and none of this repo's history. Init moves this guide to `docs/WORKFLOW.md`, fixes its paths, and deletes Switchyard's own files: `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, the banner image, the social preview, and `docs/pixelart.py`. It keeps `docs/workflow.svg`, prints every move, deletion, and skip, and never commits. A committed copy of every moved and deleted file stays in git history: init refuses to run outside a git work tree and skips the listed paths with uncommitted changes. It ends by naming what to add next: your own `README.md` and `LICENSE`, for a start.
+The new repo has every file here and none of this repo's history. Init moves this guide to `docs/WORKFLOW.md`, fixes its paths, and deletes Switchyard's own files: the `create-switchyard/` folder, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, the banner image, the social preview, and `docs/pixelart.py`. It keeps `docs/workflow.svg`, prints every move, deletion, and skip, and never commits. A committed copy of every moved and deleted file stays in git history: init refuses to run outside a git work tree and skips the listed paths with uncommitted changes. It ends by naming what to add next: your own `README.md` and `LICENSE`, for a start.
 
 Then [make it yours](#make-it-yours) before the first issue.
 
@@ -89,11 +89,10 @@ Then [make it yours](#make-it-yours) before the first issue.
 From the root of the repo:
 
 ```sh
-git clone https://github.com/nicoleman0/switchyard.git ../switchyard
-python3 ../switchyard/switchyard/scripts/update-switchyard.py --install
+npx create-switchyard
 ```
 
-The clone beside the repo holds the updater; the default `--source` fetches the release. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
+`npm init switchyard` does the same. The package holds one release and runs its `update-switchyard.py --install`, so it needs Python 3 and works offline once npm has fetched it. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
 
 - `AGENTS.md` gains the Workflow and Writing sections; a repo without an `AGENTS.md` gets the release's whole file, Project placeholder included.
 - `.gitignore` gains the `.switchyard/` line when it is missing.
@@ -133,6 +132,8 @@ python3 switchyard/scripts/update-switchyard.py
 ```
 
 The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, or `kept`. Review the diff and resolve conflict markers. The updater does not commit. To undo, restore changed and removed files with `git restore .`, remove files reported as added, and remove `VERSION` if the project did not have one before the update.
+
+Later releases come through the updater installed in your repo, not through npx.
 
 The updater adds `switchyard/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
 
@@ -194,6 +195,7 @@ openspec/
 .claude/
   agents/                        Claude role profiles
   skills/work-issues/SKILL.md    Claude Code entry point for the workflow
+create-switchyard/               the npm installer; init deletes it
 switchyard/
   SKILL.md                       the coordinator's playbook and routing rules
   routing.md                     project-owned providers, models, effort, flags, and commands
