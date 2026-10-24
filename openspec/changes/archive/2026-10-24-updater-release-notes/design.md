@@ -73,7 +73,7 @@ The exit code stays what the file report sets: 0, or 1 for `conflict` or `kept`.
 
 ### The npm bundle
 
-`build.mjs` adds `CHANGELOG.md` to every bundled commit: from `v<release>:CHANGELOG.md` for older releases and from the working tree for the packed one. The build fails if a release has no `CHANGELOG.md`. Every tag from v0.7.0 on has one.
+`build.mjs` adds `CHANGELOG.md` to every bundled commit: from `v<release>:CHANGELOG.md` for older releases and from the working tree for the packed one. The build fails if a release has no `CHANGELOG.md` or its changelog has no matching `## [X.Y.Z] - ` heading for that release. Every tag from v0.7.0 on has both.
 
 The existing check that a release has files under its path list must still count only those files. Adding `CHANGELOG.md` must not make an empty path list pass.
 

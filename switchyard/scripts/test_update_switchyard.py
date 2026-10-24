@@ -253,7 +253,7 @@ class UpdateSwitchyardTests(unittest.TestCase):
                 self.write_files(self.source, DEFAULT_FILES)
                 self.commit(self.source, "base")
                 self.tag(self.source, "v0.1.0")
-                self.project = self.root / f"project-{name.replace(' ', '-') }"
+                self.project = self.root / f"project-{name.replace(' ', '-')}"
                 changes = {CHANGELOG: changelog}
                 self.make_target(changes)
                 self.make_project()

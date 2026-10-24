@@ -25,6 +25,7 @@ PATHS_PATH = "switchyard/update-paths.txt"
 CHANGELOG_PATH = "CHANGELOG.md"
 VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 CHANGELOG_RELEASE_RE = re.compile(r"^## \[(\d+\.\d+\.\d+)\] - ")
+CHANGELOG_LINK_RE = re.compile(r"^\[[^\]]+\]: ")
 AGENTS_PATH = "AGENTS.md"
 AGENTS_SECTIONS = ("Workflow", "Writing")
 GITIGNORE_PATH = ".gitignore"
@@ -90,7 +91,7 @@ def release_notes(content: bytes | None, base: tuple[int, int, int], target: tup
             else:
                 return None, f"{CHANGELOG_PATH} in {target_tag} has an unknown heading: {line}"
             continue
-        if line.startswith("[") and re.match(r"^\[[^\]]+\]: ", line):
+        if CHANGELOG_LINK_RE.match(line):
             break
         if current_version is not None:
             current_lines.append(line)
