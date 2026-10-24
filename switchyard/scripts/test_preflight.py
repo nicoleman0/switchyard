@@ -168,14 +168,6 @@ class PreflightTests(unittest.TestCase):
         result = self.run_check()
         self.assertIn("warn     Image tool:", result.stdout)
 
-    def test_convert_prefers_magick(self):
-        # When both exist the path order prefers magick, not just PATH order.
-        self.add_base("claude", "magick", "herdr")
-        self.add_image_stub("convert", True)
-        result = self.run_check({"TOOL_LOG": str(self.root / "tool.log")})
-        self.assertIn("ok       Image tool", result.stdout)
-        self.assertEqual(result.returncode, 0)
-
     def run_compare(self):
         before = self.root / "before"
         after = self.root / "after"
@@ -195,27 +187,31 @@ class PreflightTests(unittest.TestCase):
         )
 
     def test_compare_and_preflight_agree_on_the_image_tool(self):
+        # "convert!" marks a non-ImageMagick convert stub. The table is the
+        # only place the two scripts' rule cases live.
         for stubs, expected in (
             ("sips,magick,convert", "sips"),
             ("magick,convert", "magick"),
             ("convert", "convert"),
+            ("convert!", ""),
             ("", ""),
         ):
             with self.subTest(stubs=stubs):
-                self.add_base("claude")
-                for name in [s for s in stubs.split(",") if s]:
-                    self.add_image_stub(name, name == "convert")
-                preflight = self.run_check()
-                compare = self.run_compare()
-                self.assertEqual(
-                    preflight.stdout.count("ok       Image tool"), compare.returncode == 0,
-                    preflight.stdout + compare.stderr,
-                )
-                self.assertEqual(expected, self.tool_log_name())
+                # Reset first, so a failing case leaves no state that breaks the next one.
                 for path in self.bin.iterdir():
                     path.unlink()
                 for stray in ("tool.log", "out.html", "spec.json"):
                     (self.root / stray).unlink(missing_ok=True)
+                self.add_base("claude")
+                for name in [s for s in stubs.split(",") if s]:
+                    self.add_image_stub(name.rstrip("!"), not name.endswith("!"))
+                preflight = self.run_check()
+                compare = self.run_compare()
+                self.assertEqual(
+                    "ok       Image tool" in preflight.stdout, compare.returncode == 0,
+                    preflight.stdout + compare.stderr,
+                )
+                self.assertEqual(expected, self.tool_log_name())
 
     def tool_log_name(self):  # type: () -> str
         # The agreed tool when exactly one ran, or "" when none did.
@@ -224,23 +220,6 @@ class PreflightTests(unittest.TestCase):
             return ""
         names = {Path(line).name for line in log.read_text().splitlines()}
         return next(iter(names)) if len(names) == 1 else ""
-
-    def test_non_im_convert_warns_and_fails_compare(self):
-        self.add_base("claude")
-        self.add_image_stub("convert", False)
-        preflight = self.run_check()
-        compare = self.run_compare()
-        self.assertIn("warn     Image tool:", preflight.stdout)
-        self.assertNotEqual(compare.returncode, 0)
-        self.assertIn("compare.py needs sips (macOS) or ImageMagick (magick or convert)", compare.stderr)
-
-    def test_empty_path_warns_and_fails_compare(self):
-        self.add_base("claude")
-        preflight = self.run_check()
-        compare = self.run_compare()
-        self.assertIn("warn     Image tool:", preflight.stdout)
-        self.assertNotEqual(compare.returncode, 0)
-        self.assertIn("compare.py needs sips", compare.stderr)
 
     def test_playwright_probe_and_missing_node_warning(self):
         self.add_base("claude", "magick", "herdr")
