@@ -87,7 +87,8 @@ else
   warning 'Playwright: skipped because Node.js is missing. UI screenshots will not work.'
 fi
 
-if command -v sips >/dev/null 2>&1 || command -v magick >/dev/null 2>&1; then
+if command -v sips >/dev/null 2>&1 || command -v magick >/dev/null 2>&1 ||
+  [[ "$(convert -version 2>/dev/null)" == *ImageMagick* ]]; then
   printf 'ok       Image tool\n'
 else
   warning 'Image tool: install sips or ImageMagick. The comparison page cannot be built.'
