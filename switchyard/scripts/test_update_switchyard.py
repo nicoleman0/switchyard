@@ -224,6 +224,13 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertEqual(after, before)
 
+    def test_check_refuses_outside_git_work_tree(self) -> None:
+        outside = self.root / "outside-check"
+        outside.mkdir()
+        result = self.run_update("--check", cwd=outside)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(b"inside a git work tree", result.stderr)
+
     def test_check_reports_unreachable_source_and_empty_releases(self) -> None:
         self.make_project()
         unreachable = self.run_check("--source", str(self.root / "missing-source"))

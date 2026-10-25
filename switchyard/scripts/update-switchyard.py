@@ -49,6 +49,13 @@ def git(*args: str, cwd: Path | None = None, check: bool = True) -> subprocess.C
     return result
 
 
+def find_project_root() -> Path:
+    result = git("rev-parse", "--show-toplevel", check=False)
+    if result.returncode:
+        raise Refusal("run this command inside a git work tree")
+    return Path(os.fsdecode(result.stdout.strip()))
+
+
 def release_tuple(value: str) -> tuple[int, int, int] | None:
     match = VERSION_RE.fullmatch(value)
     return tuple(map(int, match.groups())) if match else None
@@ -585,10 +592,7 @@ def run() -> int:
         if args.check:
             if args.install or args.base or args.target or args.dry_run:
                 raise Refusal("--check cannot be combined with --install, --from, --to, or --dry-run")
-            root_result = git("rev-parse", "--show-toplevel", check=False)
-            if root_result.returncode:
-                raise Refusal("run this command inside a git work tree")
-            project_root = Path(os.fsdecode(root_result.stdout.strip()))
+            project_root = find_project_root()
             stored = read_version(project_root)
             if stored is None:
                 raise Refusal("no VERSION found; nothing to compare")
@@ -617,10 +621,7 @@ def run() -> int:
 
         if args.install and args.base:
             raise Refusal("--install starts from nothing; it does not take --from")
-        root_result = git("rev-parse", "--show-toplevel", check=False)
-        if root_result.returncode:
-            raise Refusal("run this command inside a git work tree")
-        project_root = Path(os.fsdecode(root_result.stdout.strip()))
+        project_root = find_project_root()
         dirty = git("status", "--porcelain", "--untracked-files=no", cwd=project_root).stdout
         if dirty:
             raise Refusal("tracked files have uncommitted changes; commit or stash them before updating")
