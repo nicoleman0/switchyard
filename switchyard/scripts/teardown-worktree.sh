@@ -23,7 +23,12 @@ branch=${2:?branch name required}
 repo=$(git rev-parse --show-toplevel)
 cd "$repo"
 hook=switchyard/hooks/worktree-down.sh
-if recorded_branch=$(python3 switchyard/scripts/state.py get "$issue" branch); then
+get_err=$(mktemp)
+trap 'rm -f "$get_err"' EXIT
+has_record=
+record_path=
+if recorded_branch=$(python3 switchyard/scripts/state.py get "$issue" branch 2>"$get_err"); then
+  has_record=1
   if [ "$recorded_branch" != "$branch" ]; then
     echo "Issue $issue records branch $recorded_branch, not $branch." >&2
     exit 1
@@ -31,10 +36,11 @@ if recorded_branch=$(python3 switchyard/scripts/state.py get "$issue" branch); t
   record_path=$(python3 switchyard/scripts/state.py get "$issue" path)
 else
   state_status=$?
+  # Status 3 is "no record"; its setup hint is wrong advice here, so drop it.
   if [ "$state_status" -ne 3 ]; then
+    cat "$get_err" >&2
     exit "$state_status"
   fi
-  record_path=
 fi
 
 entry_path=$(git worktree list --porcelain | awk -v ref="branch refs/heads/$branch" '
@@ -57,6 +63,25 @@ if git show-ref --verify --quiet "refs/heads/$branch"; then
   local_present=1
 else
   echo "Skipped: local branch $branch is already gone."
+fi
+
+remote_branch_state() {
+  # ls-remote exits 2 when the named branch does not exist.
+  git ls-remote --exit-code --heads origin "$1" >/dev/null
+}
+
+# Nothing to tear down: fail before the hook so a typo does not run it.
+if [ -z "$has_record" ] && [ -z "$entry_path" ] && [ -z "$local_present" ]; then
+  if remote_branch_state "$branch"; then
+    :
+  else
+    status=$?
+    if [ "$status" -ne 2 ]; then
+      exit "$status"
+    fi
+    echo "Issue $issue: no record, and nothing to remove for branch $branch." >&2
+    exit 1
+  fi
 fi
 
 # Check before the hook so a refusal cannot leave per-issue state half removed.
@@ -119,11 +144,6 @@ if [ -n "$local_present" ]; then
   git branch -D "$branch"
   removed+=("local branch $branch")
 fi
-
-remote_branch_state() {
-  # ls-remote exits 2 when the named branch does not exist.
-  git ls-remote --exit-code --heads origin "$1" >/dev/null
-}
 
 push_failed=
 if remote_branch_state "$branch"; then
