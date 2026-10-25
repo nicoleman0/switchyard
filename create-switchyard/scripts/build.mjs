@@ -114,9 +114,9 @@ let bundleSize;
 try {
   const identity = { GIT_AUTHOR_NAME: "Switchyard", GIT_AUTHOR_EMAIL: "switchyard@localhost", GIT_COMMITTER_NAME: "Switchyard", GIT_COMMITTER_EMAIL: "switchyard@localhost" };
   const env = { ...process.env, ...identity, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_INDEX_FILE: join(work, "index") };
-  const run = (args, input) => git(work, args, { env, input, stdio: ["pipe", "pipe", "pipe"] }).trim();
+  const run = (args, input, runEnv = env) => git(work, args, { env: runEnv, input, stdio: ["pipe", "pipe", "pipe"] }).trim();
   run(["init", "-q", "--bare", "-b", "main", "repo.git"]);
-  const repo = (args, input) => run(["--git-dir", join(work, "repo.git"), ...args], input);
+  const repo = (args, input, runEnv = env) => run(["--git-dir", join(work, "repo.git"), ...args], input, runEnv);
 
   let parent;
   for (const { release, entries } of releases) {
@@ -126,7 +126,11 @@ try {
       .join("");
     repo(["update-index", "--add", "-z", "--index-info"], indexInfo);
     const tree = repo(["write-tree"]);
-    const commit = repo(["commit-tree", tree, ...(parent ? ["-p", parent] : []), "-m", `Switchyard ${release}`]);
+    const revision = release === version ? "HEAD" : `v${release}^{commit}`;
+    const date = git(root, ["show", "-s", "--format=%cI", revision]).trim();
+    // Fixed dates keep the bundle tied to its source revisions across builds.
+    const commitEnv = { ...env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date };
+    const commit = repo(["commit-tree", tree, ...(parent ? ["-p", parent] : []), "-m", `Switchyard ${release}`], undefined, commitEnv);
     repo(["tag", `v${release}`, commit]);
     parent = commit;
   }

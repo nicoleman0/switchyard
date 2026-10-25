@@ -20,6 +20,7 @@ const gitEnv = {
 const repo = join(tmp, "project");
 const bundleGit = join(tmp, "bundle.git");
 let tarball;
+let unpacked;
 
 const gitIn = (cwd, ...args) => execFileSync("git", args, { cwd, env: gitEnv, encoding: "utf8", stdio: "pipe" });
 const git = (...args) => gitIn(repo, ...args);
@@ -56,7 +57,7 @@ function releaseRepo(name, release) {
 before(() => {
   execFileSync("npm", ["pack", "--pack-destination", tmp], { cwd: pkgDir, env: gitEnv, stdio: "pipe" });
   tarball = join(tmp, `create-switchyard-${version}.tgz`);
-  const unpacked = join(tmp, "unpacked");
+  unpacked = join(tmp, "unpacked");
   mkdirSync(unpacked);
   execFileSync("tar", ["-xzf", tarball, "-C", unpacked]);
   execFileSync("git", ["clone", "-q", "--bare", join(unpacked, "package/dist/release.bundle"), bundleGit], { env: gitEnv, stdio: "pipe" });
@@ -65,6 +66,26 @@ before(() => {
   writeFileSync(join(repo, "app.txt"), "app\n");
   git("add", "-A");
   git("commit", "-qm", "init");
+});
+
+test("the bundle has tag dates and rebuilds byte for byte", () => {
+  const bundledPath = join(unpacked, "package/dist/release.bundle");
+  const foreignDateEnv = {
+    ...gitEnv,
+    GIT_AUTHOR_DATE: "2000-01-01T00:00:00Z",
+    GIT_COMMITTER_DATE: "2000-01-01T00:00:00Z",
+  };
+  execFileSync("node", ["scripts/build.mjs"], { cwd: pkgDir, env: foreignDateEnv, stdio: "pipe" });
+  assert.deepEqual(readFileSync(join(pkgDir, "dist/release.bundle")), readFileSync(bundledPath));
+
+  for (const release of expectedReleases) {
+    const sourceRevision = release === version ? "HEAD" : `v${release}^{commit}`;
+    const sourceDate = gitIn(root, "show", "-s", "--format=%cI", sourceRevision).trim();
+    for (const format of ["%cI", "%aI"]) {
+      const bundledDate = gitIn(tmp, "--git-dir", bundleGit, "show", "-s", `--format=${format}`, `v${release}^{commit}`).trim();
+      assert.equal(bundledDate, sourceDate, `v${release} ${format}`);
+    }
+  }
 });
 
 after(() => rmSync(tmp, { recursive: true, force: true }));
