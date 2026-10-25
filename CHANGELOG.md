@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Changed
+
+- #104: CI tests the scripts on Python 3.10 and the newest Python 3. The README names 3.10 as the oldest supported Python.
+
 ### Fixed
 
 - #86: Teardown exits 1 when the issue has no record and nothing to remove, instead of reporting success.
