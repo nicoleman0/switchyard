@@ -26,6 +26,8 @@ jobs:
         with:
           # '3.x' resolves to the newest stable Python 3, never a pre-release.
           python-version: '3.x'
+          # Without this, the runner's cached Python wins over a newer release.
+          check-latest: true
       - name: Lint shell scripts
         run: git ls-files -z 'switchyard/*.sh' | xargs -0 shellcheck
       - name: Compile Python scripts
