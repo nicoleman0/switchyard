@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Fixed
+
+- #86: Teardown exits 1 when the issue has no record and nothing to remove, instead of reporting success.
+
 ## [0.9.0] - 2026-10-24
 
 ### Added

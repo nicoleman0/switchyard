@@ -169,6 +169,29 @@ class Harness(unittest.TestCase):
         result = self.script("teardown-worktree.sh", "77", "topic")
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_teardown_no_record_and_nothing_to_remove_fails(self):
+        marker = self.base / "down-ran"
+        self.down_hook.write_text(f"#!/bin/sh\ntouch {marker}\n")
+        for args in (("77", "topic"), ("--abandon", "77", "topic")):
+            result = self.script("teardown-worktree.sh", *args)
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("Issue 77: no record, and nothing to remove for branch topic.", result.stderr)
+            self.assertNotIn("setup-worktree.sh", result.stderr)
+            self.assertNotIn("Removed", result.stdout)
+            self.assertFalse(marker.exists())
+
+    def test_teardown_no_record_removes_lone_local_branch(self):
+        subprocess.run(["git", "-C", str(self.repo), "branch", "topic"], check=True)
+        result = self.script("teardown-worktree.sh", "77", "topic")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(subprocess.run(["git", "-C", str(self.repo), "show-ref", "--verify", "--quiet", "refs/heads/topic"]).returncode, 0)
+
+    def test_teardown_no_record_removes_lone_remote_branch(self):
+        subprocess.run(["git", "-C", str(self.repo), "push", "-q", "origin", "HEAD:refs/heads/topic"], check=True)
+        result = self.script("teardown-worktree.sh", "77", "topic")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(subprocess.run(["git", "-C", str(self.origin), "branch", "--list", "topic"], capture_output=True, text=True).stdout, "")
+
     def test_teardown_missing_entry_removes_record_and_reports_skips(self):
         self.state("init", "56", "branch=topic", f"path={self.base / 'missing'}")
         result = self.script("teardown-worktree.sh", "56", "topic")
