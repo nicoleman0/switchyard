@@ -1,6 +1,6 @@
 {
   "name": "create-switchyard",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Add Switchyard to an existing git repo with one command.",
   "license": "MIT",
   "repository": {
