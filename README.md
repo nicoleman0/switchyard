@@ -65,7 +65,7 @@ You are asked something at three points: before work starts, after the plan, and
 
 ## Requirements
 
-- macOS or Linux. CI compiles and tests the workflow's scripts on `ubuntu-latest` with the tests on Python 3.10 and the newest Python 3, and the maintainer develops on macOS. Windows is untested. WSL should behave like Linux, but nobody has run it.
+- macOS or Linux. CI lints and tests the workflow's scripts on `ubuntu-latest`, with the tests on Python 3.10 and the newest Python 3, and the maintainer develops on macOS. Windows is untested. WSL should behave like Linux, but nobody has run it.
 - `git`, Python 3.10 or newer, and Node.js (OpenSpec runs through `npx`).
 - Preflight checks GitHub once for a newer Switchyard release and skips that check when offline.
 - The [GitHub CLI](https://cli.github.com), signed in.
