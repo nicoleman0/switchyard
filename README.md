@@ -65,8 +65,8 @@ You are asked something at three points: before work starts, after the plan, and
 
 ## Requirements
 
-- macOS or Linux. CI lints and tests the workflow's scripts on `ubuntu-latest`, and the maintainer develops on macOS. Windows is untested. WSL should behave like Linux, but nobody has run it.
-- `git`, Python 3, and Node.js (OpenSpec runs through `npx`).
+- macOS or Linux. CI lints and tests the workflow's scripts on `ubuntu-latest`, with the tests on Python 3.10 and the newest Python 3, and the maintainer develops on macOS. Windows is untested. WSL should behave like Linux, but nobody has run it.
+- `git`, Python 3.10 or newer, and Node.js (OpenSpec runs through `npx`).
 - Preflight checks GitHub once for a newer Switchyard release and skips that check when offline.
 - The [GitHub CLI](https://cli.github.com), signed in.
 - Any agent CLI with a worker row in `routing.md`. The coordinator can run on any CLI that reads `AGENTS.md` and can run the skill's scripts; see its note in `routing.md` for setup.
@@ -83,7 +83,7 @@ Run it from the root of the repo. A new, empty repo works too:
 npm init switchyard@latest
 ```
 
-`npx create-switchyard@latest` does the same. Keep `@latest`: without it, npm can run an older copy from its cache. The package runs its bundled `update-switchyard.py --install`, so it needs Python 3. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
+`npx create-switchyard@latest` does the same. Keep `@latest`: without it, npm can run an older copy from its cache. The package runs its bundled `update-switchyard.py --install`, so it needs Python 3.10 or newer. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
 
 - `AGENTS.md` gains the Workflow and Writing sections; a repo without an `AGENTS.md` gets the release's whole file, Project placeholder included.
 - `.gitignore` gains the `.switchyard/` line when it is missing.

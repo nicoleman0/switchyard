@@ -1,6 +1,6 @@
 # create-switchyard
 
-Adds [Switchyard](https://github.com/nicoleman0/switchyard) to a git repo, and updates it later. It needs git, Python 3, and Node.js 18 or later.
+Adds [Switchyard](https://github.com/nicoleman0/switchyard) to a git repo, and updates it later. It needs git, Python 3.10 or newer, and Node.js 18 or later.
 
 - Install, from inside the repo: `npm init switchyard@latest`
 - Update, on a clean branch: `npm init switchyard@latest update`
