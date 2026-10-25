@@ -4,6 +4,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-25
+
 ### Changed
 
 - #104: CI tests the scripts on Python 3.10 and the newest Python 3. The README names 3.10 as the oldest supported Python.
@@ -149,7 +151,8 @@ First release.
 - `AGENTS.md` with the workflow and writing rules every agent reads.
 - A README that explains the workflow and how to start a project from the template.
 
-[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/nicoleman0/switchyard/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/nicoleman0/switchyard/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/nicoleman0/switchyard/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/nicoleman0/switchyard/compare/v0.7.1...v0.7.2
