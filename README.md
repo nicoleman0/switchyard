@@ -124,6 +124,7 @@ These are your project's own files and settings. The first two rows apply only t
 | `AGENTS.md`, Project section | Your checks, shared services, and conventions. Every agent reads it. Preflight warns while the shipped placeholder is still there. |
 | `openspec/config.yaml`, `context` | What the product is and what is out of scope. |
 | `switchyard/hooks/worktree-up.sh` and `worktree-down.sh` | Per-issue isolation: ports, a database per issue, dependency install. What `worktree-up.sh` prints lands in each brief. |
+| `switchyard/hooks/checks.sh` | The commands a branch must pass before review. Switchyard's own checks ship in it. Add your project's. |
 | `switchyard/brief-template.md`, Isolation section | Rules every worker must follow, such as how to start a dev server on its own port. |
 | `switchyard/scripts/shots.mjs` | The routes to screenshot, if the project has a UI. |
 | `switchyard/routing.md` | The Providers table holds each provider's commands. The Workers table holds providers, models, effort, and flags, and a row can name an issue size in its Use column. Shipped values are examples. This file belongs to your project. |

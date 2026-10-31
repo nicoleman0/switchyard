@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Run the cheap checks on an issue's worktree before a reviewer starts.
+# Steps: clean tree, scope, OpenSpec, project checks (switchyard/hooks/checks.sh). All run.
+# Exit 0 if none failed, 1 if one did, 2 if the gate cannot run. Log: <worktree>/.switchyard/checks/<n>.log
+# Usage: pre-review.sh <issue-number>
+set -uo pipefail
+
+issue=${1:-}
+[ -n "$issue" ] || { echo "usage: pre-review.sh <issue-number>" >&2; exit 2; }
+scripts="$(cd "$(dirname "$0")" && pwd)"
+main=$(git -C "$scripts" worktree list --porcelain | sed -n '1s/^worktree //p')
+[ -n "$main" ] || { echo "Issue $issue: cannot find the main checkout" >&2; exit 2; }
+state() { (cd "$main" && python3 "$scripts/state.py" get "$issue" "$1"); }
+path=$(state path) || exit 2
+branch=$(state branch) || exit 2
+[ -d "$path" ] || { echo "Issue $issue: worktree $path is missing" >&2; exit 2; }
+
+dir="$path/.switchyard/checks"
+mkdir -p "$dir"
+n=1
+for f in "$dir"/*.log; do
+  [ -e "$f" ] || continue
+  num=$(basename "$f" .log)
+  case "$num" in '' | *[!0-9]*) continue ;; esac
+  [ "$num" -ge "$n" ] && n=$((num + 1))
+done
+log="$dir/$n.log"
+: >"$log"
+
+failed=0
+# step <name> <command...>: run in the worktree, log everything, print one status line.
+step() {
+  local name=$1 code
+  shift
+  printf '== %s\n' "$name" >>"$log"
+  (cd "$path" && "$@") >>"$log" 2>&1
+  code=$?
+  printf 'exit %s\n\n' "$code" >>"$log"
+  if [ "$code" -eq 0 ]; then
+    echo "PASS $name"
+  else
+    echo "FAIL $name"
+    failed=1
+  fi
+}
+skip() {
+  printf '== %s\nskipped: %s\n\n' "$1" "$2" >>"$log"
+  echo "SKIP $1: $2"
+}
+
+# shellcheck disable=SC2329 # called through step
+clean_tree() {
+  local dirty
+  dirty=$(git status --porcelain --untracked-files=no)
+  [ -z "$dirty" ] || { echo "Uncommitted tracked changes:"; echo "$dirty"; return 1; }
+}
+step "clean tree" clean_tree
+step scope "$scripts/check-scope.sh" "$issue"
+step openspec npx --yes @fission-ai/openspec validate --all --strict
+
+hook="$main/switchyard/hooks/checks.sh"
+if [ ! -e "$hook" ]; then
+  skip "project checks" "no switchyard/hooks/checks.sh"
+elif [ ! -x "$hook" ]; then
+  printf '== project checks\n%s is not executable\nexit 1\n\n' "$hook" >>"$log"
+  echo "FAIL project checks"
+  failed=1
+else
+  step "project checks" env ISSUE="$issue" BRANCH="$branch" WORKTREE="$path" MAIN_CHECKOUT="$main" "$hook"
+fi
+
+echo "Log: $log"
+exit "$failed"
