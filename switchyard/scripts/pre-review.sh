@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the cheap checks on an issue's worktree before a reviewer starts.
-# Steps: clean tree, scope, OpenSpec, project checks (switchyard/hooks/checks.sh). All run.
+# Steps: clean tree, scope, change archived, OpenSpec, project checks (switchyard/hooks/checks.sh). All run.
 # Exit 0 if none failed, 1 if one did, 2 if the gate cannot run. Log: <worktree>/.switchyard/checks/<n>.log
 # Usage: pre-review.sh <issue-number>
 set -uo pipefail
@@ -56,6 +56,13 @@ clean_tree() {
 }
 step "clean tree" clean_tree
 step scope "$scripts/check-scope.sh" "$issue"
+# shellcheck disable=SC2329 # called through step
+archived() {
+  local open
+  open=$(find openspec/changes -mindepth 1 -maxdepth 1 -type d ! -name archive 2>/dev/null)
+  [ -z "$open" ] || { echo "Changes not archived:"; echo "$open"; return 1; }
+}
+step "change archived" archived
 step openspec npx --yes @fission-ai/openspec validate --all --strict
 
 hook="$main/switchyard/hooks/checks.sh"
