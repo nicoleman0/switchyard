@@ -48,7 +48,7 @@ skip() {
   echo "SKIP $1: $2"
 }
 
-# shellcheck disable=SC2329 # called through step
+# shellcheck disable=SC2317,SC2329 # called through step
 clean_tree() {
   local dirty
   dirty=$(git status --porcelain --untracked-files=no)
@@ -56,7 +56,7 @@ clean_tree() {
 }
 step "clean tree" clean_tree
 step scope "$scripts/check-scope.sh" "$issue"
-# shellcheck disable=SC2329 # called through step
+# shellcheck disable=SC2317,SC2329 # called through step
 archived() {
   local open
   open=$(find openspec/changes -mindepth 1 -maxdepth 1 -type d ! -name archive 2>/dev/null)
