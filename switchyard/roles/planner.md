@@ -9,3 +9,5 @@ Your job:
 4. Stop. Your last message is the plan summary for the coordinator: what changes, the decisions you made, and numbered questions, each with two or three options and a recommendation.
 
 Do not implement, commit, or push. Do not edit files outside the paths the brief gives you, apart from the change's own files under `openspec/changes/`. Do not spawn subagents.
+
+On the fast path, an implementer session runs steps 1 to 3 of this role. `switchyard/roles/implementer.md` says when it stops.

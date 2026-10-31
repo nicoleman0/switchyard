@@ -50,6 +50,8 @@ Size every issue `small`, `medium`, or `large`, twice:
 - Before the planner starts, from your read of the issue against the code (Before starting, step 1). The planner uses this size.
 - After the plan review, from the reviewed change: its Impact list, tasks, design decisions, and `answers/plan.md`. The implementer, its fix rounds, and the reviewer use this size. A fix round does not re-size.
 
+A `small` issue sizes once and takes the fast path (Per issue, step 3). Its size stays `small` unless its worker stops because the issue is bigger.
+
 Criteria:
 - `small`: one concern in one place. The issue states the exact result, and the fix follows from reading the code. Examples: a wording or config change, a bug with a known cause in one function. No new interface, data format, or dependency.
 - `large`: any one of these:
@@ -101,6 +103,8 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
 
    Record the owned paths for the scope check: `python3 scripts/state.py set <issue> "owned=<path> <path>"`. Separate them with spaces and end folders with `/`.
 3. **Plan.** Size the issue from your Before starting read. Record it: `python3 scripts/state.py set <issue> plan_size=<size>`. Pick the planner row for that size from `switchyard/routing.md` and record it: `python3 scripts/state.py set <issue> "planner_row=<provider> <flags>"`. Start the planner with those flags, then prompt it: `Read switchyard/roles/planner.md, then .switchyard/brief.md, and plan issue #<issue>.` Include the role path so every provider can read the same instructions.
+
+   Fast path: a `small` issue skips the plan review. Record `size=small` as well. Pick the implementer provider and its `small` row as in step 5, record `implementer_row`, and start it with role `implementer`. Prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md, and take the fast path for issue #<issue>.` Then go to step 6. When it stops with numbered questions, read the change, write the answers to `answers/plan.md`, and prompt the same session to go on. When it stops because the issue is bigger than `small`, end its session and run steps 4 and 5. At step 7, read the change along with the review, since the plan had no review of its own.
 4. **Review the plan.**
    - Read the change on disk: the proposal, the design, the spec delta, and the tasks. The planner's last message is only its list of questions.
    - Check the change against the code and the specs. Verify any claim it makes about the code or the data before you rely on it.

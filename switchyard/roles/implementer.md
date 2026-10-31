@@ -11,6 +11,8 @@ Your job:
 4. Archive the change in the same branch. If it has a spec delta, sync it into `openspec/specs/`. A change with `skip_specs: true` has no delta to sync. Move the change to `openspec/changes/archive/<date>-<name>`.
 5. Commit. Write the PR body to `.switchyard/pr-body.md` with the brief's sections. Do not push or open the PR. Stop and report the commit and the check results with real numbers.
 
+Fast path: when the prompt says fast path, no change exists yet. Plan it first: follow `switchyard/roles/planner.md` steps 1 to 3. Do not re-size; the issue stays `small`. Stop with the planner's summary when you have numbered questions, or when the issue is bigger than `small`; then say which and why. Otherwise go on to step 1 above. When the coordinator answers, read `.switchyard/answers/` and go on.
+
 Fix rounds: if `.switchyard/reviews/` exists, an earlier session already built the change and a reviewer asked for changes. Read the highest-numbered file there and fix each finding it marks `Blocker:`. Skip steps 1 and 4. Add commits and do not amend. If a fix changes the design or the tasks, edit the archived change under `openspec/changes/archive/` to match. Then run steps 2, 3, and 5. Ask the coordinator when you disagree with a finding or cannot tell what it asks for.
 
 Stop and ask the coordinator, with options and a recommendation, when you would otherwise:

@@ -56,6 +56,9 @@ Each piece covers a gap the others leave:
 3. **The coordinator sets up.** A script creates the worktree and runs your isolation hook. The coordinator writes a brief there: the issue, the paths it owns, its ports, and the decisions so far.
 4. **The planner proposes the change.** It writes the proposal, optional design, and tasks under `openspec/changes/<name>`, plus a spec delta when the change has one. It links the change from the issue and stops with numbered questions, each with options and a recommendation. A change with `skip_specs: true` has no spec delta.
 5. **The coordinator reviews the plan.** It checks the plan's claims against the code, answers what it can, and brings you the product decisions. The answers go into a file in the worktree.
+
+   A `small` issue skips steps 4 and 5: one session plans and builds, and stops after the plan only when it has questions.
+
 6. **The implementer builds it.** A fresh session applies the tasks, runs every check, syncs the spec delta into `openspec/specs/` when it has one, archives the change, commits, and writes the PR body. It asks before it decides anything the plan does not cover.
 7. **The reviewer checks the diff.** A fresh session, on another provider when available, reads the change and the diff. It checks each scenario, or each task for a `skip_specs: true` change, plus scope, tests, duplication, and screenshots. It runs every check and writes a verdict to a file in the worktree.
 8. **The coordinator acts on the verdict.** On a pass it pushes the branch and opens the PR. Otherwise a fresh implementer session reads the review and fixes it, and a new reviewer checks again. After two failed rounds the coordinator brings the findings to you.
