@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- #123: `wait-agents.sh --timeout <seconds>` returns when watched agents run past the limit, listing each with how long it has worked.
+
 ### Changed
 
 - #115: Only blockers (an unmet scenario or task, a failed check, a scope breach, a security or data-loss problem) request changes. The coordinator may fix notes and small findings itself, up to about 10 lines.
