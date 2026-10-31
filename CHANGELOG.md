@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Changed
+
+- #115: Only blockers (an unmet scenario or task, a failed check, a scope breach, a security or data-loss problem) request changes. The coordinator may fix notes and small findings itself, up to about 10 lines.
+
 ## [0.9.1] - 2026-10-25
 
 ### Changed

@@ -5,7 +5,7 @@ description: How the coordinator session delivers GitHub issues in this repo. Ea
 
 # Work issues
 
-You are the coordinator. You run on the main checkout. You never implement an issue yourself. Your work is the judgment and the glue:
+You are the coordinator. You run on the main checkout. You never build an issue yourself. After review you may make small fixes, as Act on the verdict says. Your work is the judgment and the glue:
 - splitting the work,
 - writing briefs,
 - reviewing plans,
@@ -115,12 +115,13 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
 
 ## Act on the verdict
 
-The reviewer checks the diff against the change. Read its review, not the diff. Open the diff only to rule on a finding the implementer disputes or a question the reviewer raises.
+The reviewer checks the diff against the change. Read its review, not the diff. Open the diff only to rule on a finding the implementer disputes or a question the reviewer raises, or to make a small fix.
 
-- **`Verdict: pass`:** open the PR.
-- **`Verdict: changes requested`:** end the reviewer's session and start a new implementer session. Prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md, .switchyard/answers/, and the newest file in .switchyard/reviews/, and fix the findings for issue #<issue>.` Do not restate the findings. Pick its row for `size` without re-sizing, and record `implementer_row` again. Then run step 7 again with a new reviewer session.
+- **`Verdict: pass`:** make any small fixes, then open the PR.
+- **`Verdict: changes requested`:** when every blocker fits a small fix, fix them and open the PR without another review. Otherwise end the reviewer's session and start a new implementer session. Prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md, .switchyard/answers/, and the newest file in .switchyard/reviews/, and fix the findings for issue #<issue>.` Do not restate the findings. Pick its row for `size` without re-sizing, and record `implementer_row` again. Then run step 7 again with a new reviewer session.
 - **A second `changes requested`:** stop. Bring the open findings to the maintainer.
 - **Questions for the coordinator:** answer what you can in `.switchyard/answers/`, and bring product decisions to the maintainer. If an answer changes the change, run a fix round.
+- **Small fixes:** fix notes and blockers yourself when all your fixes for one review total about 10 changed lines or fewer, as `git diff --stat` counts them, code included. Edit and commit in the worktree. Do not amend. Run every check in the brief. If one fails, undo your commit and run a fix round. Record each fix in the PR body's Review section with the finding and the file. Leave a note unfixed when you disagree with it.
 
 ## Open the PR
 
