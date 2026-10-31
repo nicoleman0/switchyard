@@ -77,6 +77,102 @@ class Harness(unittest.TestCase):
     def record(self, issue="8"):
         return json.loads((self.repo / f".switchyard/state/{issue}.json").read_text())
 
+    def write_record(self, record):
+        (self.repo / f".switchyard/state/{record['issue']}.json").write_text(json.dumps(record))
+
+    def test_phase_commands_and_headless_starts(self):
+        self.init(path=str(self.repo), runner="headless", planner_row="claude --model opus")
+        before = self.record()
+        self.assertEqual(self.state("phase-end", "8").returncode, 0)
+        self.assertEqual(self.record(), before)
+        self.assertEqual(self.state("phase-start", "8").returncode, 1)
+        for role, provider in (("planner", "claude"), ("implementer", "codex")):
+            result = self.script("start-worker.sh", "8", role, provider)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        phases = self.record()["phases"]
+        self.assertEqual(len(phases), 2)
+        self.assertEqual(phases[0]["row"], "claude --model opus")
+        self.assertEqual(phases[0]["role"], "planner")
+        self.assertEqual(phases[0]["provider"], "claude")
+        self.assertEqual(phases[0]["ended"], phases[1]["started"])
+        self.assertRegex(phases[0]["started"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertNotIn("ended", phases[1])
+        self.assertEqual(self.state("phase-end", "8").returncode, 0)
+        before = self.record()
+        self.assertEqual(self.state("phase-end", "8").returncode, 0)
+        self.assertEqual(self.record(), before)
+        self.state("set", "8", "backend=")
+        self.assertEqual(self.state("phase-start", "8").returncode, 1)
+
+    def test_archive_teardown_reviews_and_retry(self):
+        self.assertEqual(self.script("setup-worktree.sh", "8", "topic").returncode, 0)
+        record = self.record()
+        reviews = Path(record["path"]) / ".switchyard/reviews"
+        (self.repo / ".git/info/exclude").write_text(".switchyard/\n")
+        reviews.mkdir(parents=True)
+        (reviews / "2.md").write_text("Verdict: changes requested\n")
+        (reviews / "10.md").write_text("Verdict: pass\nMore text\n")
+        (reviews / "notes.md").write_text("Ignore this\n")
+        self.state("set", "8", "role=planner", "backend=claude", "size=medium", "plan_size=small")
+        self.state("phase-start", "8")
+        env = self.env.copy(); env["FAIL_HOOK"] = "1"
+        self.assertNotEqual(self.script("teardown-worktree.sh", "8", "topic", env=env).returncode, 0)
+        history_path = self.repo / ".switchyard/history.jsonl"
+        first = history_path.read_text()
+        summary = json.loads(first)
+        self.assertEqual(summary["rounds"], 2)
+        self.assertEqual(summary["verdict"], "pass")
+        self.assertEqual(summary["size"], "medium")
+        self.assertEqual(summary["plan_size"], "small")
+        self.assertFalse(summary["abandoned"])
+        self.assertIn("ended", summary["phases"][0])
+        report = self.state("timings")
+        self.assertEqual(sum(line.split()[:1] == ["8"] for line in report.stdout.splitlines()), 1)
+        self.assertEqual(self.script("teardown-worktree.sh", "8", "topic").returncode, 0)
+        self.assertEqual(history_path.read_text(), first)
+        self.assertFalse((self.repo / ".switchyard/state/8.json").exists())
+        self.assertIn("Verdict: pass", self.state("timings", "8").stdout)
+
+    def test_timings_fixed_times_models_and_totals(self):
+        self.init(size="medium")
+        phases = []
+        for role, row, start, end in (
+            ("planner", "claude --model opus", "10:00:00", "10:00:45"),
+            ("implementer", "codex -m mini", "10:01:00", "10:43:00"),
+            ("reviewer", "claude --model=sonnet", "11:00:00", "12:10:00"),
+            ("reviewer", "claude", "12:10:00", "12:10:45"),
+            ("planner", "", "12:11:00", "12:11:45"),
+        ):
+            phases.append(dict(role=role, provider=row.split()[0] if row else "claude", row=row,
+                               started="2026-10-31T" + start + "Z", ended="2026-10-31T" + end + "Z"))
+        record = self.record(); record.update(phases=phases, rounds=2, verdict="pass")
+        self.write_record(record)
+        result = self.state("timings", "8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for value in ("opus", "mini", "sonnet", "default", "45s", "42m", "1h10m", "Rounds: 2", "Verdict: pass", "Total: 2h11m"):
+            self.assertIn(value, result.stdout)
+        self.assertRegex(result.stdout, r"planner\s+claude\s+-\s+2026")
+        history = dict(record, issue="7", archived="2026-10-31T13:00:00Z", abandoned=True)
+        (self.repo / ".switchyard/history.jsonl").write_text("broken\n" + json.dumps(history) + "\n")
+        report = self.state("timings")
+        self.assertIn("Cannot read history line 1:", report.stderr)
+        self.assertEqual(sum(line.split()[:1] == ["7"] for line in report.stdout.splitlines()), 1)
+        self.assertEqual(sum(line.split()[:1] == ["8"] for line in report.stdout.splitlines()), 1)
+        self.assertIn("abandoned", report.stdout)
+        self.assertRegex(report.stdout, r"claude\s+opus\s+planner\s+2\s+1m")
+        self.assertRegex(report.stdout, r"codex\s+mini\s+implementer\s+2\s+1h24m")
+        self.assertIn("Verdict: abandoned", self.state("timings", "7").stdout)
+        record["phases"][-1].pop("ended")
+        self.write_record(record)
+        self.assertIn("running", self.state("timings", "8").stdout)
+        # Open phases are excluded from aggregate durations.
+        self.assertRegex(self.state("timings").stdout, r"claude\s+-\s+planner\s+1\s+45s")
+
+    def test_timings_empty(self):
+        result = self.state("timings")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "No timings recorded.\n")
+
     def test_commands_and_validation(self):
         self.init(branch="old")
         self.init(branch="new")
@@ -90,6 +186,11 @@ class Harness(unittest.TestCase):
         self.state("init", "8", "empty=")
         self.assertNotEqual(self.state("get", "8", "empty").returncode, 0)
         self.assertEqual(len(self.state("get", "8", "empty").stderr.strip().splitlines()), 1)
+        for action in ("init", "set"):
+            for key in ("phases", "archived"):
+                result = self.state(action, "8", f"{key}=x")
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(len(result.stderr.splitlines()), 1)
         invalid = self.state("set", "8", "issue=9")
         self.assertNotEqual(invalid.returncode, 0)
         self.assertEqual(len(invalid.stderr.strip().splitlines()), 1)
@@ -168,6 +269,8 @@ class Harness(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.repo), "worktree", "add", "-qb", "topic", str(path)], check=True)
         result = self.script("teardown-worktree.sh", "77", "topic")
         self.assertEqual(result.returncode, 0, result.stderr)
+
+        self.assertFalse((self.repo / ".switchyard/history.jsonl").exists())
 
     def test_teardown_no_record_and_nothing_to_remove_fails(self):
         marker = self.base / "down-ran"
@@ -335,6 +438,8 @@ exec "{real}" "$@"''')
         self.assertIn("?? untracked.txt", down.stdout)
         self.assertIn(" M .keep", down.stdout)
         self.assertIn("draft change", down.stdout)
+        history = json.loads((self.repo / ".switchyard/history.jsonl").read_text())
+        self.assertTrue(history["abandoned"])
         self.assertTrue((self.repo / "hook-log").exists())
         self.assertFalse((self.repo / ".switchyard/state/8.json").exists())
         self.assertFalse(tree.exists())
@@ -477,6 +582,8 @@ exec "{real}" "$@"''')
         self.assertEqual(self.record("10")["implementer_backend"], "codex")
         self.assertTrue(result.stdout.endswith("status=blocked\n"))
         self.assertIn("blocked at startup", result.stderr)
+        self.assertEqual(self.record("10")["phases"][0]["provider"], "codex")
+        self.assertNotIn("ended", self.record("10")["phases"][0])
 
     def stub_end_worker(self, status="idle"):
         gone = self.base / "agent-gone"
@@ -509,10 +616,13 @@ fi'''
     def test_end_worker_lifecycle_cases(self):
         self.init("8", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", worker="implementer-8", backend="claude")
         (self.skill / "routing.md").write_text("| Provider | On Herdr | End |\n|---|---|---|\n| claude | agent | `/exit` |\n")
+        self.state("set", "8", "role=implementer")
+        self.assertEqual(self.state("phase-start", "8").returncode, 0)
         live_env = self.stub_end_worker()
         ended = self.script("end-worker.sh", "8", env=live_env)
         self.assertEqual(ended.returncode, 0, ended.stderr)
         self.assertEqual(ended.stdout, "ended=implementer-8\n")
+        self.assertIn("ended", self.record()["phases"][0])
         calls = self.log.read_text()
         self.assertIn("agent prompt implementer-8 /exit", calls)
         self.assertIn("pane send-keys w1:p1 ctrl+u", calls)
@@ -545,11 +655,14 @@ fi'''
     def test_end_worker_refuses_active_agents_and_bad_routing(self):
         self.init("8", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", worker="implementer-8", backend="claude")
         (self.skill / "routing.md").write_text("| Provider | On Herdr | End |\n|---|---|---|\n| claude | agent | `/exit` |\n")
+        self.state("set", "8", "role=implementer")
+        self.state("phase-start", "8")
         for state in ("working", "blocked"):
             self.log.write_text("")
             result = self.script("end-worker.sh", "8", env=self.stub_end_worker(state))
             self.assertNotEqual(result.returncode, 0)
             self.assertIn(state, result.stderr)
+            self.assertNotIn("ended", self.record()["phases"][0])
             self.assertNotIn("agent prompt", self.log.read_text())
         (self.skill / "routing.md").write_text("| Provider | On Herdr | End |\n|---|---|---|\n| claude | agent | |\n")
         result = self.script("end-worker.sh", "8", env=self.stub_end_worker())
@@ -558,19 +671,25 @@ fi'''
 
     def test_end_worker_empty_worker_headless_and_timeout(self):
         self.init("8", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", worker="", backend="opencode")
+        self.state("set", "8", "role=implementer")
+        self.state("phase-start", "8")
         empty = self.script("end-worker.sh", "8")
         self.assertEqual(empty.returncode, 0, empty.stderr)
         self.assertFalse(self.log.exists())
+        self.assertIn("ended", self.record()["phases"][0])
         self.init("9", branch="b", path=str(self.repo), runner="headless", worker="x", backend="claude")
         headless = self.script("end-worker.sh", "9")
         self.assertNotEqual(headless.returncode, 0)
         self.assertIn("Herdr", headless.stderr)
         self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", worker="implementer-10", backend="claude")
         (self.skill / "routing.md").write_text("| Provider | On Herdr | End |\n|---|---|---|\n| claude | agent | `/exit` |\n")
+        self.state("set", "10", "role=implementer")
+        self.state("phase-start", "10")
         env = self.stub_end_worker(); env["NO_END"] = "1"; env["END_WORKER_TIMEOUT_SECONDS"] = "1"
         timed = self.script("end-worker.sh", "10", env=env)
         self.assertNotEqual(timed.returncode, 0)
         self.assertIn("last state", timed.stderr)
+        self.assertNotIn("ended", self.record("10")["phases"][0])
 
     def test_start_without_routing_file_succeeds(self):
         self.init(branch="b", path=str(self.repo), runner="headless", role="planner", backend="codex", session="old")

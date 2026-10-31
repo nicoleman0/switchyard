@@ -13,6 +13,7 @@ pane=$(python3 "$state" get "$issue" pane)
 worker=$(python3 "$state" get "$issue" worker 2>/dev/null || true)
 backend=$(python3 "$state" get "$issue" backend)
 if [ -z "$worker" ]; then
+  python3 "$state" phase-end "$issue"
   echo "Issue $issue: there is no agent to end"
   exit 0
 fi
@@ -89,6 +90,7 @@ for ((elapsed=0; elapsed<timeout; elapsed++)); do
       last_state=agent_not_found
       if [ "$shell_pid" = "$foreground_pid" ]; then
         herdr pane send-keys "$pane" ctrl+u >/dev/null 2>&1
+        python3 "$state" phase-end "$issue"
         printf 'ended=%s\n' "$worker"
         exit 0
       fi
