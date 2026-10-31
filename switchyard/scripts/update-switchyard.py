@@ -23,7 +23,7 @@ from pathlib import Path
 DEFAULT_SOURCE = "https://github.com/nicoleman0/switchyard.git"
 CHECK_TIMEOUT = 10
 VERSION_PATH = "switchyard/VERSION"
-PROJECT_OWNED = {"switchyard/routing.md", "switchyard/hooks/checks.sh"}
+PROJECT_OWNED = {"switchyard/routing.md", "switchyard/hooks/checks.sh", "switchyard/lessons.md"}
 PATHS_PATH = "switchyard/update-paths.txt"
 CHANGELOG_PATH = "CHANGELOG.md"
 VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
