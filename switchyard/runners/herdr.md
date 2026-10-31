@@ -9,7 +9,7 @@ Use this when the coordinator runs inside Herdr (`HERDR_ENV=1`). Each worker is 
 | Start an agent | `scripts/start-worker.sh <issue> <role> <provider> -- <flags>` when the provider's On Herdr cell is `agent` |
 | Start a turns provider | `scripts/start-worker.sh <issue> <role> <provider> --turns` when its On Herdr cell is `turns` |
 | Prompt | `herdr agent prompt <name> "<one line>" --wait --until working --until blocked --timeout 30000` |
-| Wait | `scripts/wait-agents.sh <name>...` |
+| Wait | `scripts/wait-agents.sh [--timeout <seconds>] <name>...` |
 | Read | `herdr agent read <name> --source recent-unwrapped --lines 80` |
 | End | `scripts/end-worker.sh <issue>` |
 
@@ -17,7 +17,7 @@ Read the provider's commands, flags, and End value from `switchyard/routing.md`.
 
 Multi-line prompt text does not submit reliably. Put the content in a file and prompt with one line that points to it.
 
-`wait-agents.sh` returns when a named agent is `idle`, `done`, `blocked`, or `unknown`. Follow the coordinator note in `routing.md` for harness-specific waiting.
+`wait-agents.sh` returns when a named agent is `idle`, `done`, `blocked`, or `unknown`. Follow the coordinator note in `routing.md` for harness-specific waiting. Without `--timeout`, the wait runs with no limit. Pass `--timeout <seconds>` to bound it: on a timeout the script prints one line per still-working agent, `name status <seconds>s`, counting from when the wait started, and exits `4`.
 
 If a prompt stalls or times out, read the agent before resending. If `start-worker.sh` exits 3 with `status=blocked`, it has written the record; read the agent and clear its startup screen before prompting.
 
