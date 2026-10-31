@@ -111,6 +111,7 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
    - Size the reviewed change again and record it: `python3 scripts/state.py set <issue> size=<size>`. Tell the maintainer.
 5. **Implement.** End the planner's session. Pick the implementer provider from the routing table in `switchyard/routing.md`, then the row for `size`. Record it: `python3 scripts/state.py set <issue> "implementer_row=<provider> <flags>"`. Start it in the same worktree. Then prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md and .switchyard/answers/, and implement the change for issue #<issue>.`
 6. **Watch.** Wait for the worker, then read its report. Answer it with a file in `.switchyard/answers/` and a one-line prompt that points to the file.
+   Give `wait-agents.sh` a `--timeout <seconds>` bound. On exit 4 the script has printed each agent still working: read that agent's pane, then nudge, end, or reassign it.
 7. **Review.** When the implementer reports its commit, end its session. Start the reviewer on another usable provider when available. Otherwise set `SWITCHYARD_SAME_PROVIDER=1` and use the implementer's provider. Pick the row for `size` and pass its flags from `switchyard/routing.md`. Record it: `python3 scripts/state.py set <issue> "reviewer_row=<provider> <flags>"`. Then prompt it: `Read switchyard/roles/reviewer.md and follow it for issue #<issue>.` Wait for it, then read the newest file in `<path>/.switchyard/reviews/`.
 
 ## Act on the verdict
