@@ -92,6 +92,7 @@ npm init switchyard@latest
 - `.gitignore` gains the `.switchyard/` line when it is missing.
 - `openspec/config.yaml` gains the Switchyard `rules` entries without replacing `context` or the project's own rules.
 - `switchyard/routing.md` is added when it is missing and never replaced.
+- `switchyard/lessons.md` is added when it is missing and never replaced.
 
 The report lists each file as `added`, `merged`, or `conflict`, then the totals, and writes `VERSION` naming the release. Conflict markers name the two sides. In `AGENTS.md`, `.gitignore`, and `openspec/config.yaml`, they stay inside the owned section or rule list. Any other existing workflow file that differs gets markers around the whole file. Resolve them, review the diff, and commit. The updater ends by printing the commands that undo the run.
 
@@ -147,6 +148,7 @@ The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, o
 `npm init switchyard@latest update -- --dry-run` and `python3 switchyard/scripts/update-switchyard.py --dry-run` print the report a real run would print and write nothing. Without the `--`, the npm form is also safe, but npm can fail with an `enoent` error on a first run.
 
 The updater adds `switchyard/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
+The updater adds `switchyard/lessons.md` when it is missing, then leaves it unchanged in later updates. The project owns its content: the coordinator edits it during a batch.
 
 Preflight warns when `switchyard/VERSION` is behind the newest release. Run `python3 switchyard/scripts/update-switchyard.py --check` for the same check: it exits 0 when current, 3 when behind, and 4 when the source cannot be reached.
 
@@ -212,6 +214,7 @@ create-switchyard/               the npm installer; init deletes it
 switchyard/
   SKILL.md                       the coordinator's playbook and routing rules
   routing.md                     project-owned providers, models, effort, flags, and commands
+  lessons.md                     project-owned one-line traps from each batch
   roles/                         planner, implementer, and reviewer instructions, shared by every provider
   runners/                       Herdr and headless commands
   hooks/                         your per-issue isolation

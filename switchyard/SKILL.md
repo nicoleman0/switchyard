@@ -98,7 +98,7 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
 2. **Brief.** Copy `brief-template.md` to `<path>/.switchyard/brief.md` and fill every `{placeholder}`. Under the coordinator notes, put:
    - the decisions already made,
    - what is out of scope and which issue owns it,
-   - any known traps.
+   - any known traps, with the lines from `switchyard/lessons.md` that apply to this issue.
    `.switchyard/` holds the ignored runtime files.
 
    Record the owned paths for the scope check: `python3 scripts/state.py set <issue> "owned=<path> <path>"`. Separate them with spaces and end folders with `/`.
@@ -156,3 +156,7 @@ For each PR still open:
 ## Abandon an issue
 
 When an issue is dropped before its worktree is committed, run `scripts/teardown-worktree.sh --abandon <issue> <branch>`. It prints the uncommitted files and the local-only commits it is about to discard, then removes the worktree, the branch, and the record. Passing `--abandon` is the consent; it never prompts. Ordinary teardown stops instead of removing a dirty worktree.
+
+## Record lessons
+
+After each teardown, merged or abandoned, update `switchyard/lessons.md` in the main checkout. Add a line for each trap that cost time on that issue, such as a flag a CLI rejected, a check that needed a service, or a review finding that came back. Follow the format in its header. Delete lines that no longer apply. At the end of the batch, commit the file on its own small PR.

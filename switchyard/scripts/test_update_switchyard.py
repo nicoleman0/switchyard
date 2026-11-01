@@ -17,6 +17,7 @@ from pathlib import Path
 SCRIPT = Path(__file__).with_name("update-switchyard.py").resolve()
 VERSION = "switchyard/VERSION"
 ROUTING = "switchyard/routing.md"
+LESSONS = "switchyard/lessons.md"
 PATHS = "switchyard/update-paths.txt"
 CHANGELOG = "CHANGELOG.md"
 UPDATER = "switchyard/scripts/update-switchyard.py"
@@ -632,6 +633,33 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertEqual((self.project / ROUTING).read_bytes(), b"local file\n")
         self.assertNotIn(("conflict: " + ROUTING).encode(), result.stdout)
 
+    def test_project_owned_lessons_is_never_updated_or_added(self) -> None:
+        self.source.joinpath(LESSONS).write_bytes(b"example v1\n")
+        self.commit(self.source, "add lessons base")
+        self.git(self.source, "tag", "-f", "v0.1.0")
+        self.make_target({LESSONS: b"example v2\n"})
+        files = {k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"}
+        files[LESSONS] = b"project edit\n"
+        self.make_project(files=files)
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual((self.project / LESSONS).read_bytes(), b"project edit\n")
+        self.assertNotIn(("updated: " + LESSONS).encode(), result.stdout)
+        self.assertNotIn(("added: " + LESSONS).encode(), result.stdout)
+
+    def test_project_owned_lessons_added_when_missing_and_other_files_update(self) -> None:
+        self.source.joinpath(LESSONS).write_bytes(b"example v1\n")
+        self.commit(self.source, "add lessons base")
+        self.git(self.source, "tag", "-f", "v0.1.0")
+        self.make_target({LESSONS: b"example v2\n", "switchyard/workflow.txt": b"new content\n"})
+        files = {k: v for k, v in DEFAULT_FILES.items() if k not in ("outside.txt", LESSONS)}
+        self.make_project(files=files)
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual((self.project / LESSONS).read_bytes(), b"example v2\n")
+        self.assertIn(("added: " + LESSONS).encode(), result.stdout)
+        self.assertIn(b"updated: switchyard/workflow.txt", result.stdout)
+
     def test_independent_edits_merge(self) -> None:
         self.make_target({"switchyard/workflow.txt": b"first line\nstable line\nupstream last\n"})
         self.make_project(files={**{k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"},
@@ -1045,6 +1073,22 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
         self.assertIn(("added: " + ROUTING).encode(), result.stdout)
         self.assertEqual((self.project / ROUTING).read_bytes(), b"release routing\n")
+
+    def test_install_keeps_existing_project_owned_lessons(self) -> None:
+        self.make_target({LESSONS: b"release lessons\n"})
+        self.make_project(files={LESSONS: b"project lessons\n"}, version=None)
+        result = self.run_update("--install")
+        self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
+        self.assertNotIn(b"lessons.md", result.stdout)
+        self.assertEqual((self.project / LESSONS).read_bytes(), b"project lessons\n")
+
+    def test_install_adds_missing_project_owned_lessons(self) -> None:
+        self.make_target({LESSONS: b"release lessons\n"})
+        self.make_project(files={}, version=None)
+        result = self.run_update("--install")
+        self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
+        self.assertIn(("added: " + LESSONS).encode(), result.stdout)
+        self.assertEqual((self.project / LESSONS).read_bytes(), b"release lessons\n")
 
     def test_install_existing_ordinary_file_conflicts(self) -> None:
         self.make_target()
