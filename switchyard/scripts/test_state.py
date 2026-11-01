@@ -41,6 +41,17 @@ class Harness(unittest.TestCase):
         self.down_hook = self.skill / "hooks/worktree-down.sh"
         self.down_hook.write_text("#!/bin/sh\n[ \"${FAIL_HOOK:-}\" != 1 ]\n")
         self.down_hook.chmod(0o755)
+        # start-worker.sh sets the tracker phase; log it instead of calling a tracker.
+        self.tracker_log = self.base / "tracker.log"
+        (self.skill / "scripts/tracker.py").write_text(
+            "import os, sys\n"
+            "with open(os.environ['TRACKER_LOG'], 'a') as log:\n"
+            "    log.write(' '.join(sys.argv[1:]) + '\\n')\n"
+            "status = int(os.environ.get('TRACKER_STATUS', '0'))\n"
+            "if status:\n"
+            "    sys.stderr.write('tracker stub failed\\n')\n"
+            "sys.exit(status)\n"
+        )
         self.bin = self.base / "bin"
         self.bin.mkdir()
         for cli in ("claude", "codex", "opencode", "pi"):
@@ -49,7 +60,8 @@ class Harness(unittest.TestCase):
         self.stub("gh", 'echo "$*" >> "$CALL_LOG"\n[ "$1 $2" = "pr list" ] && [ "$3" = "--head" ] && [ "$5" = "--state" ] && [ "$6" = all ] && [ "$7" = "--json" ] && [ "$8" = "number,state" ] && [ "$9" = "--limit" ] && [ "${10}" = 1 ] || exit 23\n[ "${FAIL_GH:-}" != 1 ] || exit 2\nprintf \'%s\\n\' "${GH_RESULT:-[]}"')
         self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\n[ "${FAIL_HERDR:-}" != 1 ] || exit 2\nif [ "$1 $2" = "agent list" ] && [ "$#" = 2 ]; then printf \'%s\\n\' "$HERDR_RESULT"; elif [ "$1 $2" = "agent start" ]; then [ "${FAIL_START:-}" != 1 ] || exit 2; case "$3" in planner-10|planner-8|implementer-10|reviewer-10|planner-eng-7) ;; *) exit 23 ;; esac; echo "agent start output"; elif [ "$1 $2" = "worktree create" ]; then printf \'%s\\n\' "$HERDR_CREATE_RESULT"; elif [ "$1 $2" = "pane split" ]; then printf \'{"result":{"pane":{"pane_id":"w1:p2"}}}\\n\'; elif [ "$1 $2" = "pane close" ]; then echo ok; else exit 23; fi')
         self.env = os.environ.copy()
-        self.env.update(PATH=f"{self.bin}:{self.env['PATH']}", CALL_LOG=str(self.log), TEST_WORKTREE=str(self.repo))
+        self.env.update(PATH=f"{self.bin}:{self.env['PATH']}", CALL_LOG=str(self.log), TEST_WORKTREE=str(self.repo),
+                        TRACKER_LOG=str(self.tracker_log))
         self.env["HERDR_RESULT"] = '{"result":{"agents":[]}}'
         self.env["HERDR_CREATE_RESULT"] = '{"result":{"root_pane":{"cwd":"' + str(self.repo) + '","pane_id":"w1:p1","workspace_id":"ws1"}}}'
         self.env.pop("HERDR_ENV", None)
@@ -1504,6 +1516,50 @@ esac''')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.get("ENG-7", "planner_worker"), "planner-eng-7")
         self.assertIn("planner-eng-7", result.stdout)
+
+    def tracker_calls(self):
+        return self.tracker_log.read_text().splitlines() if self.tracker_log.exists() else []
+
+    def test_start_worker_sets_the_phase_for_each_role(self):
+        self.init(branch="b", path=str(self.repo), runner="headless")
+        for role, provider in (("planner", "claude"), ("implementer", "claude"), ("reviewer", "codex")):
+            result = self.script("start-worker.sh", "8", role, provider)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        resumed = self.script("start-worker.sh", "8", "implementer", "claude", "--resume")
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+        self.init("ENG-7b", branch="b", path=str(self.repo), runner="headless")
+        self.assertEqual(self.script("start-worker.sh", "ENG-7b", "implementer", "codex").returncode, 0)
+        self.assertEqual(self.tracker_calls(), [
+            "set-phase 8 planning", "set-phase 8 building", "set-phase 8 in-review",
+            "set-phase 8 building", "set-phase ENG-7 building",
+        ])
+
+    def test_start_worker_stops_when_the_phase_fails(self):
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
+        before = self.record("10")
+        env = self.env.copy()
+        env.update(HERDR_ENV="1", TRACKER_STATUS="1")
+        result = self.script("start-worker.sh", "10", "planner", "pi", env=env)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("tracker stub failed", result.stderr)
+        self.assertIn("Issue 10: cannot set the tracker phase; no worker started.", result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertNotIn("planner_backend", self.record("10"))
+        self.assertEqual(self.record("10"), before)
+        self.assertFalse(self.log.exists() and self.log.read_text())
+
+    def test_start_worker_on_linear_without_a_key_starts_nothing(self):
+        shutil.copy(SCRIPTS / "tracker.py", self.skill / "scripts/tracker.py")
+        (self.skill / "tracker.md").write_text("# Project tracker\n\nTracker: linear\n")
+        self.init("ENG-7", branch="b", path=str(self.repo), runner="headless")
+        env = self.env.copy()
+        env.pop("LINEAR_API_KEY", None)
+        result = self.script("start-worker.sh", "ENG-7", "planner", "claude", env=env)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("LINEAR_API_KEY is not set", result.stderr)
+        self.assertIn("no worker started", result.stderr)
+        record = self.record("ENG-7")
+        self.assertFalse([field for field in record if field.startswith("planner_")], record)
 
     def test_worktree_up_hook_ports(self):
         # The project hook is replaced in setUp, so run the shipped one directly.

@@ -177,6 +177,27 @@ npm init switchyard@latest -- --tracker linear
 - Start every issue's branch with the lowercased key, such as `eng-123-fix-login`. Linear's GitHub integration links a PR whose branch name names the issue, so connect that integration.
 - `gh` is still required: PRs, reviews, and merges all stay on GitHub.
 
+Each issue moves through a Linear status per phase:
+
+| Phase | Default status | Set by |
+| --- | --- | --- |
+| `planning` | Planning | `start-worker.sh`, planner |
+| `plan-review` | Plan review | coordinator |
+| `building` | In Progress | `start-worker.sh`, implementer |
+| `in-review` | In Review | `start-worker.sh`, reviewer |
+| `needs-input` | Needs input | coordinator |
+
+- Add Planning, Plan review, and Needs input to each team's Started group. In Progress and In Review are in Linear's default workflow.
+- To use other names, add a table to `switchyard/tracker.md`. Phases without a row keep their default:
+  ```
+  | Phase | Status |
+  | --- | --- |
+  | needs-input | Blocked |
+  ```
+- A status the team lacks stops the first worker start, with the team's status names.
+- Questions arrive as one Linear comment that starts `Questions from Switchyard`. Reply to it in Linear, or answer in the chat.
+- Linear's GitHub integration may also move the issue when the PR opens and merges. Done comes from it.
+
 ## Use it
 
 1. Create an issue. Add `--milestone` if the project uses milestones:

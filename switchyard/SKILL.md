@@ -98,6 +98,11 @@ Open questions for the maintainer wait in one file, `.switchyard/questions.md` i
 - When no issue can move until an answer lands, end your turn with the queue.
 - Delete an issue's section when the issue is torn down.
 
+On Linear, the questions go on the issue instead of `questions.md`. The rules above about what to queue, the wait, and showing the maintainer every open question still apply.
+1. Write the issue's questions to `<path>/.switchyard/question-comment.md`. Its first line is `Questions from Switchyard`, then numbered questions, each with options and a recommendation. Repeat any earlier question still unanswered, so the newest such comment holds every open question. Run `python3 scripts/tracker.py comment <issue> <path>/.switchyard/question-comment.md` and `python3 scripts/tracker.py set-phase <issue> needs-input`.
+2. Each time a wait returns, run `python3 scripts/tracker.py view <issue>` for each issue waiting on questions. The answers are the comments after the newest one whose first line is `Questions from Switchyard`.
+3. When every question is answered, in Linear or in the chat, copy the answers to the answers file and clear the wait. Set the phase the issue left: `plan-review` for plan questions, `building` for an implementer's. Then resume the issue.
+
 ## Plans
 
 A project uses OpenSpec when its main checkout has an `openspec/` folder. Without one it uses plain mode. "The change" means the OpenSpec change or, in plain mode, `.switchyard/plan.md` in the issue's worktree.
@@ -105,6 +110,8 @@ A project uses OpenSpec when its main checkout has an `openspec/` folder. Withou
 In plain mode the planner copies `switchyard/plan-template.md` to `.switchyard/plan.md` and fills it in. The implementer ticks its tasks. The reviewer checks its scenarios, tasks, and decisions. There is no `Change:` issue line and nothing to archive. Teardown deletes the plan; the PR body keeps the summary.
 
 The project's issue tracker is named in `switchyard/tracker.md`, which the project owns. `scripts/tracker.py` is the only place that calls it. Pull requests stay on `gh pr`.
+
+`start-worker.sh` sets the issue's phase for each worker it starts. You set `plan-review` and `needs-input` with `python3 scripts/tracker.py set-phase <issue> <phase>`. On GitHub, `set-phase` does nothing, so run it the same way on every tracker.
 
 ## Before starting
 
@@ -128,6 +135,7 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
 
    Fast path: instead of starting the planner, a `small` issue skips the plan review. Record `size=small` as well; there is no `planner_row`. Pick the implementer provider and its `small` row as in step 5, record `implementer_row`, and start it with role `implementer`. Prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md, and take the fast path for issue #<issue>.` Then go to step 6. When it stops with numbered questions, read the change, write the answers to `answers/plan.md`, and prompt the same session to go on. When it stops because the issue is bigger than `small`, end its session and run steps 4 and 5. At step 7, read the change along with the review, since the plan had no review of its own.
 4. **Review the plan.**
+   - Run `python3 scripts/tracker.py set-phase <issue> plan-review`.
    - Read the change on disk: the proposal, the design, the spec delta, and the tasks, or `.switchyard/plan.md` in plain mode. The planner's last message is only its list of questions.
    - Check the change against the code and the specs. Verify any claim it makes about the code or the data before you rely on it.
    - A change with `skip_specs: true` has no spec delta. In plain mode, `Scenarios: none` serves the same purpose. Check that the planner used either only when the work changes no observable behaviour.

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Record a worker before prompting it, and start Herdr agents in their pane.
+# Sets the issue's tracker phase for the role first; a failure starts nothing.
 # Usage: start-worker.sh <issue> <role> <provider> [--turns | --resume] [-- <routing flags>...]
 set -euo pipefail
 
@@ -43,6 +44,22 @@ adopt_legacy_worker() {
   fi
 }
 
+# A best-of-N candidate key ends in b; the tracker knows only its issue.
+set_phase() {
+  local phase
+  case "$role" in
+    planner) phase=planning ;;
+    implementer) phase=building ;;
+    reviewer) phase=in-review ;;
+    *) echo "Issue $issue: no tracker phase for role $role" >&2; exit 1 ;;
+  esac
+  python3 "$script_dir/tracker.py" set-phase "${issue%b}" "$phase" || {
+    local status=$?
+    echo "Issue $issue: cannot set the tracker phase; no worker started." >&2
+    exit "$status"
+  }
+}
+
 print_handles() {
   printf 'path=%s\n' "$path"
   [ -z "$pane" ] || printf 'pane=%s\n' "$pane"
@@ -75,6 +92,7 @@ if [ "$resume" = 1 ]; then
   elif [ -z "$session" ]; then
     cannot_resume "no $role session is recorded"
   fi
+  set_phase
   python3 "$state" set "$issue" "role=$role" "backend=$backend" "worker=$worker" "session=$session"
   python3 "$state" phase-start "$issue"
   print_handles
@@ -91,6 +109,7 @@ if [ "$role" = reviewer ]; then
   fi
 fi
 
+set_phase
 extra=()
 split=""
 if [ "$runner" = herdr ] && [ "$role" = reviewer ]; then

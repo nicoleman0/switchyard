@@ -403,5 +403,227 @@ class LoadTrackerLinearTest(unittest.TestCase):
         self.assertIn("linear", str(ctx.exception))
 
 
+
+def team_page(names, has_next=False):
+    return {"data": {"issue": {"id": "uuid-1", "team": {"name": "Engineering", "states": {
+        "nodes": [{"id": f"state-{name}", "name": name} for name in names],
+        "pageInfo": {"hasNextPage": has_next},
+    }}}}}
+
+
+LINEAR_DEFAULTS = ["Backlog", "Todo", "In Progress", "In Review", "Done", "Canceled"]
+UPDATED = {"data": {"issueUpdate": {"success": True}}}
+
+
+class LinearSetPhaseTest(LinearMain, unittest.TestCase):
+    def test_building_sends_the_in_progress_state(self) -> None:
+        transport = RecordingTransport([team_page(LINEAR_DEFAULTS), UPDATED])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("set-phase", "ENG-123", "building"), 0, self.stderr.getvalue())
+        self.assertEqual(transport.calls[0]["variables"], {"id": "ENG-123"})
+        self.assertIn("states(first: 250)", transport.calls[0]["query"])
+        self.assertIn("issueUpdate", transport.calls[1]["query"])
+        self.assertEqual(transport.calls[1]["variables"], {"id": "uuid-1", "input": {"stateId": "state-In Progress"}})
+        self.assertEqual(self.stdout.getvalue(), "")
+
+    def test_override_changes_the_state_sent(self) -> None:
+        transport = RecordingTransport([team_page(LINEAR_DEFAULTS), UPDATED])
+        self.load(tracker.Linear(transport, statuses={"needs-input": "Todo"}))
+        self.assertEqual(self.run_tool("set-phase", "ENG-123", "needs-input"), 0, self.stderr.getvalue())
+        self.assertEqual(transport.calls[1]["variables"]["input"], {"stateId": "state-Todo"})
+
+    def test_missing_status_lists_the_team_and_sends_no_update(self) -> None:
+        transport = RecordingTransport([team_page(LINEAR_DEFAULTS)])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("set-phase", "ENG-123", "needs-input"), 1)
+        stderr = self.stderr.getvalue()
+        for text in ("'Needs input'", "Engineering", "Backlog, Todo, In Progress, In Review, Done, Canceled"):
+            self.assertIn(text, stderr)
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_names_match_exactly(self) -> None:
+        transport = RecordingTransport([team_page(["in progress"])])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("set-phase", "ENG-123", "building"), 1)
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_more_than_one_page_of_statuses_fails(self) -> None:
+        transport = RecordingTransport([team_page(LINEAR_DEFAULTS, has_next=True)])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("set-phase", "ENG-123", "building"), 1)
+        self.assertIn("more than 250 statuses", self.stderr.getvalue())
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_success_false_exits_one(self) -> None:
+        transport = RecordingTransport([team_page(LINEAR_DEFAULTS), {"data": {"issueUpdate": {"success": False}}}])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("set-phase", "ENG-123", "building"), 1)
+        self.assertIn("success: false", self.stderr.getvalue())
+
+    def test_unknown_issue_exits_one(self) -> None:
+        transport = RecordingTransport([{"data": {"issue": None}}])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("set-phase", "ENG-123", "building"), 1)
+        self.assertIn("Linear has no issue ENG-123", self.stderr.getvalue())
+
+    def test_unknown_phase_exits_two_and_calls_nothing(self) -> None:
+        transport = RecordingTransport([])
+        self.load(tracker.Linear(transport))
+        with self.assertRaises(SystemExit) as ctx:
+            self.run_tool("set-phase", "ENG-123", "done")
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("needs-input", self.stderr.getvalue())
+        self.assertEqual(transport.calls, [])
+
+    def test_github_key_on_linear_exits_two(self) -> None:
+        transport = RecordingTransport([])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("set-phase", "149", "building"), 2)
+        self.assertEqual(transport.calls, [])
+
+
+class LinearCommentTest(LinearMain, unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.file = Path(tmp.name) / "q.md"
+
+    def test_comment_sends_the_uuid_and_exact_body(self) -> None:
+        body = "Questions from Switchyard\n\n1. \"Which\" status?\n"
+        self.file.write_text(body)
+        transport = RecordingTransport([{"data": {"issue": {"id": "uuid-1"}}},
+                                        {"data": {"commentCreate": {"success": True}}}])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("comment", "ENG-123", str(self.file)), 0, self.stderr.getvalue())
+        self.assertIn("commentCreate", transport.calls[1]["query"])
+        self.assertEqual(transport.calls[1]["variables"], {"input": {"issueId": "uuid-1", "body": body}})
+
+    def test_comment_success_false_exits_one(self) -> None:
+        self.file.write_text("text")
+        transport = RecordingTransport([{"data": {"issue": {"id": "uuid-1"}}},
+                                        {"data": {"commentCreate": {"success": False}}}])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("comment", "ENG-123", str(self.file)), 1)
+        self.assertIn("commentCreate returned success: false", self.stderr.getvalue())
+
+    def test_blank_or_missing_file_exits_one_without_a_call(self) -> None:
+        self.file.write_text(" \n\t\n")
+        for path in (self.file, self.file.with_name("missing.md")):
+            with self.subTest(path=path.name):
+                transport = RecordingTransport([])
+                self.load(tracker.Linear(transport))
+                self.assertEqual(self.run_tool("comment", "ENG-123", str(path)), 1)
+                self.assertIn(path.name, self.stderr.getvalue())
+                self.assertEqual(transport.calls, [])
+
+    def test_missing_key_names_the_variable_for_new_commands(self) -> None:
+        self.file.write_text("text")
+        for args in (("set-phase", "ENG-123", "building"), ("comment", "ENG-123", str(self.file))):
+            with self.subTest(command=args[0]):
+                self.stderr = io.StringIO()
+                self.load(tracker.Linear())
+                self.assertEqual(self.run_tool(*args), 1)
+                self.assertIn("LINEAR_API_KEY is not set", self.stderr.getvalue())
+
+
+class GitHubPhaseAndCommentTest(TrackerTest):
+    def test_set_phase_does_nothing(self) -> None:
+        result = self.run_tool("set-phase", "150", "building")
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, "", ""))
+        self.assertEqual(self.calls(), [])
+
+    def test_set_phase_checks_the_key(self) -> None:
+        self.assertEqual(self.run_tool("set-phase", "ENG-1", "building").returncode, 2)
+        self.assertEqual(self.calls(), [])
+
+    def test_comment_posts_the_file(self) -> None:
+        path = Path(self.tmp.name) / "q.md"
+        path.write_text("Questions from Switchyard\n\n1. Which?\n")
+        result = self.run_tool("comment", "150", str(path))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (call,) = self.calls()
+        self.assertEqual(call["args"], ["issue", "comment", "150", "--body-file", "-"])
+        self.assertEqual(call["stdin"], "Questions from Switchyard\n\n1. Which?\n")
+
+    def test_comment_with_a_blank_file_calls_nothing(self) -> None:
+        path = Path(self.tmp.name) / "q.md"
+        path.write_text("\n")
+        self.assertEqual(self.run_tool("comment", "150", str(path)).returncode, 1)
+        self.assertEqual(self.calls(), [])
+
+
+class StatusTableTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = Path(self.tmp.name) / "tracker.md"
+
+    def write(self, *rows: str) -> None:
+        self.path.write_text("# Project tracker\n\nTracker: linear\n\n| Phase | Status |\n| --- | --- |\n"
+                             + "".join(row + "\n" for row in rows))
+
+    def test_a_row_overrides_one_phase_and_keeps_the_rest(self) -> None:
+        self.write("| needs-input | Blocked |")
+        backend = tracker.load_tracker(self.path)
+        self.assertEqual(backend.statuses, {**tracker.PHASES, "needs-input": "Blocked"})
+
+    def test_no_table_keeps_the_defaults(self) -> None:
+        self.path.write_text("# Project tracker\n\nTracker: linear\n")
+        self.assertEqual(tracker.load_tracker(self.path).statuses, tracker.PHASES)
+
+    def test_github_checks_the_table_too(self) -> None:
+        self.path.write_text("Tracker: github\n\n| Phase | Status |\n|:---|---:|\n| building | Doing |\n")
+        self.assertIsInstance(tracker.load_tracker(self.path), tracker.GitHub)
+        self.path.write_text("Tracker: github\n\n| shipping | Done |\n")
+        with self.assertRaises(tracker.TrackerError):
+            tracker.load_tracker(self.path)
+
+    def test_bad_rows_exit_one_on_view_naming_the_row(self) -> None:
+        cases = {
+            "| shipping | Done |": "unknown phase",
+            "| building | Doing |\n| building | Again |": "repeats a phase",
+            "| needs-input |  |": "empty status",
+            "| needs-input | Blocked | extra |": "two cells",
+        }
+        for rows, problem in cases.items():
+            with self.subTest(rows=rows):
+                self.write(rows)
+                bad_row = rows.splitlines()[-1]
+                stderr = io.StringIO()
+                saved = tracker.load_tracker
+                tracker.load_tracker = lambda: saved(self.path)
+                try:
+                    with redirect_stderr(stderr):
+                        status = tracker.main(["view", "ENG-123"])
+                finally:
+                    tracker.load_tracker = saved
+                self.assertEqual(status, 1, stderr.getvalue())
+                self.assertIn(bad_row, stderr.getvalue())
+                self.assertIn(problem, stderr.getvalue())
+                self.assertIn("planning, plan-review, building, in-review, needs-input", stderr.getvalue())
+
+
+class KeyAgreementTest(unittest.TestCase):
+    """state.py and tracker.py check Linear keys separately; pin that they agree."""
+
+    KEYS = ("ENG-123", "A1-7", "ENG-1234567", "eng-123", "ENG-", "ENG-12a", "-12", "E-1", "1ENG-2")
+
+    def test_state_and_linear_accept_the_same_keys(self) -> None:
+        import state
+
+        linear = tracker.Linear()
+        for key in self.KEYS:
+            if key.isdigit():
+                continue
+            with self.subTest(key=key):
+                try:
+                    linear.check_key(key)
+                    linear_accepts = True
+                except tracker.TrackerError:
+                    linear_accepts = False
+                self.assertEqual(state.valid_key(key), linear_accepts)
+
+
 if __name__ == "__main__":
     unittest.main()
