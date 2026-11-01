@@ -6,6 +6,7 @@ import shlex
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -27,9 +28,18 @@ def repo_root():
     return Path(first)
 
 
+def valid_key(issue):
+    # The b suffix marks a best-of-N issue's second candidate.
+    return re.fullmatch(r"[0-9]+b?", issue) is not None
+
+
+def key_order(issue):
+    return int(issue.rstrip("b")), issue
+
+
 def issue_path(issue):
-    if not issue.isascii() or not issue.isdigit():
-        fail(issue, "issue number must contain only digits")
+    if not valid_key(issue):
+        fail(issue, "issue key must be digits, optionally followed by b")
     return repo_root() / ".switchyard" / "state" / f"{issue}.json"
 
 
@@ -329,7 +339,7 @@ def status():
                 records.append(json.loads(path.read_text()))
             except (OSError, json.JSONDecodeError) as exc:
                 print(f"Cannot read {path}: {exc}", file=sys.stderr)
-    records.sort(key=lambda row: int(row["issue"]))
+    records.sort(key=lambda row: key_order(row["issue"]))
     if not records:
         print("No issues in flight.")
         return

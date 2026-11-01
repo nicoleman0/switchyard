@@ -291,6 +291,21 @@ class Harness(unittest.TestCase):
         self.assertEqual(len(invalid.stderr.strip().splitlines()), 1)
         self.assertEqual(self.state("rm", "500").returncode, 0)
 
+    def test_candidate_keys(self):
+        self.init("120b", branch="old")
+        self.assertEqual(self.state("set", "120b", "branch=b120").returncode, 0)
+        self.assertEqual(self.get("120b", "branch"), "b120")
+        for key in ("120c", "b", "120bb", "12b0"):
+            result = self.state("init", key, "a=b")
+            self.assertEqual(result.returncode, 1, key)
+            self.assertIn("issue key must be digits, optionally followed by b", result.stderr)
+        self.init("121", branch="b121")
+        self.init("120", branch="b120a")
+        rows = [line.split()[0] for line in self.state("status").stdout.splitlines()[1:]]
+        self.assertEqual(rows, ["120", "120b", "121"])
+        self.assertEqual(self.state("rm", "120b").returncode, 0)
+        self.assertFalse((self.repo / ".switchyard/state/120b.json").exists())
+
     def test_get_missing_record_has_distinct_exit_code(self):
         result = self.state("get", "500", "branch")
         self.assertEqual(result.returncode, 3)
@@ -366,6 +381,71 @@ class Harness(unittest.TestCase):
         down = self.script("teardown-worktree.sh", "8", "topic", env=env)
         self.assertNotEqual(down.returncode, 0)
         self.assertTrue((self.repo / ".switchyard/state/8.json").exists())
+
+    def hook_log(self):
+        for hook, name in ((self.up_hook, "up"), (self.down_hook, "down")):
+            hook.write_text(f'#!/bin/sh\necho "{name} [$ISSUE] [$CANDIDATE]" >> "$MAIN_CHECKOUT/hooks.log"\n')
+        return self.repo / "hooks.log"
+
+    def test_setup_candidate_requires_first_record(self):
+        result = self.script("setup-worktree.sh", "120b", "topic-b")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("no record", result.stderr)
+        self.assertFalse((self.base / "repo.worktrees/topic-b").exists())
+        self.assertNotIn("refs/heads/topic-b", self.run_cmd("-c", "git show-ref", bash=True).stdout)
+        self.assertFalse((self.repo / ".switchyard/state/120b.json").exists())
+
+    def test_setup_candidate_copies_change_and_isolates_hooks(self):
+        log = self.hook_log()
+        self.assertEqual(self.script("setup-worktree.sh", "120", "topic").returncode, 0)
+        first = Path(self.record("120")["path"])
+        self.state("set", "120", "owned=src/ CHANGELOG.md")
+        (first / "a.txt").write_text("a")
+        subprocess.run(["git", "-C", str(first), "add", "a.txt"], check=True)
+        subprocess.run(["git", "-C", str(first), "commit", "-qm", "a"], check=True)
+        for name in ("openspec/changes/best/tasks.md", "openspec/changes/best/.openspec.yaml",
+                     "openspec/changes/archive/old/tasks.md", ".switchyard/answers/plan.md"):
+            (first / name).parent.mkdir(parents=True, exist_ok=True)
+            (first / name).write_text(name)
+        result = self.script("setup-worktree.sh", "120b", "topic-b")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        second = Path(self.record("120b")["path"])
+        head = lambda tree: subprocess.run(["git", "-C", str(tree), "rev-parse", "HEAD"],
+                                           capture_output=True, text=True, check=True).stdout
+        self.assertEqual(head(second), head(first))
+        for name in ("openspec/changes/best/tasks.md", "openspec/changes/best/.openspec.yaml",
+                     ".switchyard/answers/plan.md"):
+            self.assertEqual((second / name).read_text(), name)
+        self.assertFalse((second / "openspec/changes/archive").exists())
+        self.assertEqual(self.record("120b")["owned"], "src/ CHANGELOG.md")
+        self.assertEqual(self.record("120b")["candidate_of"], "120")
+        self.assertEqual(self.record("120b")["branch"], "topic-b")
+        down = self.script("teardown-worktree.sh", "--abandon", "120b", "topic-b")
+        self.assertEqual(down.returncode, 0, down.stderr)
+        self.assertFalse(second.exists())
+        self.assertTrue(first.exists())
+        self.assertFalse((self.repo / ".switchyard/state/120b.json").exists())
+        self.assertEqual(self.record("120")["branch"], "topic")
+        refs = self.run_cmd("-c", "git show-ref", bash=True).stdout
+        self.assertNotIn("refs/heads/topic-b", refs)
+        self.assertIn("refs/heads/topic", refs)
+        self.assertEqual(self.script("teardown-worktree.sh", "--abandon", "120", "topic").returncode, 0)
+        self.assertEqual(log.read_text().splitlines(),
+                         ["up [120] []", "up [120] [b]", "down [120] [b]", "down [120] []"])
+
+    def test_setup_candidate_of_stacked_issue(self):
+        _, child, head = self.make_stack()
+        result = self.script("setup-worktree.sh", "--parent", "8", "9b", "child-b")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Drop --parent", result.stderr)
+        self.assertFalse((self.repo / ".switchyard/state/9b.json").exists())
+        result = self.script("setup-worktree.sh", "9b", "child-b")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for field, value in (("parent", "8"), ("parent_branch", "parent"), ("parent_head", head)):
+            self.assertEqual(self.record("9b")[field], value)
+        result = self.script("teardown-worktree.sh", "8", "parent")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("restack.sh 9b", result.stderr)
 
     def test_teardown_without_record_succeeds(self):
         path = self.base / "repo.worktrees/topic"

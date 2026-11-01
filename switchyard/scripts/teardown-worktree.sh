@@ -132,7 +132,8 @@ if [ -n "$has_record" ]; then
 fi
 
 if [ -x "$hook" ]; then
-  ISSUE=$issue BRANCH=$branch WORKTREE=$path MAIN_CHECKOUT=$repo "$hook"
+  digits=${issue%b}
+  ISSUE=$digits CANDIDATE=${issue#"$digits"} BRANCH=$branch WORKTREE=$path MAIN_CHECKOUT=$repo "$hook"
 fi
 
 removed=()

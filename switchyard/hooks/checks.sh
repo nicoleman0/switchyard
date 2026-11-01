@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Project hook: the commands a branch must pass before a reviewer starts.
-# Runs from pre-review.sh in the issue's worktree with ISSUE, BRANCH, WORKTREE, and MAIN_CHECKOUT set.
+# Runs from pre-review.sh in the issue's worktree with ISSUE, CANDIDATE, BRANCH, WORKTREE, and MAIN_CHECKOUT
+# set, as for worktree-up.sh.
 # Exit non-zero to fail the gate. Every command runs, so one log lists every failure.
 set -uo pipefail
 

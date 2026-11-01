@@ -157,8 +157,9 @@ sys.exit(subprocess.run([{REAL_GIT!r}, *sys.argv[1:]]).returncode)
         state.parent.mkdir(parents=True, exist_ok=True)
         state.write_text(json.dumps({"issue": issue, "branch": branch, "path": str(tree),
                                      "owned": "CHANGELOG.md code.py"}))
-        self.data["prs"][str(100 + int(issue))] = {"number": 100 + int(issue), "state": "OPEN", "branch": branch,
-                                                  "url": f"https://example.test/pr/{issue}"}
+        number = 100 + int(issue.rstrip("b"))
+        self.data["prs"][str(number)] = {"number": number, "state": "OPEN", "branch": branch,
+                                         "url": f"https://example.test/pr/{issue}"}
         self.save()
         self.trees[issue] = tree
         return tree
@@ -331,6 +332,16 @@ sys.exit(subprocess.run([{REAL_GIT!r}, *sys.argv[1:]]).returncode)
         self.assertIn("99", result.stderr)
         self.assertEqual(self.calls(), [])
         self.assertEqual(self.pushes(), [])
+
+    def test_candidate_key_merges_and_other_suffix_is_rejected(self):
+        self.issue("1b")
+        self.upstream()
+        result = self.queue("--merge", "1b")
+        self.assert_status(result, 0)
+        self.assert_torn_down("1b")
+        result = self.queue("1c")
+        self.assert_status(result, 2)
+        self.assertIn("invalid issue key: 1c", result.stderr)
 
     def test_unchanged_rebase_skips_push(self):
         tree = self.issue()

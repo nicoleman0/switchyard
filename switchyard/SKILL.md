@@ -127,7 +127,7 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
    - Bring product decisions to the maintainer: anything that changes behaviour the issue does not settle, or that reaches past the paths the issue owns. Add them to the question queue.
    - Write the answers to `<path>/.switchyard/answers/plan.md`.
    - Size the reviewed change again and record it: `python3 scripts/state.py set <issue> size=<size>`. Tell the maintainer.
-5. **Implement.** End the planner's session. Pick the implementer provider from the routing table in `switchyard/routing.md`, then the row for `size`. Record it: `python3 scripts/state.py set <issue> "implementer_row=<provider> <flags>"`. Start it in the same worktree. Then prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md and .switchyard/answers/, and implement the change for issue #<issue>.`
+5. **Implement.** End the planner's session. Pick the implementer provider from the routing table in `switchyard/routing.md`, then the row for `size`. Record it: `python3 scripts/state.py set <issue> "implementer_row=<provider> <flags>"`. Start it in the same worktree. Then prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md and .switchyard/answers/, and implement the change for issue #<issue>.` When the maintainer named best-of-N for this issue, follow Best-of-N instead.
 6. **Watch.** Wait for the worker, then read its report. Answer it with a file in `.switchyard/answers/` and a one-line prompt that points to the file. Add questions only the maintainer can answer to the question queue.
    Give `wait-agents.sh` a `--timeout <seconds>` bound. Name the agents to wait for, and leave out any whose issue waits on questions. On exit 4 the script has printed each agent still working: read that agent's pane, then nudge, end, or reassign it.
    Run `state.py turn-end <issue>` when a wait returns and `state.py turn-start <issue>` before you prompt the same session again (Batch state).
@@ -181,6 +181,18 @@ For each PR still open, run the queue as Several PRs says.
 ## Abandon an issue
 
 When an issue is dropped before its worktree is committed, run `scripts/teardown-worktree.sh --abandon <issue> <branch>`. It prints the uncommitted files and the local-only commits it is about to discard, then removes the worktree, the branch, and the record. Passing `--abandon` is the consent; it never prompts. Ordinary teardown stops instead of removing a dirty worktree.
+
+## Best-of-N
+
+Run it only when the maintainer names it for an issue. It roughly doubles implementer usage. Candidate a is the issue's own record, worktree, and branch. Candidate b is record `<issue>b` on branch `<branch>-b`. Every script that takes `<issue>` takes either key.
+
+1. **Plan.** Take the planner path even when the issue sizes `small`, so both candidates build a reviewed change.
+2. **Set up candidate b.** After the plan review, run `scripts/setup-worktree.sh <issue>b <branch>-b`. It branches from candidate a's branch, copies the open change and `.switchyard/answers/`, and records `owned` and `candidate_of`. Copy candidate a's brief into the new worktree and change its worktree, branch, and isolation lines.
+3. **Check isolation.** When candidate b's hook printed the same non-empty values as candidate a's, the project hook ignores `CANDIDATE`. Tell the maintainer, run `scripts/teardown-worktree.sh --abandon <issue>b <branch>-b`, and go on at Per issue step 5 with one implementer.
+4. **Implement.** Pick two implementer providers in rotation order, each with its row for `size`. When the rows allow, pick a pair that leaves a Reviewer row on a third provider. Record and start one on each key as in Per issue step 5. Write every answer to both worktrees, so both build the same plan.
+5. **Gate.** Run `scripts/pre-review.sh` on both keys. A failing candidate gets gate rounds on its own key, as in Per issue step 7. After two failed gate runs in a row, drop it as in step 7 below and give the other an ordinary review at Per issue step 7. When both fail, stop and bring the logs to the maintainer.
+6. **Compare.** End both implementers' sessions. Start one reviewer on candidate a's key, with the first Reviewer row whose provider differs from both implementers. With none, use one that differs from candidate a's implementer, and write "not independent of candidate b" in the PR's Review section. Prompt it: `Read switchyard/roles/reviewer.md and follow it for issue #<issue>. Compare candidates <branch> and <branch>-b.` Line 2 of its review names the kept branch: `Keep: <branch>`.
+7. **Keep one.** End the loser's sessions. When the kept candidate is b, copy the review into its `.switchyard/reviews/`. Run `scripts/teardown-worktree.sh --abandon <loser key> <loser branch>`. Go on at Act on the verdict with the kept candidate's key and branch for every later step. Fix rounds run on the kept candidate only, and the PR's head is its branch.
 
 ## Record lessons
 
