@@ -117,8 +117,8 @@ The project's issue tracker is named in `switchyard/tracker.md`, which the proje
 
 Run `scripts/preflight.sh <provider>...` first, passing the provider names in `routing.md`. It checks the requirements and says how to fix each missing one. Stop on a non-zero exit and tell the maintainer what is missing. Pass its warnings on.
 
-1. Read the issues with `python3 scripts/tracker.py view <issue>` and read `AGENTS.md`. Check the issues against the code. For each one, write down anything the issue leaves undecided, and ask the maintainer before any agent starts.
-2. Split the issues by ownership. Each issue owns folders that no other issue in the batch edits. Issues that touch the same files run one after another, not in parallel. Run first the one whose result the others build on. The maintainer may name issues to stack instead; see Stacked issues.
+1. Read the issues with `python3 scripts/tracker.py view <issue>` and read `AGENTS.md`. Check the issues against the code. For each one, write down anything the issue leaves undecided, and ask the maintainer before any agent starts. On Linear, when the maintainer names a project, run `python3 scripts/tracker.py list <project>` and read each listed issue with `view`: the batch is the listed issues unless the maintainer narrows it.
+2. Split the issues by ownership. Each issue owns folders that no other issue in the batch edits. Issues that touch the same files run one after another, not in parallel. Run first the one whose result the others build on. The maintainer may name issues to stack instead; see Stacked issues. On Linear with a listed project, take the issues in the list's order: an issue with an open blocker in the list starts after that blocker merges, unless the maintainer names the two to stack. An issue with an `(outside)` blocker waits; tell the maintainer which blocker it waits for. The split by owned folders still applies.
 3. Make sure the shared services `AGENTS.md` names are up in the main checkout.
 
 ## Per issue

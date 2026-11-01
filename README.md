@@ -177,6 +177,8 @@ npm init switchyard@latest -- --tracker linear
 - Start every issue's branch with the lowercased key, such as `eng-123-fix-login`. Linear's GitHub integration links a PR whose branch name names the issue, so connect that integration.
 - `gh` is still required: PRs, reviews, and merges all stay on GitHub.
 
+To deliver a whole project, name it in the session: "deliver project Onboarding". `tracker.py list <project>` prints the project's open issues in delivery order: key, status, milestone, the open issues each one is blocked by, and the title. A blocked issue lists after its blocker, so the coordinator starts it only once that blocker has merged, and an issue blocked from another project is marked `(outside)` and waits. The project is matched by name without case or by its slug id.
+
 Each issue moves through a Linear status per phase:
 
 | Phase | Default status | Set by |
