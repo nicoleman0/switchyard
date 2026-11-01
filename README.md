@@ -31,7 +31,7 @@ Each piece covers a gap the others leave:
 
 - **Issue, then plan, then code.** Every issue starts with a short problem statement and ships as one PR. A project with `openspec/` uses one [OpenSpec](https://github.com/Fission-AI/OpenSpec) change per issue; the PR syncs any spec delta and archives the change. Without `openspec/`, the planner writes scenarios and tasks in `.switchyard/plan.md`. The implementer and reviewer use that plan, and nothing is archived.
 - **Planning and building are usually separate sessions.** The planner and implementer can use different effort settings, and the planner stops at a plan. A `small` issue plans and builds in one session, stopping after the plan only when it has questions. The implementer starts fresh and reads the change from disk. Its session does not inherit the planner's context.
-- **Two reviews, two reviewers.** The coordinator checks the plan before any code is written. A reviewer checks the diff against the change before anything is pushed, on another provider when one is available.
+- **Two reviews, two reviewers.** The coordinator checks the plan before any code is written, except on a `small` issue, where it reads the plan with the diff. A reviewer checks the diff against the change before anything is pushed, on another provider when one is available.
 - **Files carry every handoff.** The brief, the answers, the change, and the review live in the worktree. Each session reads them from disk, so no stage works from another session's summary, and the coordinator holds verdicts, not diffs.
 - **One worktree per issue.** Each issue gets its own branch, ports, and data. Issues that own different folders run in parallel.
 - **Workers never push.** Each worktree's push URL is disabled, and a script lists any file changed outside the paths the issue owns. Nothing reaches the remote until the review passes, and nothing merges until you approve it.
@@ -59,7 +59,7 @@ Each piece covers a gap the others leave:
 
    A `small` issue skips steps 4 and 5: one session plans and builds, and stops after the plan only when it has questions.
 
-6. **The implementer builds it.** A fresh session applies the tasks, runs every check, syncs the spec delta into `openspec/specs/` when it has one, archives the change, commits, and writes the PR body. It asks before it decides anything the plan does not cover.
+6. **The implementer builds it.** A new session applies the tasks (on a `small` issue, the same session that planned it), runs every check, syncs the spec delta into `openspec/specs/` when it has one, archives the change, commits, and writes the PR body. It asks before it decides anything the plan does not cover.
 7. **The reviewer checks the diff.** A fresh session, on another provider when available, reads the change and the diff. It checks each scenario, or each task for a `skip_specs: true` change, plus scope, tests, duplication, and screenshots. It runs every check and writes a verdict to a file in the worktree.
 8. **The coordinator acts on the verdict.** On a pass it pushes the branch and opens the PR. Otherwise the implementer's session resumes, or a fresh one starts when the provider cannot resume. It reads the review and fixes it, and a new reviewer checks again. After two failed rounds the coordinator brings the findings to you.
 9. **You approve.** The coordinator squash-merges, removes the worktree and its branch, and rebases the PRs still open.
