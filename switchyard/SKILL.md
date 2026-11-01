@@ -84,7 +84,7 @@ The coordinator must be able to read `AGENTS.md` and this skill, run the skill's
 
 Issue records live in `.switchyard/state/<issue>.json` in the main checkout. `setup-worktree.sh`, `start-worker.sh`, and `teardown-worktree.sh` write or remove them. Run `python3 switchyard/scripts/state.py status` first in a new coordinator session, then read each worker with the runner's Read command. On headless, read the newest log in `<path>/.switchyard/turns/`.
 
-`start-worker.sh` and `end-worker.sh` record when each phase starts and ends. Headless phases end at the next start or at teardown. These times measure open sessions, including waits. Run `python3 switchyard/scripts/state.py timings [issue]` for time per phase, review rounds, and the verdict. Teardown appends each issue's summary to `.switchyard/history.jsonl`, so the report covers finished issues.
+`start-worker.sh` and `end-worker.sh` record when each phase starts and ends. Headless phases end at the next start or at teardown. Run `python3 switchyard/scripts/state.py turn-end <issue>` as soon as a worker's wait returns, before you read it. Run `python3 switchyard/scripts/state.py turn-start <issue>` before you prompt or unblock the same session again. Run `python3 switchyard/scripts/state.py timings [issue]` for time per phase with its BUSY and WAIT columns, review rounds, and the verdict. Teardown appends each issue's summary to `.switchyard/history.jsonl`, so the report covers finished issues.
 
 ## Question queue
 
