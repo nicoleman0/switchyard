@@ -64,7 +64,7 @@ Each piece covers a gap the others leave:
 8. **The coordinator acts on the verdict.** On a pass it pushes the branch and opens the PR. Otherwise a fresh implementer session reads the review and fixes it, and a new reviewer checks again. After two failed rounds the coordinator brings the findings to you.
 9. **You approve.** The coordinator squash-merges, removes the worktree and its branch, and rebases the PRs still open.
 
-You are asked something at three points: before work starts, after the plan, and at the merge.
+You are asked something at three points: before work starts, after the plan, and at the merge. Pre-approve the batch's merges and step 9 asks nothing more: the coordinator merges on the condition you named.
 
 ## Requirements
 

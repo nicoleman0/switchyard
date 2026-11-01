@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Changed
 
+- #113: The maintainer can pre-approve a batch's merges by naming the condition in the coordinator conversation. The approval covers that batch only and can be withdrawn. With a repo that allows auto-merge, `gh pr merge --squash --auto` merges each PR when its CI finishes.
 - #115: Only blockers (an unmet scenario or task, a failed check, a scope breach, a security or data-loss problem) request changes. The coordinator may fix notes and small findings itself, up to about 10 lines.
 - #116: A `small` issue is planned and implemented in one session. It stops for a plan review only when it has questions.
 - #117: `pre-review.sh` runs the checks, the scope check, and OpenSpec validation before a reviewer starts. Projects put their checks in `switchyard/hooks/checks.sh`.
