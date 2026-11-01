@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the cheap checks on an issue's worktree before a reviewer starts.
-# Steps: clean tree, scope, change archived, OpenSpec, project checks (switchyard/hooks/checks.sh). All run.
+# Check the tree, scope, plan or OpenSpec archive, and project checks. All run.
 # Exit 0 if none failed, 1 if one did, 2 if the gate cannot run. Log: <worktree>/.switchyard/checks/<n>.log
 # Usage: pre-review.sh <issue-number>
 set -uo pipefail
@@ -62,8 +62,30 @@ archived() {
   open=$(find openspec/changes -mindepth 1 -maxdepth 1 -type d ! -name archive 2>/dev/null)
   [ -z "$open" ] || { echo "Changes not archived:"; echo "$open"; return 1; }
 }
-step "change archived" archived
-step openspec npx --yes @fission-ai/openspec validate --all --strict
+# shellcheck disable=SC2317,SC2329 # called through step
+plan_complete() {
+  python3 - <<'PY'
+from pathlib import Path
+import re
+import sys
+
+plan = Path(".switchyard/plan.md")
+if not plan.is_file():
+    sys.exit("Missing .switchyard/plan.md")
+pending = [f"{number}: {line}" for number, line in enumerate(plan.read_text().splitlines(), 1)
+           if re.match(r"^\s*- \[ \]", line)]
+if pending:
+    sys.exit("Unfinished plan tasks:\n" + "\n".join(pending))
+PY
+}
+if [ -d "$main/openspec" ]; then
+  step "change archived" archived
+  step openspec npx --yes @fission-ai/openspec validate --all --strict
+else
+  skip "change archived" "plain mode: no openspec/ in main checkout"
+  skip openspec "plain mode: no openspec/ in main checkout"
+  step plan plan_complete
+fi
 
 hook="$main/switchyard/hooks/checks.sh"
 if [ ! -e "$hook" ]; then

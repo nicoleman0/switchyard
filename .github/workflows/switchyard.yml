@@ -64,4 +64,9 @@ jobs:
           git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
           npm test --prefix create-switchyard
       - name: Validate OpenSpec
-        run: npx --yes @fission-ai/openspec validate --all --strict
+        run: |
+          if [ -d openspec ]; then
+            npx --yes @fission-ai/openspec validate --all --strict
+          else
+            echo "Skip OpenSpec validation: no openspec/ folder."
+          fi

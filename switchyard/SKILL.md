@@ -1,6 +1,6 @@
 ---
 name: work-issues
-description: How the coordinator session delivers GitHub issues in this repo. Each issue gets its own worktree, a planner that proposes the OpenSpec change and stops, an implementer on any provider the project lists that applies the reviewed change and commits it, and a reviewer that checks the commit against the change. Use whenever the user asks to work on, implement, or run one or more issues, or a milestone's next steps.
+description: How the coordinator session delivers GitHub issues in this repo. Each issue gets its own worktree, a planner that writes the change and stops, an implementer on any provider the project lists that applies the reviewed change and commits it, and a reviewer that checks the commit against the change. Use whenever the user asks to work on, implement, or run one or more issues, or a milestone's next steps.
 ---
 
 # Work issues
@@ -98,6 +98,12 @@ Open questions for the maintainer wait in one file, `.switchyard/questions.md` i
 - When no issue can move until an answer lands, end your turn with the queue.
 - Delete an issue's section when the issue is torn down.
 
+## Plans
+
+A project uses OpenSpec when its main checkout has an `openspec/` folder. Without one it uses plain mode. "The change" means the OpenSpec change or, in plain mode, `.switchyard/plan.md` in the issue's worktree.
+
+In plain mode the planner copies `switchyard/plan-template.md` to `.switchyard/plan.md` and fills it in. The implementer ticks its tasks. The reviewer checks its scenarios, tasks, and decisions. There is no `Change:` issue line and nothing to archive. Teardown deletes the plan; the PR body keeps the summary.
+
 ## Before starting
 
 Run `scripts/preflight.sh <provider>...` first, passing the provider names in `routing.md`. It checks the requirements and says how to fix each missing one. Stop on a non-zero exit and tell the maintainer what is missing. Pass its warnings on.
@@ -120,9 +126,9 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
 
    Fast path: instead of starting the planner, a `small` issue skips the plan review. Record `size=small` as well; there is no `planner_row`. Pick the implementer provider and its `small` row as in step 5, record `implementer_row`, and start it with role `implementer`. Prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md, and take the fast path for issue #<issue>.` Then go to step 6. When it stops with numbered questions, read the change, write the answers to `answers/plan.md`, and prompt the same session to go on. When it stops because the issue is bigger than `small`, end its session and run steps 4 and 5. At step 7, read the change along with the review, since the plan had no review of its own.
 4. **Review the plan.**
-   - Read the change on disk: the proposal, the design, the spec delta, and the tasks. The planner's last message is only its list of questions.
+   - Read the change on disk: the proposal, the design, the spec delta, and the tasks, or `.switchyard/plan.md` in plain mode. The planner's last message is only its list of questions.
    - Check the change against the code and the specs. Verify any claim it makes about the code or the data before you rely on it.
-   - A change with `skip_specs: true` has no spec delta. Check that the planner set the flag only when the work changes no observable behaviour.
+   - A change with `skip_specs: true` has no spec delta. In plain mode, `Scenarios: none` serves the same purpose. Check that the planner used either only when the work changes no observable behaviour.
    - Answer what you can.
    - Bring product decisions to the maintainer: anything that changes behaviour the issue does not settle, or that reaches past the paths the issue owns. Add them to the question queue.
    - Write the answers to `<path>/.switchyard/answers/plan.md`.
@@ -147,7 +153,7 @@ The reviewer checks the diff against the change. Read its review, not the diff. 
 ## Open the PR
 
 After `Verdict: pass`:
-1. Run `scripts/check-scope.sh <issue>`. It lists the files the branch changed outside its owned paths. The change's files under `openspec/` are always in scope. Rule on each listed file: accept an appended section in a shared doc, and send anything else back as a fix round.
+1. Run `scripts/check-scope.sh <issue>`. It lists the files the branch changed outside its owned paths. The change's files under `openspec/` are always in scope when the repo uses OpenSpec. Rule on each listed file: accept an appended section in a shared doc, and send anything else back as a fix round.
 2. From the main checkout, push with `git push -u origin <branch>`.
 3. Fill the Review section of `.switchyard/pr-body.md` with the reviewer's provider, the verdict, and the number of rounds. Copy the Where to look list from the passing review to the top of the PR body, under a `## Where to look` heading.
 4. Fill the Screenshots section. If your harness can publish a page, as Claude Code's Artifact tool can, publish `<path>/.switchyard/shots/compare.html` and put the link there. Otherwise write that the comparison page was not published, and give its local path.

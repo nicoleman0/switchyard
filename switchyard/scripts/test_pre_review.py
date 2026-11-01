@@ -35,6 +35,8 @@ class PreReview(unittest.TestCase):
         git(self.main, "push", "-q", "origin", "main")
         self.tree = base / "tree"
         git(self.main, "worktree", "add", "-q", "-b", "topic", str(self.tree))
+        (self.main / "openspec").mkdir()
+        (self.tree / "openspec").mkdir()
         self.bin = base / "bin"
         self.bin.mkdir()
         self.stub("npx", 'echo "npx $*"\nexit "${NPX_EXIT:-0}"')
@@ -146,6 +148,63 @@ class PreReview(unittest.TestCase):
         result = self.gate(env={"NPX_EXIT": "1"})
         self.assertEqual(result.returncode, 1)
         self.assertIn("FAIL openspec", result.stdout)
+
+    def plain_mode(self, plan=None):
+        (self.main / "openspec").rmdir()
+        if plan is not None:
+            path = self.tree / ".switchyard/plan.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(plan)
+
+    def test_plain_plan_passes_without_openspec(self):
+        self.plain_mode("# Plan\n\n- [x] Implement\n  - [x] Check\n")
+        result = self.gate(env={"NPX_EXIT": "23"})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for step in ("clean tree", "scope", "plan", "project checks"):
+            self.assertIn(f"PASS {step}", result.stdout)
+        for step in ("change archived", "openspec"):
+            self.assertIn(f"SKIP {step}: plain mode", result.stdout)
+        self.assertNotIn("npx --yes", self.logs()[0].read_text())
+
+    def test_plain_plan_missing_fails(self):
+        self.plain_mode()
+        result = self.gate()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("FAIL plan", result.stdout)
+        self.assertIn("Missing .switchyard/plan.md", self.logs()[0].read_text())
+        self.assertIn("PASS project checks", result.stdout)
+
+    def test_plain_unfinished_plan_fails(self):
+        self.plain_mode()
+        for task in ("- [ ] Implement", "  - [ ] Nested task"):
+            with self.subTest(task=task):
+                plan = self.tree / ".switchyard/plan.md"
+                plan.parent.mkdir(parents=True, exist_ok=True)
+                plan.write_text(f"# Plan\n\n{task}\n")
+                result = self.gate()
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("FAIL plan", result.stdout)
+                self.assertIn(f"3: {task}", self.logs()[-1].read_text())
+                self.assertIn("PASS project checks", result.stdout)
+
+    def test_openspec_mode_ignores_unfinished_plain_plan(self):
+        plan = self.tree / ".switchyard/plan.md"
+        plan.parent.mkdir(parents=True, exist_ok=True)
+        plan.write_text("- [ ] Unused plan\n")
+        result = self.gate()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("PASS change archived", result.stdout)
+        self.assertIn("PASS openspec", result.stdout)
+        self.assertNotIn("PASS plan", result.stdout)
+
+    def test_openspec_mode_still_requires_archive(self):
+        change = self.tree / "openspec/changes/active"
+        change.mkdir(parents=True)
+        result = self.gate()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("FAIL change archived", result.stdout)
+        self.assertIn("Changes not archived:", self.logs()[0].read_text())
+        self.assertIn("PASS openspec", result.stdout)
 
     def test_uncommitted_tracked_change_fails(self):
         (self.tree / "src/a.txt").write_text("changed")

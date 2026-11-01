@@ -3,6 +3,7 @@
 ## Workflow
 
 - Use the GitHub issues as the source of truth for implementation breakdown. Milestones are optional. With them, they set the delivery order. Without them, the order is the one the maintainer names the issues in.
+- The OpenSpec rules below apply when the main checkout has `openspec/`. Without it, use a plain plan at `.switchyard/plan.md` with scenarios and tasks, omit the issue's `Change:` line, and skip OpenSpec validation and archiving. See `switchyard/SKILL.md`, Plans.
 - Product behaviour lives in `openspec/specs/`. Change it through an OpenSpec change in `openspec/changes/` (`/opsx:propose`, `/opsx:apply`, `/opsx:archive`), exactly one change per GitHub issue. If work is too big for one PR, split the issue, not the change. Archive the change in the PR that completes it.
 - New work: open a short GitHub issue (the problem, and a milestone if the project uses them) first, then propose a change that names it. After proposing, add `Change: openspec/changes/<name>` as the first line of the issue body with `gh issue edit`. Use `/opsx:explore` while an idea is still vague. Acceptance criteria live in the change's scenarios and tasks; the issue links to the change instead of repeating them.
 - Deliver issues with the `work-issues` skill (`switchyard/`). The coordinator session plans the work and reviews it. A planner agent proposes each change and an implementer agent builds it, in its own worktree. The skill holds the roles and routing rules. `switchyard/routing.md` is the project's file for providers, models, effort, flags, and commands.

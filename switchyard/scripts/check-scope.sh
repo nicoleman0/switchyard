@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # List files an issue's branch changed outside the paths it owns. Exits 1 if any.
-# The change's own files under openspec/ are always in scope.
+# OpenSpec projects also own the change's files under openspec/.
 # Usage: check-scope.sh <issue-number>
 set -euo pipefail
 
 issue=${1:?issue number required}
-state="$(cd "$(dirname "$0")" && pwd)/state.py"
+scripts="$(cd "$(dirname "$0")" && pwd)"
+state="$scripts/state.py"
+main=$(git -C "$scripts" worktree list --porcelain | sed -n '1s/^worktree //p')
 path=$(python3 "$state" get "$issue" path)
 owned=$(python3 "$state" get "$issue" owned)
 read -r -a prefixes <<<"$owned"
+if [ -d "$main/openspec" ]; then
+  prefixes+=(openspec/)
+fi
 
 base=$(python3 "$state" get "$issue" parent_head 2>/dev/null) || base=origin/main
 changed=$(git -C "$path" diff --name-only "$base...HEAD")
@@ -17,7 +22,7 @@ outside=()
 while IFS= read -r file; do
   [ -n "$file" ] || continue
   inside=0
-  for prefix in openspec/ ${prefixes[@]+"${prefixes[@]}"}; do
+  for prefix in ${prefixes[@]+"${prefixes[@]}"}; do
     case "$file" in "$prefix"*) inside=1 ;; esac
   done
   [ "$inside" = 1 ] || outside+=("$file")

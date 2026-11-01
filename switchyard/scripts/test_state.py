@@ -1071,6 +1071,7 @@ fi'''
         self.assertEqual(self.get("8", "backend"), "claude")
 
     def test_worktree_cannot_push_and_scope_is_checked(self):
+        (self.repo / "openspec").mkdir()
         git = lambda *args, cwd=self.repo: subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True)
         self.assertEqual(git("push", "-q", "origin", "HEAD:main").returncode, 0)
         git("fetch", "-q", "origin")
@@ -1099,6 +1100,27 @@ fi'''
         self.assertEqual(git("push", "-q", "origin", "topic").returncode, 0)
         self.assertIn("refs/heads/topic", git("ls-remote", "--heads", "origin", "topic").stdout)
         self.assertEqual(self.script("teardown-worktree.sh", "8", "topic").returncode, 0)
+
+    def test_scope_uses_main_checkout_mode(self):
+        git = lambda *args, cwd=self.repo: subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True, check=True)
+        git("push", "-q", "origin", "HEAD:main")
+        git("fetch", "-q", "origin")
+        setup = self.script("setup-worktree.sh", "8", "topic")
+        self.assertEqual(setup.returncode, 0, setup.stderr)
+        tree = Path(self.record()["path"])
+        self.state("set", "8", "owned=src/")
+        plan = tree / "openspec/changes/x/tasks.md"
+        plan.parent.mkdir(parents=True)
+        plan.write_text("- [x] Done\n")
+        git("add", "openspec", cwd=tree)
+        git("commit", "-qm", "add change", cwd=tree)
+
+        plain = self.script("check-scope.sh", "8")
+        self.assertEqual(plain.returncode, 1, plain.stderr)
+        self.assertEqual(plain.stdout.splitlines(), ["openspec/changes/x/tasks.md"])
+        (self.repo / "openspec").mkdir()
+        spec = self.script("check-scope.sh", "8")
+        self.assertEqual(spec.returncode, 0, spec.stderr)
 
     def test_check_scope_reports_all_files_when_owned_is_blank(self):
         bash = "/bin/bash"

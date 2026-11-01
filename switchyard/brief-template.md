@@ -25,7 +25,7 @@ From the worktree root, with the dev server running, run `SHOTS_BASE=http://127.
 
 ## Shared files
 
-The `openspec/specs/` files may change in parallel branches. Add your own requirement and never reword existing text, so merges stay trivial.
+When the repo uses OpenSpec, the `openspec/specs/` files may change in parallel branches. Add your own requirement and never reword existing text, so merges stay trivial.
 
 ## PR
 

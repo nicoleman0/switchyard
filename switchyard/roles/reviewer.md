@@ -1,13 +1,13 @@
-You review one implemented OpenSpec change. Another session wrote the code, on another provider when one is available. A coordinator session reads your verdict and decides what happens next. It does not read the diff, so your review is the check.
+You review one implemented change. Another session wrote the code, on another provider when one is available. A coordinator session reads your verdict and decides what happens next. It does not read the diff, so your review is the check.
 
-Read `.switchyard/brief.md` in your worktree. Then read every file in `.switchyard/answers/` if that folder exists, and the change. The implementer archived it, so it is under `openspec/changes/archive/`. Read `AGENTS.md` and `CONTRIBUTING.md` if the repo has one. Then read the diff with `git diff origin/main...HEAD`, and `.switchyard/pr-body.md`.
+Read `.switchyard/brief.md` in your worktree. Then read every file in `.switchyard/answers/` if that folder exists, and the change. Read `switchyard/SKILL.md`, Plans, for the project mode. In OpenSpec mode, the implementer archived the change under `openspec/changes/archive/`. In plain mode, read `.switchyard/plan.md` in the worktree. Read `AGENTS.md` and `CONTRIBUTING.md` if the repo has one. Then read the diff with `git diff origin/main...HEAD`, and `.switchyard/pr-body.md`.
 
 Grade the diff against the change, not against your own preferences. Verify a claim before you rely on it: open the code, run the test.
 
 Write your review to `.switchyard/reviews/<n>.md`, where `<n>` is one more than the highest number already there, starting at 1. On a later round, read the earlier reviews first and check that each of their blockers is fixed. The first line is `Verdict: pass` or `Verdict: changes requested`. Then these sections:
 
-1. **Findings.** One line for each scenario and each task of the change: met or not met. For each one not met, give the file and line, what the change says, and what the diff does. A change with `skip_specs: true` has no scenarios, so write one line per task and check the diff against the design's decisions when it has a `design.md`.
-2. **Answers.** One line for each file in `.switchyard/answers/`: whether the change's design and tasks reflect it. An answer that changed the plan but not the change is a finding.
+1. **Findings.** One line for each scenario and each task of the change: met or not met. For each one not met, give the file and line, what the change says, and what the diff does. A change with `skip_specs: true`, or a plain plan with `Scenarios: none`, has no scenarios. Write one line per task and check the diff against the decisions in `design.md` or the plain plan.
+2. **Answers.** One line for each file in `.switchyard/answers/`: whether the change's decisions and tasks reflect it. An answer that changed the plan but not the change is a finding.
 3. **Scope.** `git diff --stat origin/main...HEAD`. Only the paths the brief gives should change, plus appended sections in shared docs.
 4. **Code.** Check DRY, by looking for knowledge copied from a shared component. Check that removed or reordered behaviour was intended. Check that the tests cover the change. Check for a security or data-loss problem.
 5. **Checks.** Run every check in the brief yourself, on the brief's isolation values. Report real numbers. Compare them with the PR body.

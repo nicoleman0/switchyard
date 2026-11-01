@@ -3,7 +3,7 @@ description: A problem to solve or a gap to fill.
 body:
   - type: markdown
     attributes:
-      value: Keep it short. Acceptance criteria go in the OpenSpec change, not here.
+      value: Keep it short. Acceptance criteria go in the OpenSpec change or plain plan.
   - type: textarea
     id: problem
     attributes:
