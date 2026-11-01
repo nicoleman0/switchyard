@@ -107,6 +107,14 @@ if [ -n "$abandon" ]; then
   fi
 fi
 
+if [ -n "$has_record" ]; then
+  if [ -n "$abandon" ]; then
+    python3 switchyard/scripts/state.py archive "$issue" --abandon
+  else
+    python3 switchyard/scripts/state.py archive "$issue"
+  fi
+fi
+
 if [ -x "$hook" ]; then
   ISSUE=$issue BRANCH=$branch WORKTREE=$path MAIN_CHECKOUT=$repo "$hook"
 fi

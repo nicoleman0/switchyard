@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Read and update issue records in the main checkout's ignored state folder."""
 
+from datetime import datetime, timezone
+import shlex
 import json
 import os
 from pathlib import Path
@@ -62,16 +64,19 @@ def fields(args, issue):
         key, value = item.split("=", 1)
         if not key:
             fail(issue, "field name cannot be empty")
-        if key == "issue":
-            fail(issue, "issue is a reserved field")
+        if key in {"issue", "phases", "archived"}:
+            fail(issue, f"{key} is a reserved field")
         result[key] = value
     return result
 
 
 def command(args):
     if not args:
-        fail("?", "usage: state.py init|set|get|rm|status ...")
+        fail("?", "usage: state.py init|set|get|rm|status|phase-start|phase-end|archive|timings ...")
     action = args.pop(0)
+    if action == "timings":
+        timings(args)
+        return
     if action == "status":
         status()
         return
@@ -93,6 +98,36 @@ def command(args):
         if value is None or value == "":
             fail(issue, f"field {args[0]} is missing or empty")
         print(value)
+    elif action in {"phase-start", "phase-end", "archive"}:
+        if args and (action != "archive" or args != ["--abandon"]):
+            fail(issue, f"unexpected arguments for {action}")
+        record = read_record(issue)
+        if action == "archive" and record.get("archived"):
+            return
+        if action == "phase-start" and (not record.get("role") or not record.get("backend")):
+            fail(issue, "phase-start requires role and backend")
+        now = timestamp()
+        changed = close_phases(record, now)
+        if action == "phase-start":
+            role = record["role"]
+            record.setdefault("phases", []).append({
+                "role": role, "provider": record["backend"],
+                "row": record.get(f"{role}_row", ""), "started": now,
+            })
+            changed = True
+        elif action == "archive":
+            rounds, verdict = review_result(record)
+            summary = {key: record.get(key, "") for key in ("issue", "branch", "plan_size", "size")}
+            summary.update(phases=record.get("phases", []), rounds=rounds, verdict=verdict,
+                           abandoned=bool(args), archived=now)
+            history = repo_root() / ".switchyard/history.jsonl"
+            history.parent.mkdir(parents=True, exist_ok=True)
+            with history.open("a") as handle:
+                handle.write(json.dumps(summary) + "\n")
+            record["archived"] = now
+            changed = True
+        if changed:
+            write_record(path, record)
     elif action == "rm":
         try:
             path.unlink()
@@ -100,6 +135,134 @@ def command(args):
             pass
     else:
         fail(issue, f"unknown command {action}")
+
+
+def timestamp():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def close_phases(record, now):
+    changed = False
+    for phase in record.get("phases", []):
+        if "ended" not in phase:
+            phase["ended"] = now
+            changed = True
+    return changed
+
+
+def review_result(record):
+    if "rounds" in record:
+        return record["rounds"], record["verdict"]
+    if not record.get("path"):
+        return "-", "-"
+    folder = Path(record["path"]) / ".switchyard/reviews"
+    files = [p for p in folder.glob("*.md") if p.stem.isascii() and p.stem.isdigit()]
+    if not files:
+        return "-", "-"
+    lines = max(files, key=lambda p: int(p.stem)).read_text().splitlines()
+    return len(files), lines[0].removeprefix("Verdict: ") if lines else "-"
+
+
+def model(row):
+    if not row:
+        return "-"
+    words = shlex.split(row)
+    for index, word in enumerate(words):
+        if word.startswith("--model="):
+            return word.split("=", 1)[1]
+        if word in {"--model", "-m"} and index + 1 < len(words):
+            return words[index + 1]
+    return "default"
+
+
+def seconds(start, end):
+    return int((datetime.fromisoformat(end.replace("Z", "+00:00")) -
+                datetime.fromisoformat(start.replace("Z", "+00:00"))).total_seconds())
+
+
+def duration(value):
+    if value < 60:
+        return f"{value}s"
+    if value < 3600:
+        return f"{value // 60}m"
+    return f"{value // 3600}h{value % 3600 // 60:02d}m"
+
+
+def total_time(record, now):
+    phases = record.get("phases", [])
+    if not phases:
+        return "0s"
+    return duration(seconds(min(p["started"] for p in phases),
+                            max(p.get("ended", now) for p in phases)))
+
+
+def print_table(headers, rows):
+    widths = [max(len(header), *(len(str(row[i])) for row in rows))
+              for i, header in enumerate(headers)] if rows else [len(h) for h in headers]
+    for row in [headers, *rows]:
+        print("  ".join(str(cell).ljust(widths[i]) for i, cell in enumerate(row)).rstrip())
+
+
+def timings(args):
+    if len(args) > 1:
+        fail("?", "usage: state.py timings [issue]")
+    root = repo_root() / ".switchyard"
+    history = []
+    if (root / "history.jsonl").exists():
+        for number, line in enumerate((root / "history.jsonl").read_text().splitlines(), 1):
+            try:
+                history.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                print(f"Cannot read history line {number}: {exc}", file=sys.stderr)
+    now = timestamp()
+    if args:
+        issue = args[0]
+        path = issue_path(issue)
+        if path.exists():
+            record = read_record(issue)
+        else:
+            record = next((r for r in reversed(history) if r["issue"] == issue), None)
+        if record is None:
+            print("No timings recorded.")
+            return
+        rows = []
+        for phase in record.get("phases", []):
+            elapsed = duration(seconds(phase["started"], phase.get("ended", now)))
+            if "ended" not in phase:
+                elapsed = "running " + elapsed
+            rows.append([phase["role"], phase["provider"], model(phase["row"]), phase["started"], elapsed])
+        print_table(["ROLE", "PROVIDER", "MODEL", "STARTED", "TIME"], rows)
+        rounds, verdict = review_result(record)
+        if record.get("abandoned"):
+            verdict = "abandoned"
+        print(f"Rounds: {rounds}  Verdict: {verdict}  Total: {total_time(record, now)}")
+        return
+    records = history[:]
+    for path in sorted((root / "state").glob("*.json")):
+        try:
+            record = json.loads(path.read_text())
+            if not record.get("archived"):
+                records.append(record)
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"Cannot read {path}: {exc}", file=sys.stderr)
+    if not records:
+        print("No timings recorded.")
+        return
+    rows, totals = [], {}
+    for record in records:
+        rounds, verdict = review_result(record)
+        rows.append([record["issue"], record.get("size") or "-", rounds,
+                     "abandoned" if record.get("abandoned") else verdict, total_time(record, now)])
+        for phase in record.get("phases", []):
+            if "ended" not in phase:
+                continue
+            key = (phase["provider"], model(phase["row"]), phase["role"])
+            count, elapsed = totals.get(key, (0, 0))
+            totals[key] = count + 1, elapsed + seconds(phase["started"], phase["ended"])
+    print_table(["ISSUE", "SIZE", "ROUNDS", "VERDICT", "TOTAL"], rows)
+    print()
+    print_table(["PROVIDER", "MODEL", "ROLE", "PHASES", "TIME"],
+                [[*key, count, duration(elapsed)] for key, (count, elapsed) in sorted(totals.items())])
 
 
 def status():

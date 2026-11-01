@@ -68,6 +68,7 @@ PY
 fi
 
 python3 "$state" set "$issue" "role=$role" "backend=$backend" "worker=$worker" "session=$session" ${extra[@]+"${extra[@]}"}
+python3 "$state" phase-start "$issue"
 printf 'path=%s\n' "$path"
 [ -z "$pane" ] || printf 'pane=%s\n' "$pane"
 [ -z "$worker" ] || printf 'name=%s\n' "$worker"
