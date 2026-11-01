@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import os
 import re
 import shutil
@@ -13,6 +14,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPT = Path(__file__).with_name("update-switchyard.py").resolve()
 VERSION = "switchyard/VERSION"
@@ -166,7 +168,7 @@ class UpdateSwitchyardTests(unittest.TestCase):
         env = self.env.copy()
         env["TMPDIR"] = str(self.root)
         return subprocess.run(["python3", str(SCRIPT), "--source", str(self.source), *args],
-                              cwd=cwd or self.project, env=env,
+                              cwd=cwd or self.project, env=env, stdin=subprocess.DEVNULL,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def run_check(self, *args: str) -> subprocess.CompletedProcess[bytes]:
@@ -922,6 +924,72 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertIn(b"not a regular file", result.stderr)
         self.assertEqual(self.git(self.project, "status", "--porcelain").stdout, b"")
 
+    def test_install_mode_flags(self) -> None:
+        self.make_project(files={"README.md": b"mine\n"}, version=None)
+        for flag, enabled in (("--no-openspec", False), ("--openspec", True)):
+            with self.subTest(flag=flag):
+                result = self.run_update("--install", "--dry-run", flag)
+                self.assertEqual(result.returncode, 0, result.stderr.decode())
+                self.assertEqual(b"added: openspec/config.yaml" in result.stdout, enabled)
+                self.assertEqual(INIT_COMMAND.encode() in result.stdout, enabled)
+                self.assertEqual(b"Plans: plain" in result.stdout, not enabled)
+        result = self.run_update("--install", "--no-openspec")
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertFalse((self.project / "openspec").exists())
+
+    def test_existing_folder_overrides_plain_install_flag(self) -> None:
+        self.make_project(files={"openspec/notes.txt": b"keep\n"}, version=None)
+        result = self.run_update("--install", "--no-openspec")
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertIn(b"openspec/ folder exists", result.stderr)
+        self.assertTrue((self.project / "openspec/config.yaml").exists())
+        self.assertEqual((self.project / "openspec/notes.txt").read_bytes(), b"keep\n")
+
+    def test_mode_flag_refusals_write_nothing(self) -> None:
+        self.make_project(files={"README.md": b"mine\n"}, version=None)
+        for flags in (("--install", "--openspec", "--no-openspec"),
+                      ("--check", "--openspec"), ("--check", "--no-openspec")):
+            with self.subTest(flags=flags):
+                result = self.run_update(*flags)
+                self.assertEqual(result.returncode, 2, result.stdout.decode())
+                self.assertEqual(self.git(self.project, "status", "--porcelain").stdout, b"")
+
+    def test_update_mode_comes_from_folder_even_with_flag(self) -> None:
+        changed = RELEASE_CONFIG + b"  design:\n    - New design rule.\n"
+        self.make_target({"openspec/config.yaml": changed})
+        self.make_project()
+        for flag in ("--openspec", "--no-openspec"):
+            with self.subTest(flag=flag, mode="openspec"):
+                result = self.run_update("--dry-run", flag)
+                self.assertEqual(result.returncode, 0, result.stderr.decode())
+                self.assertIn(b"openspec/ folder decides the mode after install", result.stdout)
+                self.assertIn(b"openspec/config.yaml", result.stdout)
+        shutil.rmtree(self.project / "openspec")
+        self.commit(self.project, "use plain plans")
+        for flags in ((), ("--openspec",), ("--no-openspec",)):
+            with self.subTest(flags=flags, mode="plain"):
+                result = self.run_update("--dry-run", *flags)
+                self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
+                self.assertNotIn(b"openspec/config.yaml", result.stdout)
+                self.assertFalse((self.project / "openspec").exists())
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertFalse((self.project / "openspec").exists())
+
+    def test_openspec_prompt_answers(self) -> None:
+        spec = importlib.util.spec_from_file_location("updater_prompt", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        for answers, expected in (("n\n", False), ("yes\n", True), ("\n", True),
+                                  ("", True), ("invalid\n NO \n", False), ("Y\n", True)):
+            with self.subTest(answers=answers):
+                stream = io.StringIO(answers)
+                with patch.object(stream, "isatty", return_value=True), patch.object(sys, "stdin", stream), patch("sys.stdout", new_callable=io.StringIO):
+                    self.assertEqual(module.ask_openspec(), expected)
+        with patch.object(sys, "stdin", io.StringIO("n\n")):
+            self.assertTrue(module.ask_openspec())
+
     def test_install_into_empty_repo(self) -> None:
         self.make_target()
         self.make_project(files={"README.md": b"mine\n"}, version=None)
@@ -1173,7 +1241,8 @@ class UpdateSwitchyardTests(unittest.TestCase):
         result = subprocess.run(
             ["python3", "../switchyard/switchyard/scripts/update-switchyard.py",
              "--install", "--source", "../switchyard"],
-            cwd=self.project, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            cwd=self.project, env=self.env, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
         self.assertEqual((self.project / VERSION).read_text(), "0.2.0\n")
         self.assertIn(b"added: AGENTS.md", result.stdout)

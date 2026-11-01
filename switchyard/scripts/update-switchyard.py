@@ -575,6 +575,20 @@ def undo_block(root: Path, entries: list[Undo]) -> str:
     return "\n".join(lines)
 
 
+def ask_openspec() -> bool:
+    if not sys.stdin.isatty():
+        return True
+    while True:
+        try:
+            answer = input("Use OpenSpec for plans? [Y/n] ").strip().lower()
+        except EOFError:
+            return True
+        if answer in ("", "y", "yes"):
+            return True
+        if answer in ("n", "no"):
+            return False
+
+
 def run() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", default=DEFAULT_SOURCE, help="Switchyard repository or local clone")
@@ -586,12 +600,18 @@ def run() -> int:
                         help="print the report without writing any file")
     parser.add_argument("--check", action="store_true",
                         help="report whether VERSION is behind the newest release; writes nothing")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--openspec", dest="openspec", action="store_true",
+                      help="include OpenSpec on install")
+    mode.add_argument("--no-openspec", dest="openspec", action="store_false",
+                      help="use plain plans on install")
+    parser.set_defaults(openspec=None)
     args = parser.parse_args()
 
     try:
         if args.check:
-            if args.install or args.base or args.target or args.dry_run:
-                raise Refusal("--check cannot be combined with --install, --from, --to, or --dry-run")
+            if args.install or args.base or args.target or args.dry_run or args.openspec is not None:
+                raise Refusal("--check cannot be combined with --install, --from, --to, --dry-run, --openspec, or --no-openspec")
             project_root = find_project_root()
             stored = read_version(project_root)
             if stored is None:
@@ -633,6 +653,15 @@ def run() -> int:
         raw_base = args.base or stored
 
         openspec_existed = (project_root / "openspec").is_dir()
+        use_openspec = openspec_existed
+        if args.install:
+            if openspec_existed:
+                if args.openspec is False:
+                    print("Warning: openspec/ folder exists; continuing in OpenSpec mode.", file=sys.stderr)
+            else:
+                use_openspec = args.openspec if args.openspec is not None else ask_openspec()
+        elif args.openspec is not None:
+            print("Ignoring OpenSpec flag: the openspec/ folder decides the mode after install.")
         agents_existed = local_file(project_root, AGENTS_PATH)[0] is not None
 
         with tempfile.TemporaryDirectory(prefix="switchyard-source-") as temporary:
@@ -677,6 +706,9 @@ def run() -> int:
                     return 0
 
             paths = read_update_paths(bare, target)
+            if not use_openspec:
+                paths = [path for path in paths if path.rstrip("/") != "openspec"
+                         and not path.startswith("openspec/")]
             target_tree = selected_entries(tree_entries(bare, target, paths), paths)
             for listed in paths:
                 if not any(covers(path, [listed]) for path in target_tree):
@@ -804,7 +836,9 @@ def run() -> int:
                 if counts.get(status):
                     print(f"{status}: {counts[status]}")
             if args.install:
-                if not openspec_existed:
+                if not use_openspec:
+                    print("Plans: plain (no openspec/ folder); see SKILL.md, Plans.")
+                elif not openspec_existed:
                     print(f"Next: run {INIT_COMMAND} in this repository")
                 if agents_existed:
                     print("Next: list the project's checks in AGENTS.md")

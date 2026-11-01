@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Added
 
+- #138: Install asks whether to include OpenSpec. Use `--no-openspec` for plain plans; later updates keep that mode.
+
 - #82: Projects without `openspec/` use a plain plan with scenarios and tasks. Roles and review checks support both modes.
 - #134: `merge-queue.py` restacks each child after its parent merges, before the parent's teardown, and refuses a child queued ahead of its parent. It waits up to 60 seconds for a lagging PR head after a push.
 - #124: `state.py timings` splits each phase into busy and wait time. The coordinator marks turns with `state.py turn-end` and `turn-start`.
