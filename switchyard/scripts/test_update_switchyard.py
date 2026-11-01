@@ -20,6 +20,7 @@ SCRIPT = Path(__file__).with_name("update-switchyard.py").resolve()
 VERSION = "switchyard/VERSION"
 ROUTING = "switchyard/routing.md"
 LESSONS = "switchyard/lessons.md"
+TRACKER = "switchyard/tracker.md"
 PATHS = "switchyard/update-paths.txt"
 CHANGELOG = "CHANGELOG.md"
 UPDATER = "switchyard/scripts/update-switchyard.py"
@@ -581,6 +582,29 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertNotIn(("updated: " + ROUTING).encode(), result.stdout)
         self.assertNotIn(("added: " + ROUTING).encode(), result.stdout)
 
+    def test_update_keeps_edited_tracker(self) -> None:
+        self.source.joinpath(TRACKER).write_bytes(b"Tracker: github\n")
+        self.commit(self.source, "add tracker base")
+        self.git(self.source, "tag", "-f", "v0.1.0")
+        self.make_target({TRACKER: b"Tracker: github\n# v2\n"})
+        files = {k: v for k, v in DEFAULT_FILES.items() if k != "outside.txt"}
+        files[TRACKER] = b"project edit\n"
+        self.make_project(files=files)
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual((self.project / TRACKER).read_bytes(), b"project edit\n")
+
+    def test_update_adds_missing_tracker(self) -> None:
+        self.source.joinpath(TRACKER).write_bytes(b"Tracker: github\n")
+        self.commit(self.source, "add tracker base")
+        self.git(self.source, "tag", "-f", "v0.1.0")
+        self.make_target({TRACKER: b"Tracker: github\n"})
+        files = {k: v for k, v in DEFAULT_FILES.items() if k not in ("outside.txt", TRACKER)}
+        self.make_project(files=files)
+        result = self.run_update()
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertIn(("added: " + TRACKER).encode(), result.stdout)
+
     def test_project_owned_routing_survives_upstream_deletion_without_report(self) -> None:
         self.source.joinpath(ROUTING).write_bytes(b"example v1\n")
         self.commit(self.source, "add routing base")
@@ -1141,6 +1165,22 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
         self.assertIn(("added: " + ROUTING).encode(), result.stdout)
         self.assertEqual((self.project / ROUTING).read_bytes(), b"release routing\n")
+
+    def test_install_keeps_existing_project_owned_tracker(self) -> None:
+        self.make_target({TRACKER: b"Tracker: github\n"})
+        self.make_project(files={TRACKER: b"Tracker: project\n"}, version=None)
+        result = self.run_update("--install")
+        self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
+        self.assertNotIn(b"tracker.md", result.stdout)
+        self.assertEqual((self.project / TRACKER).read_bytes(), b"Tracker: project\n")
+
+    def test_install_adds_missing_project_owned_tracker(self) -> None:
+        self.make_target({TRACKER: b"Tracker: github\n"})
+        self.make_project(files={}, version=None)
+        result = self.run_update("--install")
+        self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
+        self.assertIn(("added: " + TRACKER).encode(), result.stdout)
+        self.assertEqual((self.project / TRACKER).read_bytes(), b"Tracker: github\n")
 
     def test_install_keeps_existing_project_owned_lessons(self) -> None:
         self.make_target({LESSONS: b"release lessons\n"})

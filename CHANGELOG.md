@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Changed
+
+- #148: `scripts/tracker.py` is the only place that calls the issue tracker: `view <issue>` and `set-change <issue> <path>` replace `gh issue view` and `gh issue edit`. `switchyard/tracker.md` names the tracker (`github`); the updater adds it and never replaces it. Reading an issue now prints the title and body even with no comments.
+
 ## [0.10.0] - 2026-11-01
 
 ### Added

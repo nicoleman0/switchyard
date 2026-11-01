@@ -2,7 +2,7 @@
 
 You work on one issue in your own git worktree. A coordinator session reviews the plan and relays questions to the maintainer. A reviewer session checks the commit against the change, on another provider when the project has one. Answers to your questions arrive as files in `.switchyard/answers/`.
 
-- Issue: #{issue}, {title}. Read it with `gh issue view {issue} --comments`.
+- Issue: #{issue}, {title}. Read it with `python3 switchyard/scripts/tracker.py view {issue}`.
 - Worktree: `{path}`, branch `{branch}`.
 - Isolation values: {values}.
 - You own: {owned_paths}. Anything else is shared: ask before you change it.

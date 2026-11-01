@@ -95,6 +95,7 @@ Install asks whether to use OpenSpec, default yes; use `npm init switchyard@late
 - When the project uses OpenSpec, `openspec/config.yaml` gains the Switchyard `rules` entries without replacing `context` or the project's own rules.
 - `switchyard/routing.md` is added when it is missing and never replaced.
 - `switchyard/lessons.md` is added when it is missing and never replaced.
+- `switchyard/tracker.md` is added when it is missing and never replaced.
 
 The report lists each file as `added`, `merged`, or `conflict`, then the totals, and writes `VERSION` naming the release. Conflict markers name the two sides. In `AGENTS.md`, `.gitignore`, and `openspec/config.yaml`, they stay inside the owned section or rule list. Any other existing workflow file that differs gets markers around the whole file. Resolve them, review the diff, and commit. The updater ends by printing the commands that undo the run.
 
@@ -131,6 +132,7 @@ These are your project's own files and settings. The first two rows apply only t
 | `switchyard/brief-template.md`, Isolation section | Rules every worker must follow, such as how to start a dev server on its own port. |
 | `switchyard/scripts/shots.mjs` | The routes to screenshot, if the project has a UI. |
 | `switchyard/routing.md` | The Providers table holds each provider's commands. The Workers table holds providers, models, effort, and flags, and a row can name an issue size in its Use column. Shipped values are examples. This file belongs to your project. |
+| `switchyard/tracker.md` | The `Tracker:` line names the issue tracker. It ships as `github`. `scripts/tracker.py` reads it. This file belongs to your project. |
 
 The coordinator's CLI setup belongs in the project's Coordinator notes in `routing.md`.
 
@@ -151,6 +153,7 @@ The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, o
 
 The updater adds `switchyard/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
 The updater adds `switchyard/lessons.md` when it is missing, then leaves it unchanged in later updates. The project owns its content: the coordinator edits it during a batch.
+The updater adds `switchyard/tracker.md` when it is missing, then leaves it unchanged in later updates.
 
 Preflight warns when `switchyard/VERSION` is behind the newest release. Run `python3 switchyard/scripts/update-switchyard.py --check` for the same check: it exits 0 when current, 3 when behind, and 4 when the source cannot be reached.
 
@@ -217,6 +220,7 @@ switchyard/
   SKILL.md                       the coordinator's playbook and routing rules
   routing.md                     project-owned providers, models, effort, flags, and commands
   lessons.md                     project-owned one-line traps from each batch
+  tracker.md                     project-owned issue tracker name
   roles/                         planner, implementer, and reviewer instructions, shared by every provider
   runners/                       Herdr and headless commands
   hooks/                         your per-issue isolation
