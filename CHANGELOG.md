@@ -4,10 +4,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-01
+
 ### Added
 
 - #138: Install asks whether to include OpenSpec. Use `--no-openspec` for plain plans; later updates keep that mode.
-
 - #82: Projects without `openspec/` use a plain plan with scenarios and tasks. Roles and review checks support both modes.
 - #134: `merge-queue.py` restacks each child after its parent merges, before the parent's teardown, and refuses a child queued ahead of its parent. It waits up to 60 seconds for a lagging PR head after a push.
 - #124: `state.py timings` splits each phase into busy and wait time. The coordinator marks turns with `state.py turn-end` and `turn-start`.
@@ -175,7 +176,8 @@ First release.
 - `AGENTS.md` with the workflow and writing rules every agent reads.
 - A README that explains the workflow and how to start a project from the template.
 
-[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/nicoleman0/switchyard/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/nicoleman0/switchyard/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/nicoleman0/switchyard/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/nicoleman0/switchyard/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/nicoleman0/switchyard/compare/v0.7.2...v0.8.0
