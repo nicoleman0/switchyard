@@ -13,10 +13,12 @@ import subprocess
 import sys
 import time
 
-from state import valid_key
+from state import key_order, valid_key
 
 
 SCRIPTS = Path(__file__).resolve().parent
+# GitHub usually shows a pushed head within seconds.
+HEAD_LAG = 60
 
 
 class Stop(Exception):
@@ -83,6 +85,23 @@ def rebase(tree):
     return sorted(resolved)
 
 
+def wait_head(main, pr, branch, head, timeout, poll, progress):
+    remote = run(main, "git", "ls-remote", "--heads", "origin", f"refs/heads/{branch}").stdout.split()
+    if not remote or remote[0] != head:
+        raise Stop("local head differs from PR headRefOid; reconcile the branch before retrying")
+    progress("PR head lags the pushed branch; waiting")
+    bound = min(HEAD_LAG, timeout)
+    deadline = time.monotonic() + bound
+    while True:
+        view = payload(run(main, "gh", "pr", "view", str(pr), "--json", "headRefOid"))
+        if view["headRefOid"] == head:
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise Stop(f"PR head did not reach {head} within {bound:g}s")
+        time.sleep(min(poll, remaining))
+
+
 def wait_ci(main, pr, head, timeout, poll, progress):
     deadline = time.monotonic() + timeout
     phase = "head update"
@@ -121,6 +140,21 @@ def wait_ci(main, pr, head, timeout, poll, progress):
         time.sleep(min(poll, remaining))
 
 
+def record(main, issue):
+    return json.loads((main / ".switchyard/state" / f"{issue}.json").read_text())
+
+
+def restack_children(main, issue, progress):
+    children = [path.stem for path in (main / ".switchyard/state").glob("*.json")
+                if str(record(main, path.stem).get("parent", "")) == issue]
+    for child in sorted(children, key=key_order):
+        progress(f"restacking #{child}")
+        result = run(main, "bash", str(SCRIPTS / "restack.sh"), child, check=False)
+        print(result.stdout, end="", flush=True)
+        if result.returncode:
+            raise Stop(f"restack of #{child} failed ({result.returncode}): {result.stderr.strip()}")
+
+
 def teardown(main, issue, branch):
     result = run(main, "bash", str(SCRIPTS / "teardown-worktree.sh"), issue, branch)
     print(result.stdout, end="", flush=True)
@@ -140,7 +174,9 @@ def process(main, issue, branch, tree, args):
         row = prs[0]
         pr = row["number"]
         if row["state"] == "MERGED":
-            progress("already merged; tearing down")
+            progress("already merged")
+            restack_children(main, issue, progress)
+            progress("tearing down")
             teardown(main, issue, branch)
             return 0
         if row["state"] != "OPEN":
@@ -157,7 +193,7 @@ def process(main, issue, branch, tree, args):
             raise Stop(f"worktree already has a rebase in progress: {tree}")
         old = run(tree, "git", "rev-parse", "HEAD").stdout.strip()
         if old != row["headRefOid"]:
-            raise Stop("local head differs from PR headRefOid; reconcile the branch before retrying")
+            wait_head(main, pr, branch, old, args.timeout, args.poll, progress)
         progress("rebasing onto origin/main")
         files = rebase(tree)
         head = run(tree, "git", "rev-parse", "HEAD").stdout.strip()
@@ -201,7 +237,9 @@ def process(main, issue, branch, tree, args):
         merged = payload(run(main, "gh", "pr", "view", str(pr), "--json", "state"))
         if merged["state"] != "MERGED":
             raise Stop("merge command returned but PR is not MERGED")
-        progress("merged; tearing down")
+        progress("merged")
+        restack_children(main, issue, progress)
+        progress("tearing down")
         teardown(main, issue, branch)
         return 0
     except (Stop, OSError, ValueError, KeyError, TypeError, KeyboardInterrupt) as exc:
@@ -225,6 +263,10 @@ def main():
             values = [run(main, sys.executable, str(SCRIPTS / "state.py"), "get", issue, key).stdout.strip()
                       for key in ("branch", "path")]
             records.append((issue, values[0], Path(values[1]).resolve()))
+            parent = str(record(main, issue).get("parent") or "")
+            # A child rebased onto main before its parent merges would replay the parent's commits.
+            if parent and parent not in args.issues[:len(records) - 1]:
+                raise Stop(f"#{issue} is stacked on #{parent}; queue #{parent} before it")
     except (Stop, OSError, ValueError, argparse.ArgumentTypeError) as exc:
         print(f"Cannot run queue: {exc}", file=sys.stderr)
         return 2

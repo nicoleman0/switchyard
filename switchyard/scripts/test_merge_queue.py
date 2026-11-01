@@ -38,10 +38,26 @@ def head(row):
         return row["merged_head"]
     return git("--git-dir", data["origin"], "rev-parse", "refs/heads/" + row["branch"])
 
+def listed(row):
+    sequence = row.get("list_heads", [])
+    value = sequence.pop(0) if sequence else head(row)
+    save()
+    return dict(row, headRefOid=value)
+
 if args[:2] == ["pr", "list"]:
     branch = args[args.index("--head") + 1]
-    rows = [dict(row, headRefOid=head(row)) for row in data["prs"].values() if row["branch"] == branch]
-    print(json.dumps(rows))
+    rows = [row for row in data["prs"].values() if row["branch"] == branch]
+    if args[args.index("--state") + 1] == "open":
+        rows = [row for row in rows if row["state"] == "OPEN"]
+    if "--jq" in args:
+        print(rows[0]["number"] if rows else "")
+    else:
+        print(json.dumps([listed(row) for row in rows]))
+    sys.exit(0)
+if args[:2] == ["pr", "edit"]:
+    row = next(row for row in data["prs"].values() if row["branch"] == args[2])
+    row["base"] = args[args.index("--base") + 1]
+    save()
     sys.exit(0)
 row = data["prs"][args[2]]
 if args[1] == "view":
@@ -142,27 +158,45 @@ sys.exit(subprocess.run([{REAL_GIT!r}, *sys.argv[1:]]).returncode)
     def save(self):
         Path(self.env["QUEUE_FIXTURE"]).write_text(json.dumps(self.data))
 
-    def issue(self, issue="1"):
+    def issue(self, issue="1", base="main", files=None, fields=None):
         tree = self.base / f"tree-{issue}"
         branch = f"topic-{issue}"
-        git(self.main, "worktree", "add", "-q", "-b", branch, str(tree))
+        git(self.main, "worktree", "add", "-q", "-b", branch, str(tree), base)
         git(tree, "config", "extensions.worktreeConfig", "true")
         git(tree, "config", "--worktree", "remote.origin.pushurl", "disabled://push-from-main")
-        self.write(tree, "CHANGELOG.md", f"# Changelog\n\n## [Unreleased]\n\n### Added\n\n- issue {issue}\n\n## [1.0.0]\n\n- old\n")
-        self.write(tree, "openspec/specs/queue/spec.md", f"# Queue\n\n## Issue {issue}\n")
+        if files is None:
+            files = {"CHANGELOG.md": f"# Changelog\n\n## [Unreleased]\n\n### Added\n\n- issue {issue}\n\n## [1.0.0]\n\n- old\n",
+                     "openspec/specs/queue/spec.md": f"# Queue\n\n## Issue {issue}\n"}
+        for name, text in files.items():
+            self.write(tree, name, text)
         git(tree, "add", ".")
         git(tree, "commit", "-qm", f"issue {issue}")
         git(self.main, "push", "-q", "origin", branch)
         state = self.main / ".switchyard/state" / f"{issue}.json"
         state.parent.mkdir(parents=True, exist_ok=True)
         state.write_text(json.dumps({"issue": issue, "branch": branch, "path": str(tree),
-                                     "owned": "CHANGELOG.md code.py"}))
+                                     "owned": "CHANGELOG.md code.py", **(fields or {})}))
         number = 100 + int(issue.rstrip("b"))
         self.data["prs"][str(number)] = {"number": number, "state": "OPEN", "branch": branch,
                                          "url": f"https://example.test/pr/{issue}"}
         self.save()
         self.trees[issue] = tree
         return tree
+
+    def stacked(self, child, parent, files=None):
+        branch = f"topic-{parent}"
+        fields = {"parent": parent, "parent_branch": branch, "parent_head": git(self.main, "rev-parse", branch),
+                  "owned": f"CHANGELOG.md code.py child-{child}.txt"}
+        tree = self.issue(child, branch, files or {f"child-{child}.txt": f"child {child}\n"}, fields)
+        self.data["prs"][str(100 + int(child))]["base"] = branch
+        self.save()
+        return tree
+
+    def state(self, issue):
+        return json.loads((self.main / f".switchyard/state/{issue}.json").read_text())
+
+    def fixture(self):
+        return json.loads(Path(self.env["QUEUE_FIXTURE"]).read_text())
 
     def upstream(self, code=False):
         self.write(self.main, "CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n### Added\n\n- upstream\n\n## [1.0.0]\n\n- old\n")
@@ -267,6 +301,112 @@ sys.exit(subprocess.run([{REAL_GIT!r}, *sys.argv[1:]]).returncode)
         self.assertIn("local head differs", result.stderr)
         self.assertEqual(git(tree, "rev-parse", "HEAD"), before)
         self.assertFalse(any("rebase" in call["args"] for call in self.calls("GIT")))
+
+    def test_lagging_pr_head_waits_for_pushed_branch(self):
+        self.issue()
+        self.data["prs"]["101"].update(list_heads=["stale"], heads=["stale"])
+        self.save()
+        result = self.queue("1")
+        self.assert_status(result, 3)
+        self.assertIn("PR head lags", result.stdout)
+        self.assertEqual(self.fixture()["prs"]["101"]["heads"], [])
+
+    def test_lagging_pr_head_stops_at_bound(self):
+        self.issue()
+        self.data["prs"]["101"].update(list_heads=["stale"], heads=["stale"])
+        self.save()
+        result = self.queue("--timeout", "0", "1")
+        self.assert_status(result, 1)
+        self.assertIn("did not reach", result.stderr)
+        self.assertFalse(any("rebase" in call["args"] for call in self.calls("GIT")))
+
+    def assert_restacked(self, child):
+        record = self.state(child)
+        for key in ("parent", "parent_branch", "parent_head"):
+            self.assertFalse(record.get(key), key)
+        self.assertEqual(self.fixture()["prs"][str(100 + int(child))]["base"], "main")
+
+    def assert_on_main(self, child):
+        branch = f"topic-{child}"
+        git(self.origin, "merge-base", "--is-ancestor", "main", branch)
+        self.assertEqual(git(self.origin, "rev-list", f"main..{branch}").splitlines(),
+                         [git(self.trees[child], "rev-parse", "HEAD")])
+
+    def test_merge_parent_then_child_restacks_and_tears_down_both(self):
+        self.issue("1")
+        self.stacked("2", "1")
+        self.upstream()
+        result = self.queue("--merge", "1", "2")
+        self.assert_status(result, 0)
+        self.assertIn("restacking #2", result.stdout)
+        data = self.fixture()
+        self.assertEqual([data["prs"][pr]["state"] for pr in ("101", "102")], ["MERGED", "MERGED"])
+        self.assertEqual(data["prs"]["102"]["base"], "main")
+        self.assert_torn_down("1")
+        self.assert_torn_down("2")
+        changelog = git(self.origin, "show", "main:CHANGELOG.md")
+        self.assertEqual(changelog.count("issue 1"), 1)
+        self.assertEqual(changelog.count("### Added"), 1)
+        self.assertEqual(git(self.origin, "show", "main:child-2.txt"), "child 2")
+        self.assertEqual(git(self.origin, "diff", "--name-only", "main~1", "main"), "child-2.txt")
+
+    def test_merge_parent_restacks_child_not_in_batch(self):
+        self.issue("1")
+        self.stacked("2", "1")
+        self.upstream()
+        result = self.queue("--merge", "1")
+        self.assert_status(result, 0)
+        self.assert_torn_down("1")
+        self.assert_restacked("2")
+        self.assert_on_main("2")
+        self.assertEqual(self.fixture()["prs"]["102"]["state"], "OPEN")
+
+    def test_already_merged_parent_restacks_before_teardown(self):
+        self.issue("1")
+        self.stacked("2", "1")
+        self.upstream()
+        result = self.queue("1", "2")
+        self.assert_status(result, 3)
+        self.assertNotIn("restacking", result.stdout)
+        self.assertEqual(self.state("2")["parent"], "1")
+        command = shlex.split(result.stdout.splitlines()[-1])
+        subprocess.run(command, cwd=self.main, env=self.env, check=True, capture_output=True, text=True)
+        result = self.queue("1", "2")
+        self.assert_status(result, 3)
+        self.assertLess(result.stdout.index("restacking #2"), result.stdout.index("tearing down"))
+        self.assert_torn_down("1")
+        self.assert_restacked("2")
+        self.assert_on_main("2")
+        self.assertEqual(shlex.split(result.stdout.splitlines()[-1])[:4], ["gh", "pr", "merge", "102"])
+
+    def test_restack_conflict_stops_and_keeps_parent(self):
+        parent = self.issue("1")
+        child = self.stacked("2", "1", {"code.py": 'value = "child"\n'})
+        self.upstream(code=True)
+        before = git(child, "rev-parse", "HEAD")
+        result = self.queue("--merge", "1", "2")
+        self.assert_status(result, 1)
+        self.assertIn("restack of #2 failed", result.stderr)
+        self.assertIn("code.py", result.stderr)
+        self.assertEqual(self.fixture()["prs"]["101"]["state"], "MERGED")
+        self.assertTrue(parent.is_dir())
+        self.assertEqual(self.state("1")["branch"], "topic-1")
+        self.assertEqual(self.state("2")["parent"], "1")
+        self.assertEqual(git(child, "rev-parse", "HEAD"), before)
+        self.assertEqual(git(child, "status", "--porcelain"), "")
+        for name in ("rebase-merge", "rebase-apply"):
+            self.assertFalse((child / git(child, "rev-parse", "--git-path", name)).exists())
+        self.assertFalse(any(call[:3] == ["pr", "merge", "102"] for call in self.calls()))
+
+    def test_child_queued_without_parent_ahead_exits_2(self):
+        self.issue("1")
+        self.stacked("2", "1")
+        for batch in (("2", "1"), ("2",)):
+            with self.subTest(batch=batch):
+                result = self.queue(*batch)
+                self.assert_status(result, 2)
+                self.assertIn("#2 is stacked on #1; queue #1 before it", result.stderr)
+        self.assertEqual(self.calls(), [])
 
     def test_rejected_push_restores_head_for_retry(self):
         tree = self.issue()
