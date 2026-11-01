@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Record a worker before prompting it, and start Herdr agents in their pane.
-# Usage: start-worker.sh <issue> <role> <provider> [--turns] [-- <routing flags>...]
+# Usage: start-worker.sh <issue> <role> <provider> [--turns | --resume] [-- <routing flags>...]
 set -euo pipefail
 
 issue=${1:?issue number required}
@@ -8,7 +8,9 @@ role=${2:?role required}
 backend=${3:?provider required}
 shift 3
 turns=0
+resume=0
 if [ "${1:-}" = --turns ]; then turns=1; shift; fi
+if [ "${1:-}" = --resume ]; then resume=1; shift; fi
 if [ "${1:-}" = -- ]; then shift; fi
 script_dir=$(cd "$(dirname "$0")" && pwd)
 skill_dir=$(cd "$script_dir/.." && pwd)
@@ -23,18 +25,82 @@ path=$(python3 "$state" get "$issue" path)
 case "$runner" in herdr|headless) ;; *) echo "Unknown runner: $runner" >&2; exit 1 ;; esac
 pane=""
 if [ "$runner" = herdr ]; then pane=$(python3 "$state" get "$issue" pane); fi
+root_pane=$pane
 
-extra=()
-if [ "$role" = implementer ]; then extra=("implementer_backend=$backend"); fi
+field() {
+  python3 "$state" get "$issue" "$1" 2>/dev/null || true
+}
+
+# A record from before per-role fields names one worker for its current role.
+# Keep it under that role before the current fields are replaced.
+adopt_legacy_worker() {
+  local legacy_role legacy_worker
+  legacy_role=$(field role)
+  legacy_worker=$(field worker)
+  if [ -n "$legacy_role" ] && [ -n "$legacy_worker" ] && [ -z "$(field "${legacy_role}_worker")" ]; then
+    python3 "$state" set "$issue" "${legacy_role}_worker=$legacy_worker" "${legacy_role}_pane=$root_pane" \
+      "${legacy_role}_backend=$(python3 "$state" get "$issue" backend)"
+  fi
+}
+
+print_handles() {
+  printf 'path=%s\n' "$path"
+  [ -z "$pane" ] || printf 'pane=%s\n' "$pane"
+  [ -z "$worker" ] || printf 'name=%s\n' "$worker"
+  [ -z "$session" ] || printf 'session=%s\n' "$session"
+}
+
+if [ "$resume" = 1 ]; then
+  # Exit 4 tells the coordinator to fall back to a fresh session.
+  cannot_resume() {
+    echo "Issue $issue: $1. Start a fresh $role session." >&2
+    exit 4
+  }
+  adopt_legacy_worker
+  recorded=$(field "${role}_backend")
+  [ "$recorded" = "$backend" ] || cannot_resume "no $role session on $backend to resume"
+  worker=$(field "${role}_worker")
+  session=$(field "${role}_session")
+  if [ "$runner" = herdr ]; then pane=$(field "${role}_pane"); fi
+  if [ -n "$worker" ]; then
+    agent_result=$(herdr agent get "$worker" 2>&1) || agent_status=$?
+    if [ "${agent_status:-0}" -ne 0 ]; then
+      [[ "$agent_result" == *agent_not_found* ]] || { echo "$agent_result" >&2; exit 1; }
+      cannot_resume "$worker has exited"
+    fi
+    status=$(python3 -c 'import json,sys; r=json.load(sys.stdin).get("result", {}); a=r.get("agent", r); print(a.get("agent_status", ""))' <<<"$agent_result")
+    case "$status" in
+      working|blocked) echo "Issue $issue: $worker is $status; wait for or read the agent before resuming it" >&2; exit 1 ;;
+    esac
+  elif [ -z "$session" ]; then
+    cannot_resume "no $role session is recorded"
+  fi
+  python3 "$state" set "$issue" "role=$role" "backend=$backend" "worker=$worker" "session=$session"
+  python3 "$state" phase-start "$issue"
+  print_handles
+  exit 0
+fi
+
 if [ "$role" = reviewer ]; then
   # An independent review needs a provider other than the one that wrote the code.
-  built_on=$(python3 "$state" get "$issue" implementer_backend 2>/dev/null || true)
+  built_on=$(field implementer_backend)
   [ -n "$built_on" ] || { echo "Issue $issue: no implementer has run, so there is nothing to review" >&2; exit 1; }
   if [ "$backend" = "$built_on" ] && [ "${SWITCHYARD_SAME_PROVIDER:-}" != 1 ]; then
     echo "Issue $issue: the implementer ran on $backend. Review on another provider, or set SWITCHYARD_SAME_PROVIDER=1" >&2
     exit 1
   fi
 fi
+
+extra=()
+split=""
+if [ "$runner" = herdr ] && [ "$role" = reviewer ]; then
+  # The implementer may still run in the root pane, so the reviewer gets its own.
+  split_result=$(herdr pane split "$pane" --direction down --cwd "$path") || { echo "$split_result" >&2; exit 1; }
+  split=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["pane"]["pane_id"])' <<<"$split_result") \
+    || { echo "Issue $issue: cannot read the new pane from: $split_result" >&2; exit 1; }
+  pane=$split
+fi
+if [ "$runner" = herdr ]; then extra=("${role}_pane=$pane"); fi
 
 worker=""
 session=""
@@ -60,6 +126,7 @@ PY
     if [ "$start_code" != agent_not_ready ]; then
       cat "$start_error" >&2
       rm -f "$start_error"
+      [ -z "$split" ] || herdr pane close "$split" >/dev/null 2>&1 || true
       exit "$start_status"
     fi
     rm -f "$start_error"
@@ -67,12 +134,11 @@ PY
   fi
 fi
 
-python3 "$state" set "$issue" "role=$role" "backend=$backend" "worker=$worker" "session=$session" ${extra[@]+"${extra[@]}"}
+adopt_legacy_worker
+python3 "$state" set "$issue" "role=$role" "backend=$backend" "worker=$worker" "session=$session" \
+  "${role}_backend=$backend" "${role}_worker=$worker" "${role}_session=$session" ${extra[@]+"${extra[@]}"}
 python3 "$state" phase-start "$issue"
-printf 'path=%s\n' "$path"
-[ -z "$pane" ] || printf 'pane=%s\n' "$pane"
-[ -z "$worker" ] || printf 'name=%s\n' "$worker"
-[ -z "$session" ] || printf 'session=%s\n' "$session"
+print_handles
 if [ "${startup_blocked:-0}" = 1 ]; then
   printf 'status=blocked\n'
   echo "Issue $issue: agent is blocked at startup. Read it and clear the screen before prompting; see the provider notes in switchyard/routing.md." >&2

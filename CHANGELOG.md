@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 - #116: A `small` issue is planned and implemented in one session. It stops for a plan review only when it has questions.
 - #117: `pre-review.sh` runs the checks, the scope check, and OpenSpec validation before a reviewer starts. Projects put their checks in `switchyard/hooks/checks.sh`.
 - #122: `switchyard/lessons.md` carries traps from one batch to the next. The updater adds it when missing and never changes it.
+- #114: Fix rounds resume the implementer session that built the change. On Herdr the reviewer runs in a split pane beside it. Existing projects should change Codex's Later turns in `switchyard/routing.md` to `codex exec resume <session> <flags> "<prompt>"`.
 - #79: `state.py timings` reports time per phase, provider, and model, with review rounds and the verdict. Teardown keeps a summary in `.switchyard/history.jsonl`.
 - #118: Open maintainer questions wait in one queue, `.switchyard/questions.md`, so the coordinator goes on with other issues meanwhile. `state.py status` shows an issue with open questions as waiting.
 
