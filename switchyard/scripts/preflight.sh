@@ -23,6 +23,9 @@ warning() {
   warnings=$((warnings + 1))
 }
 
+script_dir=${BASH_SOURCE[0]%/*}
+[ "$script_dir" != "${BASH_SOURCE[0]}" ] || script_dir=.
+
 required git git 'Install Git with your system package manager.'
 required 'Python 3' python3 'Install Python 3 from python.org or your system package manager.'
 
@@ -43,6 +46,20 @@ if command -v gh >/dev/null 2>&1; then
 else
   printf 'MISSING  GitHub CLI: not installed. Install from https://cli.github.com\n'
   missing=$((missing + 1))
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  # tracker.py prints the tracker name on stdout when it succeeds, and the
+  # reason on stderr on failure, so one run can decide both. A Linear key
+  # that is missing or rejected counts as missing here.
+  tracker_check=$(python3 "$script_dir/tracker.py" check 2>&1)
+  tracker_status=$?
+  if [ "$tracker_status" -ne 0 ]; then
+    printf 'MISSING  Tracker: %s\n' "$tracker_check"
+    missing=$((missing + 1))
+  elif [ "$tracker_check" = linear ]; then
+    printf 'ok       Linear\n'
+  fi
 fi
 
 provider_count=0
@@ -110,8 +127,6 @@ if [ -f AGENTS.md ]; then
 fi
 
 if command -v python3 >/dev/null 2>&1; then
-  script_dir=${BASH_SOURCE[0]%/*}
-  [ "$script_dir" != "${BASH_SOURCE[0]}" ] || script_dir=.
   updater="$script_dir/update-switchyard.py"
   release_output=$(python3 "$updater" --check 2>&1)
   release_status=$?

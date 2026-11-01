@@ -2,11 +2,11 @@
 # Run the cheap checks on an issue's worktree before a reviewer starts.
 # Check the tree, scope, plan or OpenSpec archive, and project checks. All run.
 # Exit 0 if none failed, 1 if one did, 2 if the gate cannot run. Log: <worktree>/.switchyard/checks/<n>.log
-# Usage: pre-review.sh <issue-number>
+# Usage: pre-review.sh <issue>
 set -uo pipefail
 
 issue=${1:-}
-[ -n "$issue" ] || { echo "usage: pre-review.sh <issue-number>" >&2; exit 2; }
+[ -n "$issue" ] || { echo "usage: pre-review.sh <issue>" >&2; exit 2; }
 scripts="$(cd "$(dirname "$0")" && pwd)"
 main=$(git -C "$scripts" worktree list --porcelain | sed -n '1s/^worktree //p')
 [ -n "$main" ] || { echo "Issue $issue: cannot find the main checkout" >&2; exit 2; }

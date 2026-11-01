@@ -47,7 +47,7 @@ class Harness(unittest.TestCase):
             self.stub(cli, "exit 0")
         self.log = self.base / "calls.jsonl"
         self.stub("gh", 'echo "$*" >> "$CALL_LOG"\n[ "$1 $2" = "pr list" ] && [ "$3" = "--head" ] && [ "$5" = "--state" ] && [ "$6" = all ] && [ "$7" = "--json" ] && [ "$8" = "number,state" ] && [ "$9" = "--limit" ] && [ "${10}" = 1 ] || exit 23\n[ "${FAIL_GH:-}" != 1 ] || exit 2\nprintf \'%s\\n\' "${GH_RESULT:-[]}"')
-        self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\n[ "${FAIL_HERDR:-}" != 1 ] || exit 2\nif [ "$1 $2" = "agent list" ] && [ "$#" = 2 ]; then printf \'%s\\n\' "$HERDR_RESULT"; elif [ "$1 $2" = "agent start" ]; then [ "${FAIL_START:-}" != 1 ] || exit 2; case "$3" in planner-10|planner-8|implementer-10|reviewer-10) ;; *) exit 23 ;; esac; echo "agent start output"; elif [ "$1 $2" = "worktree create" ]; then printf \'%s\\n\' "$HERDR_CREATE_RESULT"; elif [ "$1 $2" = "pane split" ]; then printf \'{"result":{"pane":{"pane_id":"w1:p2"}}}\\n\'; elif [ "$1 $2" = "pane close" ]; then echo ok; else exit 23; fi')
+        self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\n[ "${FAIL_HERDR:-}" != 1 ] || exit 2\nif [ "$1 $2" = "agent list" ] && [ "$#" = 2 ]; then printf \'%s\\n\' "$HERDR_RESULT"; elif [ "$1 $2" = "agent start" ]; then [ "${FAIL_START:-}" != 1 ] || exit 2; case "$3" in planner-10|planner-8|implementer-10|reviewer-10|planner-eng-7) ;; *) exit 23 ;; esac; echo "agent start output"; elif [ "$1 $2" = "worktree create" ]; then printf \'%s\\n\' "$HERDR_CREATE_RESULT"; elif [ "$1 $2" = "pane split" ]; then printf \'{"result":{"pane":{"pane_id":"w1:p2"}}}\\n\'; elif [ "$1 $2" = "pane close" ]; then echo ok; else exit 23; fi')
         self.env = os.environ.copy()
         self.env.update(PATH=f"{self.bin}:{self.env['PATH']}", CALL_LOG=str(self.log), TEST_WORKTREE=str(self.repo))
         self.env["HERDR_RESULT"] = '{"result":{"agents":[]}}'
@@ -298,7 +298,7 @@ class Harness(unittest.TestCase):
         for key in ("120c", "b", "120bb", "12b0"):
             result = self.state("init", key, "a=b")
             self.assertEqual(result.returncode, 1, key)
-            self.assertIn("issue key must be digits, optionally followed by b", result.stderr)
+            self.assertIn("issue key must be digits or like ENG-123", result.stderr)
         self.init("121", branch="b121")
         self.init("120", branch="b120a")
         rows = [line.split()[0] for line in self.state("status").stdout.splitlines()[1:]]
@@ -1444,6 +1444,82 @@ esac''')
         self.assertNotIn("ended", phases[3])
         for earlier, later in zip(phases, phases[1:]):
             self.assertLessEqual(earlier["ended"], later["started"])
+
+
+    def test_linear_keys_accept_reject_and_order(self):
+        for key in ("ENG-123", "ENG-123b", "A1-7"):
+            self.init(key, branch=f"b-{key}")
+            self.assertEqual(self.get(key, "branch"), f"b-{key}", key)
+            self.state("rm", key)
+        for key in ("eng-123", "ENG-", "ENG-12a", "-12"):
+            result = self.state("init", key, "a=b")
+            self.assertEqual(result.returncode, 1, key)
+            self.assertIn("issue key must be digits or like ENG-123", result.stderr)
+        self.init("9")
+        self.init("10")
+        self.init("ENG-2")
+        self.init("ENG-10")
+        self.init("OPS-1")
+        rows = [line.split()[0] for line in self.state("status").stdout.splitlines()[1:]]
+        self.assertEqual(rows, ["9", "10", "ENG-2", "ENG-10", "OPS-1"])
+
+    def test_check_key_exits_zero_or_fails_with_the_forms(self):
+        self.assertEqual(self.state("check-key", "ENG-123").returncode, 0)
+        self.assertEqual(self.state("check-key", "148b").returncode, 0)
+        bad = self.state("check-key", "eng-123")
+        self.assertEqual(bad.returncode, 1)
+        self.assertIn("issue key must be digits or like ENG-123", bad.stderr)
+        self.assertEqual(len(self.state("check-key", "ENG").stderr.strip().splitlines()), 1)
+
+    def test_setup_accepts_linear_keys_and_rejects_lowercase_with_no_worktree(self):
+        result = self.script("setup-worktree.sh", "ENG-123", "eng-123-fix-login")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.get("ENG-123", "branch"), "eng-123-fix-login")
+        down = self.script("teardown-worktree.sh", "ENG-123", "eng-123-fix-login")
+        self.assertEqual(down.returncode, 0, down.stderr)
+        self.assertFalse((self.repo / ".switchyard/state/ENG-123.json").exists())
+
+        result = self.script("setup-worktree.sh", "eng-123", "topic")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("issue key must be digits or like ENG-123", result.stderr)
+        self.assertFalse((self.base / "repo.worktrees/topic").exists())
+        self.assertFalse((self.repo / ".switchyard/state/eng-123.json").exists())
+        self.assertEqual(
+            subprocess.run(["git", "-C", str(self.repo), "branch", "--list", "topic"],
+                           capture_output=True, text=True).stdout,
+            "",
+        )
+
+    def test_setup_linear_candidate_from_first_candidate(self):
+        self.assertEqual(self.script("setup-worktree.sh", "ENG-5", "eng-5-topic").returncode, 0)
+        result = self.script("setup-worktree.sh", "ENG-5b", "eng-5-topic-b")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.record("ENG-5b")["candidate_of"], "ENG-5")
+        down = self.script("teardown-worktree.sh", "--abandon", "ENG-5b", "eng-5-topic-b")
+        self.assertEqual(down.returncode, 0, down.stderr)
+
+    def test_start_worker_lowercases_linear_key_in_herdr_name(self):
+        self.init("ENG-7", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
+        result = self.script("start-worker.sh", "ENG-7", "planner", "pi")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.get("ENG-7", "planner_worker"), "planner-eng-7")
+        self.assertIn("planner-eng-7", result.stdout)
+
+    def test_worktree_up_hook_ports(self):
+        # The project hook is replaced in setUp, so run the shipped one directly.
+        hook = SOURCE_SKILL / "hooks/worktree-up.sh"
+        worktree = self.base / "hook-tree"
+        worktree.mkdir()
+        run = lambda issue, candidate: subprocess.run(
+            [os.environ.get("TEST_BASH", "bash"), str(hook)],
+            env={**self.env, "ISSUE": issue, "CANDIDATE": candidate, "BRANCH": "topic",
+                 "WORKTREE": str(worktree), "MAIN_CHECKOUT": str(self.repo)},
+            capture_output=True, text=True,
+        )
+        self.assertEqual(run("ENG-123", "").stdout, "port=3123\n")
+        self.assertEqual(run("ENG-123", "b").stdout, "port=4123\n")
+        self.assertEqual(run("8", "").stdout, "port=3008\n")
+        self.assertEqual(run("OPS-123", "").stdout, "port=3123\n")
 
 
 if __name__ == "__main__":

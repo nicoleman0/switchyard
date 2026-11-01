@@ -86,7 +86,7 @@ Run it from the root of the repo. A new, empty repo works too:
 npm init switchyard@latest
 ```
 
-Install asks whether to use OpenSpec, default yes; use `npm init switchyard@latest -- --no-openspec` for plain plans.
+Install asks whether to use OpenSpec, default yes; use `npm init switchyard@latest -- --no-openspec` for plain plans. Pass `npm init switchyard@latest -- --tracker linear` to name Linear as the issue tracker; see [Use Linear](#use-linear).
 
 `npx create-switchyard@latest` does the same. Keep `@latest`: without it, npm can run an older copy from its cache. The package runs its bundled `update-switchyard.py --install`, so it needs Python 3.10 or newer. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
 
@@ -162,6 +162,20 @@ The updater covers paths listed in its target release. It skips OpenSpec-generat
 Both need network access: the npm form reaches the npm registry, and the Python form clones the release source from GitHub. Run it outside the sandbox if a Codex session cannot access the network.
 
 A repository that never had the workflow at all does not update from a release: it takes [install](#add-it-to-an-existing-repo), which needs no `--from`.
+
+## Use Linear
+
+A project can keep its issues in Linear while PRs stay on GitHub:
+
+```sh
+npm init switchyard@latest -- --tracker linear
+```
+
+- `switchyard/tracker.md` gets `Tracker: linear`. Edit that one line to switch; the updater adds it when missing and never replaces it.
+- Export `LINEAR_API_KEY` with a Linear personal API key, so `tracker.py` can call Linear's GraphQL API. Preflight makes one cheap call to check it.
+- Issue keys are Linear identifiers such as `ENG-123`, plus `b` for a best-of-N candidate.
+- Start every issue's branch with the lowercased key, such as `eng-123-fix-login`. Linear's GitHub integration links a PR whose branch name names the issue, so connect that integration.
+- `gh` is still required: PRs, reviews, and merges all stay on GitHub.
 
 ## Use it
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # List files an issue's branch changed outside the paths it owns. Exits 1 if any.
 # OpenSpec projects also own the change's files under openspec/.
-# Usage: check-scope.sh <issue-number>
+# Usage: check-scope.sh <issue>
 set -euo pipefail
 
-issue=${1:?issue number required}
+issue=${1:?issue key required}
 scripts="$(cd "$(dirname "$0")" && pwd)"
 state="$scripts/state.py"
 main=$(git -C "$scripts" worktree list --porcelain | sed -n '1s/^worktree //p')

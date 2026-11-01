@@ -1,5 +1,7 @@
 from pathlib import Path
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -87,9 +89,15 @@ class PreflightTests(unittest.TestCase):
             if name == "node":
                 self.add(name, 'exit "${NODE_PLAYWRIGHT_STATUS:-0}"\n')
             elif name == "python3":
-                self.add(name, 'if [ -n "${CHECK_LOG:-}" ]; then printf "%s\\n" "$@" > "$CHECK_LOG"; fi\n'
-                                'printf "%s" "${CHECK_OUTPUT:-}"\n'
-                                'exit "${CHECK_STATUS:-0}"\n')
+                # The tracker check gets its own status and output so a
+                # scripted release-check failure does not fail the tracker too.
+                self.add(name, 'if [ "${1##*/}" = tracker.py ]; then\n'
+                               '  printf "%s" "${TRACKER_OUTPUT:-}"\n'
+                               '  exit "${TRACKER_STATUS:-0}"\n'
+                               'fi\n'
+                               'if [ -n "${CHECK_LOG:-}" ]; then printf "%s\\n" "$@" > "$CHECK_LOG"; fi\n'
+                               'printf "%s" "${CHECK_OUTPUT:-}"\n'
+                               'exit "${CHECK_STATUS:-0}"\n')
             elif name == "gh":
                 self.add(name, 'exit "${GH_AUTH_STATUS:-0}"\n')
             else:
@@ -361,6 +369,45 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertNotIn("AGENTS.md Project", result.stdout)
         self.assertFalse(any(line.startswith("warn ") for line in result.stdout.splitlines()))
+
+
+    def run_skill_copy(self, script_dir, extra_env=None):
+        """Run a copied preflight.sh whose script_dir holds its own tracker.md."""
+        env = {"PATH": str(self.bin), "HOME": str(self.home), "SHOTS_PACKAGE_DIR": str(self.root)}
+        for key, value in (extra_env or {}).items():
+            if value is None:
+                env.pop(key, None)
+            else:
+                env[key] = value
+        return subprocess.run(
+            ["/bin/bash", str(script_dir / "preflight.sh")],
+            check=False, capture_output=True, text=True, env=env, cwd=str(self.root),
+        )
+
+    def test_linear_tracker_missing_key_is_missing_and_github_is_silent(self):
+        # A copied skill folder lets the tracker check read that folder's
+        # tracker.md through the real tracker.py; a stubbed python3 would
+        # bypass it, so prepend a symlink dir with the real interpreter.
+        skill = self.root / "skill"
+        scripts = skill / "switchyard/scripts"
+        scripts.mkdir(parents=True)
+        shutil.copy(SCRIPT, scripts / "preflight.sh")
+        shutil.copy(SCRIPT.with_name("tracker.py"), scripts / "tracker.py")
+        self.add("gh")
+        real_python = self.root / "realbin"
+        real_python.mkdir()
+        os.symlink(shutil.which("python3"), real_python / "python3")
+        env = {"PATH": f"{real_python}{os.pathsep}{self.bin}"}
+
+        (skill / "switchyard/tracker.md").write_text("# Project tracker\n\nTracker: linear\n")
+        result = self.run_skill_copy(scripts, extra_env=env)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("MISSING  Tracker: LINEAR_API_KEY", result.stdout)
+
+        (skill / "switchyard/tracker.md").write_text("# Project tracker\n\nTracker: github\n")
+        result = self.run_skill_copy(scripts, extra_env=env)
+        self.assertNotIn("Tracker:", result.stdout)
+        self.assertNotIn("Linear", result.stdout)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ Use this when the coordinator runs inside Herdr (`HERDR_ENV=1`). Each worker is 
 | Read | `herdr agent read <name> --source recent-unwrapped --lines 80` |
 | End | `scripts/end-worker.sh <issue> [<role>]`. Without a role it ends every agent of the issue |
 
-Read the provider's commands, flags, and End value from `switchyard/routing.md`. The script names agents `<role>-<issue>`. The implementer keeps running while the reviewer works, so `implementer-<issue>` and `reviewer-<issue>` live at once. The reviewer starts in a pane split below the worktree's pane, and ending it closes that pane. `--resume` exits 4 when the agent has exited or ran on another provider; start a fresh one then. Herdr rejects names that start with a digit; names must start with a lowercase letter.
+Read the provider's commands, flags, and End value from `switchyard/routing.md`. The script names agents `<role>-<issue-key>`, with the issue key lowercased: a Linear issue `ENG-123` gets `implementer-eng-123`. The implementer keeps running while the reviewer works, so `implementer-<issue>` and `reviewer-<issue>` live at once. The reviewer starts in a pane split below the worktree's pane, and ending it closes that pane. `--resume` exits 4 when the agent has exited or ran on another provider; start a fresh one then. Herdr rejects names that start with a digit; names must start with a lowercase letter.
 
 Multi-line prompt text does not submit reliably. Put the content in a file and prompt with one line that points to it.
 

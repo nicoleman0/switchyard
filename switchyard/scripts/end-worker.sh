@@ -4,7 +4,7 @@
 # With no role, end every recorded agent of the issue, reviewer first.
 set -euo pipefail
 
-issue=${1:?issue number required}
+issue=${1:?issue key required}
 only_role=${2:-}
 script_dir=$(cd "$(dirname "$0")" && pwd)
 skill_dir=$(cd "$script_dir/.." && pwd)

@@ -3,7 +3,7 @@
 # Usage: start-worker.sh <issue> <role> <provider> [--turns | --resume] [-- <routing flags>...]
 set -euo pipefail
 
-issue=${1:?issue number required}
+issue=${1:?issue key required}
 role=${2:?role required}
 backend=${3:?provider required}
 shift 3
@@ -107,7 +107,8 @@ session=""
 if [ "$runner" = headless ] || [ "$turns" = 1 ]; then
   session=$(python3 -c 'import uuid; print(uuid.uuid4())')
 elif [ "$runner" = herdr ]; then
-  worker="$role-$issue"
+  # Herdr agent names must start with a lowercase letter, so ENG-7 → eng-7.
+  worker="$role-$(printf '%s' "$issue" | tr '[:upper:]' '[:lower:]')"
   start_error=$(mktemp)
   if herdr agent start "$worker" --kind "$backend" --pane "$pane" -- "$@" >/dev/null 2>"$start_error"; then
     rm -f "$start_error"

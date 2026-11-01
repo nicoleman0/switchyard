@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const usage = `usage: npm init switchyard@latest                       install into this git repo
        npm init switchyard@latest -- --openspec        install with OpenSpec
        npm init switchyard@latest -- --no-openspec     install with plain plans
+       npm init switchyard@latest -- --tracker linear   install with Linear as the tracker
        npm init switchyard@latest update                update to the newest bundled release
        npm init switchyard@latest update -- --dry-run   print the report without writing files
        npm init switchyard@latest update -- ARGS        pass ARGS to the updater, such as --to X.Y.Z
@@ -63,7 +64,39 @@ if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
   console.log(usage);
   process.exit(0);
 }
-if (args.length > 1 || args.some((arg) => !["--openspec", "--no-openspec"].includes(arg))) {
+// One OpenSpec mode flag plus --tracker <name> or --tracker=<name>, in any
+// order. The updater validates the name, so forward it unvalidated.
+const openspecFlags = args.filter((arg) => ["--openspec", "--no-openspec"].includes(arg));
+let trackerValue = null;
+let trackerNamed = false;
+for (let index = 0; index < args.length; index++) {
+  const arg = args[index];
+  if (["--openspec", "--no-openspec"].includes(arg)) {
+    continue; // counted and validated below
+  }
+  if (arg === "--tracker") {
+    const value = args[index + 1];
+    if (value === undefined || value.startsWith("--")) {
+      console.error(usage);
+      process.exit(2);
+    }
+    trackerValue = value;
+    trackerNamed = true;
+    index++;
+  } else if (arg.startsWith("--tracker=")) {
+    trackerValue = arg.slice("--tracker=".length);
+    trackerNamed = true;
+  } else {
+    console.error(usage);
+    process.exit(2);
+  }
+}
+if (!trackerNamed) {
+  // npm 11 swallows --tracker=linear without a -- into this variable.
+  const value = process.env.npm_config_tracker;
+  if (value !== undefined && value !== "") trackerValue = value;
+}
+if (openspecFlags.length > 1) {
   console.error(usage);
   process.exit(2);
 }
@@ -77,5 +110,6 @@ if (installed !== null) {
 const npmFlags = new Map([
   ["true", "--openspec"], ["false", "--no-openspec"], ["", "--no-openspec"],
 ]);
-const flag = args[0] ?? npmFlags.get(process.env.npm_config_openspec);
-updater(["--install", "--source", bundle, ...(flag ? [flag] : [])]);
+const flag = openspecFlags[0] ?? npmFlags.get(process.env.npm_config_openspec);
+updater(["--install", "--source", bundle,
+  ...(flag ? [flag] : []), ...(trackerValue !== null ? ["--tracker", trackerValue] : [])]);

@@ -1182,6 +1182,73 @@ class UpdateSwitchyardTests(unittest.TestCase):
         self.assertIn(("added: " + TRACKER).encode(), result.stdout)
         self.assertEqual((self.project / TRACKER).read_bytes(), b"Tracker: github\n")
 
+    def test_install_tracker_flag_writes_chosen_name(self) -> None:
+        self.make_target({TRACKER: b"# Project tracker\n\nTracker: github\n"})
+        self.make_project(
+            files={key: value for key, value in DEFAULT_FILES.items() if key not in ("outside.txt", TRACKER)},
+            version=None,
+        )
+        result = self.run_update("--install", "--tracker", "linear")
+        self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
+        self.assertIn(("added: " + TRACKER).encode(), result.stdout)
+        self.assertEqual((self.project / TRACKER).read_bytes(), b"# Project tracker\n\nTracker: linear\n")
+
+    def test_install_tracker_flag_keeps_an_existing_file_and_says_so(self) -> None:
+        self.make_target({TRACKER: b"Tracker: github\n"})
+        self.make_project(files={TRACKER: b"Tracker: project\n"}, version=None)
+        result = self.run_update("--install", "--tracker", "linear")
+        self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())
+        self.assertIn(b"Keeping switchyard/tracker.md (Tracker: project); edit it to change the tracker.", result.stdout)
+        self.assertEqual((self.project / TRACKER).read_bytes(), b"Tracker: project\n")
+
+    def test_install_tracker_flag_needs_tracker_md_in_the_target(self) -> None:
+        self.make_target()
+        self.make_project(files={"README.md": b"mine\n"}, version=None)
+        result = self.run_update("--install", "--tracker", "linear")
+        self.assert_refused_clean(result, "has no switchyard/tracker.md; --tracker needs a later release.")
+        self.assertFalse((self.project / TRACKER).exists())
+
+    def test_install_tracker_flag_rejects_unknown_names(self) -> None:
+        self.make_target({TRACKER: b"Tracker: github\n"})
+        self.make_project(files={"README.md": b"mine\n"}, version=None)
+        result = self.run_update("--install", "--tracker", "jira")
+        self.assertEqual(result.returncode, 2, result.stdout.decode())
+        self.assertIn(b"invalid choice: 'jira'", result.stderr)
+        self.assertFalse((self.project / TRACKER).exists())
+        self.assertEqual(self.git(self.project, "status", "--porcelain").stdout, b"")
+
+    def test_tracker_choices_are_the_backends(self) -> None:
+        spec = importlib.util.spec_from_file_location("tracker_for_choices", SCRIPT.with_name("tracker.py"))
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            del sys.modules[spec.name]
+        self.make_target({TRACKER: b"Tracker: github\n"})
+        self.make_project(files={"README.md": b"mine\n"}, version=None)
+        result = self.run_update("--install", "--tracker", "nosuch")
+        self.assertEqual(result.returncode, 2, result.stdout.decode())
+        chosen = re.search(r"invalid choice: 'nosuch' \(choose from (.+?)\)$", result.stderr.decode(), re.MULTILINE)
+        self.assertIsNotNone(chosen, result.stderr.decode())
+        names = {name.strip().strip("'") for name in chosen.group(1).split(",")}
+        self.assertEqual(names, set(module.BACKENDS))
+
+    def test_tracker_flag_is_ignored_on_update(self) -> None:
+        self.make_target({TRACKER: b"Tracker: github\n"})
+        self.make_project()
+        result = self.run_update("--tracker", "linear")
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertIn(b"Ignoring --tracker", result.stdout)
+        self.assertEqual((self.project / TRACKER).read_bytes(), b"Tracker: github\n")
+        self.assertNotIn(b"Tracker: linear", (self.project / TRACKER).read_bytes())
+
+    def test_check_refuses_tracker_flag(self) -> None:
+        self.make_project()
+        result = self.run_check("--tracker", "linear")
+        self.assertEqual(result.returncode, 2, result.stdout.decode())
+        self.assertIn(b"--check cannot be combined", result.stderr)
+
     def test_install_keeps_existing_project_owned_lessons(self) -> None:
         self.make_target({LESSONS: b"release lessons\n"})
         self.make_project(files={LESSONS: b"project lessons\n"}, version=None)

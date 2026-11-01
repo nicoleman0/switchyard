@@ -20,14 +20,20 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+# Keep in step with the backends in switchyard/scripts/tracker.py; the test
+# suite asserts the argparse choices match that file's BACKENDS keys.
+TRACKER_CHOICES = ("github", "linear")
+TRACKER_LINE_RE = re.compile(r"^Tracker:[ \t]*(\S+)[ \t]*$", re.MULTILINE)
+
 DEFAULT_SOURCE = "https://github.com/nicoleman0/switchyard.git"
 CHECK_TIMEOUT = 10
 VERSION_PATH = "switchyard/VERSION"
+TRACKER = "switchyard/tracker.md"
 PROJECT_OWNED = {
     "switchyard/routing.md",
     "switchyard/hooks/checks.sh",
     "switchyard/lessons.md",
-    "switchyard/tracker.md",
+    TRACKER,
 }
 PATHS_PATH = "switchyard/update-paths.txt"
 CHANGELOG_PATH = "CHANGELOG.md"
@@ -40,6 +46,14 @@ GITIGNORE_PATH = ".gitignore"
 CONFIG_PATH = "openspec/config.yaml"
 UNDO_HEADER = "To undo this run before you stage or commit, run:"
 INIT_COMMAND = "npx @fission-ai/openspec init --tools claude,codex,opencode"
+
+
+def replace_tracker_line(content: bytes, name: str) -> bytes:
+    """Swap the release's Tracker line for the chosen tracker."""
+    replaced, count = TRACKER_LINE_RE.subn(f"Tracker: {name}", content.decode("utf-8"), count=1)
+    if count != 1:
+        raise Refusal(f"release {TRACKER} has no 'Tracker:' line to replace with {name}")
+    return replaced.encode("utf-8")
 
 
 class Refusal(Exception):
@@ -611,12 +625,18 @@ def run() -> int:
     mode.add_argument("--no-openspec", dest="openspec", action="store_false",
                       help="use plain plans on install")
     parser.set_defaults(openspec=None)
+    parser.add_argument("--tracker", choices=TRACKER_CHOICES, default=None,
+                        help="issue tracker to name in switchyard/tracker.md on install (default: github)")
     args = parser.parse_args()
 
     try:
         if args.check:
-            if args.install or args.base or args.target or args.dry_run or args.openspec is not None:
-                raise Refusal("--check cannot be combined with --install, --from, --to, --dry-run, --openspec, or --no-openspec")
+            if (args.install or args.base or args.target or args.dry_run
+                    or args.openspec is not None or args.tracker is not None):
+                raise Refusal(
+                    "--check cannot be combined with --install, --from, --to, --dry-run, "
+                    "--openspec, --no-openspec, or --tracker"
+                )
             project_root = find_project_root()
             stored = read_version(project_root)
             if stored is None:
@@ -667,6 +687,8 @@ def run() -> int:
                 use_openspec = args.openspec if args.openspec is not None else ask_openspec()
         elif args.openspec is not None:
             print("Ignoring OpenSpec flag: the openspec/ folder decides the mode after install.")
+        if not args.install and args.tracker is not None:
+            print("Ignoring --tracker: switchyard/tracker.md decides after install.")
         agents_existed = local_file(project_root, AGENTS_PATH)[0] is not None
 
         with tempfile.TemporaryDirectory(prefix="switchyard-source-") as temporary:
@@ -719,6 +741,17 @@ def run() -> int:
                 if not any(covers(path, [listed]) for path in target_tree):
                     raise Refusal(f"path {listed} from {PATHS_PATH} is missing in {target}")
 
+            kept_tracker: str | None = None
+            if args.install and args.tracker is not None:
+                if TRACKER not in target_tree:
+                    raise Refusal(f"{target} has no {TRACKER}; --tracker needs a later release.")
+                local_content, _ = local_file(project_root, TRACKER)
+                if local_content is not None:
+                    match = TRACKER_LINE_RE.search(local_content.decode("utf-8"))
+                    local_name = match.group(1) if match else "unknown"
+                    if local_name != args.tracker:
+                        kept_tracker = local_name
+
             notes: str | None = None
             notes_reason: str | None = None
             if not args.install:
@@ -740,7 +773,12 @@ def run() -> int:
                     if path in PROJECT_OWNED:
                         local_content, _ = local_file(project_root, path)
                         if local_content is None:
-                            actions.append(Action(path, "added", target_content, mode))
+                            content = (
+                                replace_tracker_line(target_content, args.tracker)
+                                if path == TRACKER and args.tracker is not None
+                                else target_content
+                            )
+                            actions.append(Action(path, "added", content, mode))
                         continue
                     local_content, _ = local_file(project_root, path)
                     content = None
@@ -847,6 +885,8 @@ def run() -> int:
                     print(f"Next: run {INIT_COMMAND} in this repository")
                 if agents_existed:
                     print("Next: list the project's checks in AGENTS.md")
+                if kept_tracker is not None:
+                    print(f"Keeping {TRACKER} (Tracker: {kept_tracker}); edit it to change the tracker.")
             elif notes_reason:
                 print(f"\nRelease notes unavailable: {notes_reason}")
             else:
