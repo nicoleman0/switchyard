@@ -9,7 +9,7 @@
 ## 2. Candidate setup and hook variables
 
 - [x] 2.1 In `switchyard/scripts/setup-worktree.sh`, as design Decisions 2 and 3 give it: for a key ending in `b`, read record `<issue>` (exit 1 with a clear message when missing), use its branch as the base, copy each folder under its `openspec/changes/` except `archive`, copy its `.switchyard/answers/` when present, and record `owned` and `candidate_of`, plus candidate a's parent fields when it is stacked. Reject `--parent` with a `b` key. Pass the hook `ISSUE=<digits>` and `CANDIDATE=<b or empty>`. Update the usage line. Verify with 2.4.
-- [x] 2.2 In `switchyard/scripts/teardown-worktree.sh`, pass the down hook `ISSUE=<digits>` and `CANDIDATE`. Verify with 2.4.
+- [x] 2.2 In `switchyard/scripts/teardown-worktree.sh`, pass the down hook `ISSUE=<digits>` and `CANDIDATE`. Add `--skip-hook`, accepted only with `--abandon`, which skips the down hook. Verify with 2.4.
 - [x] 2.3 In `switchyard/scripts/pre-review.sh`, pass the checks hook `ISSUE=<digits>` and `CANDIDATE`. Verify with 2.4.
 - [x] 2.4 Tests, in `test_state.py` and `test_pre_review.py`, using their existing temp-repo helpers:
   - `setup-worktree.sh 120b <branch>-b` with no record `120` exits 1 and creates no worktree or record.
@@ -17,6 +17,7 @@
   - The up hook, down hook, and checks hook see `ISSUE=120` and `CANDIDATE=b` for `120b`, and `ISSUE=120` and an empty `CANDIDATE` for `120`.
   - `teardown-worktree.sh --abandon 120b <branch>-b` removes only candidate b's worktree, branch, and record.
   - With a stacked candidate a, record `120b` has its parent fields, and `--parent` with `120b` exits 1.
+  - With a down hook that removes shared state, `--abandon --skip-hook 120b topic-b` removes candidate b's worktree, branch, and record and leaves the state. `--skip-hook` without `--abandon` exits 2.
   Verify with `python3 -m unittest discover -s switchyard/scripts -p 'test_*.py'`.
 
 - [x] 2.5 In `switchyard/hooks/worktree-up.sh`, print `port=4<nnn>` when `CANDIDATE` is `b`. Name `CANDIDATE` in the headers of `worktree-up.sh`, `worktree-down.sh`, and `checks.sh`. Verify by running the up hook with `ISSUE=120` and each `CANDIDATE`.

@@ -2,24 +2,29 @@
 # Remove an issue's worktree, branches, and per-issue state.
 # Ordinary teardown refuses dirty worktrees to avoid leaving a half-torn-down issue.
 # --abandon reports what it discards; missing steps are skipped.
-# Usage: teardown-worktree.sh [--abandon] <issue-number> <branch>
+# --skip-hook keeps the down hook from removing state another worktree shares.
+# Usage: teardown-worktree.sh [--abandon [--skip-hook]] <issue-number> <branch>
 set -euo pipefail
 
+usage="Usage: teardown-worktree.sh [--abandon [--skip-hook]] <issue-number> <branch>"
 abandon=
-while [ "${1:-}" = --abandon ]; do
-  abandon=1
-  shift
+skip_hook=
+while :; do
+  case ${1:-} in
+    --abandon) abandon=1; shift ;;
+    --skip-hook) skip_hook=1; shift ;;
+    -*) echo "Unknown option $1. $usage" >&2; exit 2 ;;
+    *) break ;;
+  esac
 done
-case ${1:-} in
-  -*)
-    echo "Unknown option $1. Usage: teardown-worktree.sh [--abandon] <issue-number> <branch>" >&2
-    exit 2
-    ;;
-esac
+if [ -n "$skip_hook" ] && [ -z "$abandon" ]; then
+  echo "--skip-hook needs --abandon. $usage" >&2
+  exit 2
+fi
 
 issue=${1:?issue number required}
 branch=${2:?branch name required}
-[ $# -eq 2 ] || { echo "Usage: teardown-worktree.sh [--abandon] <issue-number> <branch>" >&2; exit 2; }
+[ $# -eq 2 ] || { echo "$usage" >&2; exit 2; }
 repo=$(git rev-parse --show-toplevel)
 cd "$repo"
 hook=switchyard/hooks/worktree-down.sh
@@ -131,7 +136,9 @@ if [ -n "$has_record" ]; then
   fi
 fi
 
-if [ -x "$hook" ]; then
+if [ -n "$skip_hook" ]; then
+  echo "Skipped: $hook, by --skip-hook."
+elif [ -x "$hook" ]; then
   digits=${issue%b}
   ISSUE=$digits CANDIDATE=${issue#"$digits"} BRANCH=$branch WORKTREE=$path MAIN_CHECKOUT=$repo "$hook"
 fi

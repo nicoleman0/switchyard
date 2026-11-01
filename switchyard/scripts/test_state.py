@@ -433,6 +433,29 @@ class Harness(unittest.TestCase):
         self.assertEqual(log.read_text().splitlines(),
                          ["up [120] []", "up [120] [b]", "down [120] [b]", "down [120] []"])
 
+    def test_abandon_skip_hook_keeps_shared_state(self):
+        # A hook that ignores CANDIDATE gives both candidates one database.
+        self.up_hook.write_text("#!/bin/sh\necho database=shared\n")
+        self.down_hook.write_text('#!/bin/sh\nrm -f "$MAIN_CHECKOUT/shared-db"\n')
+        shared = self.repo / "shared-db"
+        shared.write_text("data")
+        self.assertEqual(self.script("setup-worktree.sh", "120", "topic").returncode, 0)
+        result = self.script("setup-worktree.sh", "120b", "topic-b")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        second = Path(self.record("120b")["path"])
+        down = self.script("teardown-worktree.sh", "--skip-hook", "120b", "topic-b")
+        self.assertEqual(down.returncode, 2)
+        self.assertIn("--skip-hook needs --abandon", down.stderr)
+        self.assertTrue(second.exists())
+        down = self.script("teardown-worktree.sh", "--abandon", "--skip-hook", "120b", "topic-b")
+        self.assertEqual(down.returncode, 0, down.stderr)
+        self.assertIn("by --skip-hook", down.stdout)
+        self.assertEqual(shared.read_text(), "data")
+        self.assertFalse(second.exists())
+        self.assertFalse((self.repo / ".switchyard/state/120b.json").exists())
+        self.assertNotIn("refs/heads/topic-b", self.run_cmd("-c", "git show-ref", bash=True).stdout)
+        self.assertTrue(Path(self.record("120")["path"]).exists())
+
     def test_setup_candidate_of_stacked_issue(self):
         _, child, head = self.make_stack()
         result = self.script("setup-worktree.sh", "--parent", "8", "9b", "child-b")

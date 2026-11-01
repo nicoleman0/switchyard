@@ -66,7 +66,7 @@ The coordinator runs `pre-review.sh` on both keys. A failing candidate gets gate
 
 ### 6. One comparison review, on candidate a's record
 
-The reviewer starts on candidate a's record. The prompt names both branches: `Read switchyard/roles/reviewer.md and follow it for issue #<issue>. Compare candidates <branch> and <branch>-b.`
+Both implementers' sessions stay running through the comparison, as #114 keeps them through review. The reviewer starts on candidate a's record. The prompt names both branches: `Read switchyard/roles/reviewer.md and follow it for issue #<issue>. Compare candidates <branch> and <branch>-b.`
 
 The new reviewer paragraph says:
 - Diff each candidate with `git diff origin/main...<branch>`. Branches are shared across worktrees, so no checkout is needed.
@@ -76,14 +76,14 @@ The new reviewer paragraph says:
 
 ### 7. Shared isolation falls back to one implementer
 
-When candidate b's hook prints the same non-empty values as candidate a's, the project hook does not isolate candidates. Both would share ports or databases, and abandoning the loser would run the down hook on state the winner uses. The coordinator tells the maintainer, abandons candidate b, and runs the issue with one implementer.
+When candidate b's hook prints the same non-empty values as candidate a's, the project hook does not isolate candidates. Both would share ports or databases, and abandoning the loser would run the down hook on state the winner uses. The coordinator tells the maintainer, abandons candidate b with `teardown-worktree.sh --abandon --skip-hook`, and runs the issue with one implementer. `--skip-hook` is accepted only with `--abandon`. It removes candidate b's worktree, branch, and record without running the down hook, which would remove state candidate a still uses.
 
 ### 8. After the pick
 
 1. End the loser's sessions with `end-worker.sh <loser key>`.
 2. When the kept candidate is b, copy the review into its `.switchyard/reviews/`, so fix rounds and `timings` read it there.
 3. Run `teardown-worktree.sh --abandon <loser key> <loser branch>`.
-4. Go on at Act on the verdict with the kept candidate's key and branch for every later step. The PR's head is the kept branch.
+4. Go on at Act on the verdict with the kept candidate's key and branch for every later step. Fix rounds resume the kept candidate's implementer with `start-worker.sh <kept key> implementer <provider> --resume`. The PR's head is the kept branch.
 
 ### 9. Where the text goes
 
@@ -92,7 +92,7 @@ When candidate b's hook prints the same non-empty values as candidate a's, the p
 
 ### 10. Meeting points with in-flight work
 
-- #114 warm fix rounds: implementers stay alive through review. Ending the loser in Decision 8 uses `end-worker.sh <loser key>`, which with #114 ends every role of that record. The reviewer's split pane opens from candidate a's pane, and teardown of candidate a closes it. A fix round on candidate b resumes `implementer-<issue>b`.
+- #114 warm fix rounds, merged: implementers stay alive through review. Ending the loser in Decision 8 uses `end-worker.sh <loser key>`, which with #114 ends every role of that record. The reviewer's split pane opens from candidate a's pane, and teardown of candidate a closes it. A fix round on candidate b resumes `implementer-<issue>b`.
 - #121 merge queue, merged: `merge-queue.py` checks keys with `state.py`'s `valid_key`, so a kept candidate b queues as `<issue>b`.
 - #124 busy time, merged: the overlap in `state.py` is the key check and the `status` sort.
 - #119 stacked worktrees, merged: see Decision 2 for the parent fields.
