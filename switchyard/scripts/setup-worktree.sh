@@ -89,7 +89,7 @@ if [ -n "$candidate" ]; then
   # The planner commits nothing, so the reviewed change is still untracked in candidate a.
   for change in "$first_path"/openspec/changes/*/; do
     name=$(basename "$change")
-    [ -d "$change" ] && [ "$name" != archive ] || continue
+    if [ ! -d "$change" ] || [ "$name" = archive ]; then continue; fi
     mkdir -p "$path/openspec/changes/$name"
     cp -R "$change." "$path/openspec/changes/$name/"
   done
