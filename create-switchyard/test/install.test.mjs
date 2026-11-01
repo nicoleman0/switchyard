@@ -26,7 +26,7 @@ const gitIn = (cwd, ...args) => execFileSync("git", args, { cwd, env: gitEnv, en
 const git = (...args) => gitIn(repo, ...args);
 const createIn = (cwd, ...args) =>
   spawnSync("npm", ["exec", "--yes", `--package=${tarball}`, "--", "create-switchyard", ...args], {
-    cwd, env: gitEnv, encoding: "utf8",
+    cwd, env: gitEnv, encoding: "utf8", input: "",
   });
 const create = (...args) => createIn(repo, ...args);
 const output = (result) => result.stdout + result.stderr;
@@ -109,6 +109,32 @@ test("installs the bundled release into a git repo", () => {
   assert.ok(statSync(join(repo, "switchyard/hooks/worktree-up.sh")).mode & 0o111, "hook is executable");
   assert.ok(!existsSync(join(repo, "create-switchyard")), "package folder reached the project");
   assert.ok(!existsSync(join(repo, "CHANGELOG.md")), "package changelog reached the project");
+});
+
+test("plain install flags and npm fallback leave no openspec folder", () => {
+  for (const [name, args, fallback] of [
+    ["plain-flag", ["--no-openspec"], undefined],
+    ["plain-env", [], "false"],
+    ["plain-env-empty", [], ""],
+    ["explicit-wins", ["--no-openspec"], "true"],
+  ]) {
+    const dir = join(tmp, name);
+    mkdirSync(dir);
+    gitIn(dir, "init", "-q");
+    const result = spawnSync("node", [join(unpacked, "package/bin/create-switchyard.mjs"), ...args], {
+      cwd: dir, env: { ...gitEnv, npm_config_openspec: fallback }, encoding: "utf8", input: "",
+    });
+    assert.equal(result.status, 0, output(result));
+    assert.ok(!existsSync(join(dir, "openspec")));
+    assert.match(result.stdout, /Plans: plain/);
+    assert.doesNotMatch(result.stdout, /openspec init/);
+  }
+});
+
+test("both install mode flags print usage and exit 2", () => {
+  const result = create("--openspec", "--no-openspec");
+  assert.equal(result.status, 2, output(result));
+  assert.match(result.stderr, /usage/);
 });
 
 test("a second run refuses and names the update command", () => {

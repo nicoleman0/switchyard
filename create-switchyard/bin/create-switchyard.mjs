@@ -6,6 +6,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const usage = `usage: npm init switchyard@latest                       install into this git repo
+       npm init switchyard@latest -- --openspec        install with OpenSpec
+       npm init switchyard@latest -- --no-openspec     install with plain plans
        npm init switchyard@latest update                update to the newest bundled release
        npm init switchyard@latest update -- --dry-run   print the report without writing files
        npm init switchyard@latest update -- ARGS        pass ARGS to the updater, such as --to X.Y.Z
@@ -61,7 +63,7 @@ if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
   console.log(usage);
   process.exit(0);
 }
-if (args.length > 0) {
+if (args.length > 1 || args.some((arg) => !["--openspec", "--no-openspec"].includes(arg))) {
   console.error(usage);
   process.exit(2);
 }
@@ -71,4 +73,9 @@ if (installed !== null) {
   console.error(`create-switchyard: switchyard/VERSION already names ${installed}; to update, run npm init switchyard@latest update`);
   process.exit(2);
 }
-updater(["--install", "--source", bundle]);
+// npm 11 exports an empty value for a swallowed --no-openspec.
+const npmFlags = new Map([
+  ["true", "--openspec"], ["false", "--no-openspec"], ["", "--no-openspec"],
+]);
+const flag = args[0] ?? npmFlags.get(process.env.npm_config_openspec);
+updater(["--install", "--source", bundle, ...(flag ? [flag] : [])]);

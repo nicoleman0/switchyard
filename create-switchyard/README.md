@@ -3,6 +3,7 @@
 Adds [Switchyard](https://github.com/nicoleman0/switchyard) to a git repo, and updates it later. It needs git, Python 3.10 or newer, and Node.js 18 or later.
 
 - Install, from inside the repo: `npm init switchyard@latest`
+- Install with plain plans: `npm init switchyard@latest -- --no-openspec`.
 - Update, on a clean branch: `npm init switchyard@latest update`
 - Pass updater arguments after `--`, such as `npm init switchyard@latest update -- --to 0.7.2`.
 - Preview an update without writing files: `npm init switchyard@latest update -- --dry-run`. Without the `--` it is also safe, but npm can fail with an `enoent` error on a first run.

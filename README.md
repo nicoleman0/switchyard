@@ -86,17 +86,19 @@ Run it from the root of the repo. A new, empty repo works too:
 npm init switchyard@latest
 ```
 
+Install asks whether to use OpenSpec, default yes; use `npm init switchyard@latest -- --no-openspec` for plain plans.
+
 `npx create-switchyard@latest` does the same. Keep `@latest`: without it, npm can run an older copy from its cache. The package runs its bundled `update-switchyard.py --install`, so it needs Python 3.10 or newer. The command adds every workflow file the repo does not have and merges the ones it does. The merge keeps what the project owns:
 
 - `AGENTS.md` gains the Workflow and Writing sections; a repo without an `AGENTS.md` gets the release's whole file, Project placeholder included.
 - `.gitignore` gains the `.switchyard/` line when it is missing.
-- `openspec/config.yaml` gains the Switchyard `rules` entries without replacing `context` or the project's own rules.
+- When the project uses OpenSpec, `openspec/config.yaml` gains the Switchyard `rules` entries without replacing `context` or the project's own rules.
 - `switchyard/routing.md` is added when it is missing and never replaced.
 - `switchyard/lessons.md` is added when it is missing and never replaced.
 
 The report lists each file as `added`, `merged`, or `conflict`, then the totals, and writes `VERSION` naming the release. Conflict markers name the two sides. In `AGENTS.md`, `.gitignore`, and `openspec/config.yaml`, they stay inside the owned section or rule list. Any other existing workflow file that differs gets markers around the whole file. Resolve them, review the diff, and commit. The updater ends by printing the commands that undo the run.
 
-If the repo has no `openspec/` directory, install prints the next step, `npx @fission-ai/openspec init --tools claude,codex,opencode`; install writes `openspec/config.yaml` first, and init keeps it.
+When you choose OpenSpec and the repo has no `openspec/` directory, install prints the next step, `npx @fission-ai/openspec init --tools claude,codex,opencode`; install writes `openspec/config.yaml` first, and init keeps it.
 
 ## Start a new project
 
