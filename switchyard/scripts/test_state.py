@@ -417,6 +417,7 @@ class Harness(unittest.TestCase):
                      ".switchyard/answers/plan.md"):
             self.assertEqual((second / name).read_text(), name)
         self.assertFalse((second / "openspec/changes/archive").exists())
+        self.assertFalse((second / ".switchyard/plan.md").exists())
         self.assertEqual(self.record("120b")["owned"], "src/ CHANGELOG.md")
         self.assertEqual(self.record("120b")["candidate_of"], "120")
         self.assertEqual(self.record("120b")["branch"], "topic-b")
@@ -432,6 +433,25 @@ class Harness(unittest.TestCase):
         self.assertEqual(self.script("teardown-worktree.sh", "--abandon", "120", "topic").returncode, 0)
         self.assertEqual(log.read_text().splitlines(),
                          ["up [120] []", "up [120] [b]", "down [120] [b]", "down [120] []"])
+
+    def test_setup_candidate_copies_plain_plan(self):
+        first_setup = self.script("setup-worktree.sh", "82", "topic")
+        self.assertEqual(first_setup.returncode, 0, first_setup.stderr)
+        first = Path(self.record("82")["path"])
+        plan = first / ".switchyard/plan.md"
+        plan.parent.mkdir(parents=True, exist_ok=True)
+        content = b"# Plan: issue #82\n\n## Tasks\n\n- [ ] Implement\n"
+        plan.write_bytes(content)
+
+        second_setup = self.script("setup-worktree.sh", "82b", "topic-b")
+        self.assertEqual(second_setup.returncode, 0, second_setup.stderr)
+        second = Path(self.record("82b")["path"])
+        copied = second / ".switchyard/plan.md"
+        self.assertTrue(copied.is_file())
+        self.assertEqual(copied.read_bytes(), content)
+        self.assertFalse((second / "openspec").exists())
+        copied.write_bytes(content.replace(b"[ ]", b"[x]"))
+        self.assertEqual(plan.read_bytes(), content)
 
     def test_abandon_skip_hook_keeps_shared_state(self):
         # A hook that ignores CANDIDATE gives both candidates one database.

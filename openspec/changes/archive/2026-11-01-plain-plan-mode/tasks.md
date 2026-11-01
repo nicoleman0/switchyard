@@ -11,7 +11,7 @@
 
 - [x] 2.1 `check-scope.sh`: add `openspec/` to the in-scope prefixes only when the main checkout has `openspec/`. Verify with a test: plain repo reports an `openspec/` file; OpenSpec repo does not.
 - [x] 2.2 `pre-review.sh`: in plain mode SKIP "change archived" and "openspec" with the reason, and run a "plan" step (Decision 5). Verify with `test_pre_review.py` cases: plain pass, missing plan, unticked task, OpenSpec mode unchanged.
-- [ ] 2.3 `setup-worktree.sh`: a `<issue>b` candidate also copies `.switchyard/plan.md` when present. Verify with a `test_state.py` case. Blocked until #120 merges; the coordinator approved independent tasks first on 2026-11-01.
+- [x] 2.3 `setup-worktree.sh`: a `<issue>b` candidate also copies `.switchyard/plan.md` when present. Verify with a `test_state.py` case: the copy preserves the plan, edits stay separate, and no `openspec/` folder is created. An OpenSpec candidate without a plain plan still succeeds.
 - [x] 2.4 `.github/workflows/switchyard.yml`: guard the OpenSpec validate step when `openspec/` is absent; reword `.github/ISSUE_TEMPLATE/issue.yml` for both modes, per answer 1. Verify the run block with `bash -n` and execute it in temporary plain and OpenSpec repos. The coordinator verifies the hosted CI run after push.
 
 ## 3. Docs

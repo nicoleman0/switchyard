@@ -2,7 +2,7 @@
 # Create a worktree for one issue, then run the project's up hook to isolate it.
 # Inside Herdr the worktree opens as a workspace; otherwise it is a plain git
 # worktree beside the checkout. A key <issue>b sets up best-of-N candidate b
-# from record <issue>: same base, same open change and answers.
+# from record <issue>: same base, same reviewed plan and answers.
 # Usage: setup-worktree.sh [--parent <issue>] <issue-number>[b] <branch>
 set -euo pipefail
 
@@ -93,6 +93,10 @@ if [ -n "$candidate" ]; then
     mkdir -p "$path/openspec/changes/$name"
     cp -R "$change." "$path/openspec/changes/$name/"
   done
+  if [ -f "$first_path/.switchyard/plan.md" ]; then
+    mkdir -p "$path/.switchyard"
+    cp "$first_path/.switchyard/plan.md" "$path/.switchyard/plan.md"
+  fi
   if [ -d "$first_path/.switchyard/answers" ]; then
     mkdir -p "$path/.switchyard/answers"
     cp -R "$first_path/.switchyard/answers/." "$path/.switchyard/answers/"

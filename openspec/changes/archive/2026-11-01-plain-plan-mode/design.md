@@ -15,7 +15,7 @@ Installer work moves to #138 with its own change. This change does not edit the 
 ## Decisions
 
 1. **Mode is the presence of `openspec/` in the main checkout.** It already decides whether OpenSpec can run at all, and the updater already reads it. A flag in `routing.md` could disagree with the tree and would need markdown parsing in three scripts; `routing.md` is about providers. AGENTS.md prose is not script-readable. Scripts test the folder directly; `SKILL.md` Plans is the one prose home of the rule.
-2. **Plan file is `.switchyard/plan.md`, ignored.** It sits with the brief and answers, so every worker reads it from disk and nothing merges or archives. It is gone after teardown; the PR body carries the summary.
+2. **Plan file is `.switchyard/plan.md`, ignored.** It sits with the brief and answers, so every worker reads it from disk and nothing merges or archives. Best-of-N setup copies it from candidate a when present, so each candidate can tick its own tasks. It is gone after teardown; the PR body carries the summary.
 3. **Template `switchyard/plan-template.md`** has Why, What changes, Decisions, Impact, Scenarios (WHEN/THEN), Tasks (checkboxes, checks last). Impact, decisions, and tasks are what the coordinator's second sizing reads. "Scenarios: none" plays the role of `skip_specs: true`, and the coordinator checks it the same way.
 4. **"The change" keeps its name.** One Plans section defines it for both modes, so most text stays as is and parallel SKILL.md edits do not conflict.
 5. **Gate parity.** Plain mode replaces "change archived" and "openspec" with a "plan" step: file present, no `- [ ]` left. It mirrors archive refusing unfinished tasks.
@@ -25,4 +25,4 @@ Installer work moves to #138 with its own change. This change does not edit the 
 
 - A plain branch that creates `openspec/` is reported out of scope, since mode reads the main checkout. Intended.
 - Plain plans leave no record after teardown → PR body Changes and Decisions sections stay required.
-- Large diff across files three in-flight issues touch → independent tasks start after #114 and #119; candidate-plan copying waits for #120; the installer work is split into #138.
+- Changes meet #114's fix rounds, #119's stacking, and #120's candidate setup. Rebase onto their merged code before completing the candidate copy. Installer work is split into #138.
