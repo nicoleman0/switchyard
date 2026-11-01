@@ -120,7 +120,10 @@ ended=0
 legacy_role=$(field role)
 legacy_worker=$(field worker)
 if [ -n "$legacy_role" ] && [ -n "$legacy_worker" ] && [ -z "$(field "${legacy_role}_worker")" ]; then
-  python3 "$state" set "$issue" "${legacy_role}_worker=$legacy_worker" "${legacy_role}_pane=$root_pane" \
+  # A legacy reviewer runs in the root pane, which must stay open.
+  legacy_pane=("${legacy_role}_pane=$root_pane")
+  [ "$legacy_role" != reviewer ] || legacy_pane=()
+  python3 "$state" set "$issue" "${legacy_role}_worker=$legacy_worker" ${legacy_pane[@]+"${legacy_pane[@]}"} \
     "${legacy_role}_backend=$(python3 "$state" get "$issue" backend)"
 fi
 for role in "${roles[@]}"; do
@@ -130,14 +133,16 @@ for role in "${roles[@]}"; do
     end_agent "$worker" "$(python3 "$state" get "$issue" "${role}_backend")" "${pane:-$root_pane}"
     ended=1
   fi
-  if [ "$role" = reviewer ] && [ -n "$pane" ]; then
-    close_result=$(herdr pane close "$pane" 2>&1) \
-      || [[ "$close_result" == *pane_not_found* ]] || { echo "$close_result" >&2; exit 1; }
+  if [ "$role" = reviewer ] && [ -n "$pane$worker" ]; then
+    if [ -n "$pane" ]; then
+      close_result=$(herdr pane close "$pane" 2>&1) \
+        || [[ "$close_result" == *pane_not_found* ]] || { echo "$close_result" >&2; exit 1; }
+    fi
     cleared=(reviewer_pane= reviewer_worker=)
     # Clearing the current worker too keeps the step above from adopting it again.
     if [ -n "$worker" ] && [ "$(field worker)" = "$worker" ]; then cleared+=(worker=); fi
     python3 "$state" set "$issue" "${cleared[@]}"
-    printf 'closed=%s\n' "$pane"
+    [ -z "$pane" ] || printf 'closed=%s\n' "$pane"
     ended=1
   fi
 done

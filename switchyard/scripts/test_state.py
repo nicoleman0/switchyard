@@ -1247,6 +1247,17 @@ esac''')
         resumed = self.script("start-worker.sh", "10", "implementer", "codex", "--resume", env=env)
         self.assertEqual(resumed.returncode, 0, resumed.stderr)
 
+    def test_ending_legacy_reviewer_keeps_root_pane(self):
+        env, agents = self.stub_agents()
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", role="reviewer",
+                  backend="claude", implementer_backend="codex", worker="reviewer-10", session="")
+        ended = self.script("end-worker.sh", "10", "reviewer", env=env)
+        self.assertEqual(ended.returncode, 0, ended.stderr)
+        self.assertEqual(ended.stdout.splitlines(), ["ended=reviewer-10"])
+        self.assertNotIn("pane close", self.log.read_text())
+        record = self.record("10")
+        self.assertEqual((record["pane"], record["reviewer_worker"], record["worker"]), ("w1:p1", "", ""))
+
     def test_record_from_before_role_fields_keeps_both_agents(self):
         env, agents = self.stub_agents()
         self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", role="implementer",
