@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Create a worktree for one issue, then run the project's up hook to isolate it.
 # Inside Herdr the worktree opens as a workspace; otherwise it is a plain git
-# worktree beside the checkout.
-# Usage: setup-worktree.sh [--parent <issue>] <issue-number> <branch>
+# worktree beside the checkout. A key <issue>b sets up best-of-N candidate b
+# from record <issue>: same base, same open change and answers.
+# Usage: setup-worktree.sh [--parent <issue>] <issue-number>[b] <branch>
 set -euo pipefail
 
 parent=
@@ -15,11 +16,32 @@ case ${1:-} in
 esac
 issue=${1:?issue number required}
 branch=${2:?branch name required}
-[ $# -eq 2 ] || { echo "Usage: setup-worktree.sh [--parent <issue>] <issue-number> <branch>" >&2; exit 2; }
+[ $# -eq 2 ] || { echo "Usage: setup-worktree.sh [--parent <issue>] <issue-number>[b] <branch>" >&2; exit 2; }
 repo=$(git rev-parse --show-toplevel)
 cd "$repo"
 base=$(git symbolic-ref --short HEAD)
 hook=switchyard/hooks/worktree-up.sh
+digits=${issue%b}
+candidate=${issue#"$digits"}
+state_args=(init "$issue" "branch=$branch")
+if [ -n "$candidate" ]; then
+  if [ -n "$parent" ]; then
+    echo "Candidate $issue takes its base from issue $digits. Drop --parent." >&2
+    exit 1
+  fi
+  case $digits in
+    '' | *[!0-9]*) echo "Issue key $issue must be digits, optionally followed by b." >&2; exit 1 ;;
+  esac
+  first_path=$(python3 switchyard/scripts/state.py get "$digits" path) || exit 1
+  base=$(python3 switchyard/scripts/state.py get "$digits" branch) || exit 1
+  [ -d "$first_path" ] || { echo "Issue $digits: worktree $first_path is missing." >&2; exit 1; }
+  state_args+=("candidate_of=$digits")
+  for field in owned parent parent_branch parent_head; do
+    if value=$(python3 switchyard/scripts/state.py get "$digits" "$field" 2>/dev/null); then
+      state_args+=("$field=$value")
+    fi
+  done
+fi
 if [ -n "$parent" ]; then
   if [ "$parent" = "$issue" ]; then
     echo "Issue $issue cannot be its own parent." >&2
@@ -52,7 +74,7 @@ fi
 git config extensions.worktreeConfig true
 git -C "$path" config --worktree remote.origin.pushurl workers-do-not-push
 
-state_args=(init "$issue" "branch=$branch" "path=$path")
+state_args+=("path=$path")
 if [ -n "$parent" ]; then
   state_args+=("parent=$parent" "parent_branch=$parent_branch" "parent_head=$parent_head")
 fi
@@ -63,6 +85,20 @@ else
 fi
 python3 switchyard/scripts/state.py "${state_args[@]}"
 
+if [ -n "$candidate" ]; then
+  # The planner commits nothing, so the reviewed change is still untracked in candidate a.
+  for change in "$first_path"/openspec/changes/*/; do
+    name=$(basename "$change")
+    if [ ! -d "$change" ] || [ "$name" = archive ]; then continue; fi
+    mkdir -p "$path/openspec/changes/$name"
+    cp -R "$change." "$path/openspec/changes/$name/"
+  done
+  if [ -d "$first_path/.switchyard/answers" ]; then
+    mkdir -p "$path/.switchyard/answers"
+    cp -R "$first_path/.switchyard/answers/." "$path/.switchyard/answers/"
+  fi
+fi
+
 if [ -x "$hook" ]; then
-  ISSUE=$issue BRANCH=$branch WORKTREE=$path MAIN_CHECKOUT=$repo "$hook"
+  ISSUE=$digits CANDIDATE=$candidate BRANCH=$branch WORKTREE=$path MAIN_CHECKOUT=$repo "$hook"
 fi

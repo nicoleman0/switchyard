@@ -18,6 +18,8 @@ Write your review to `.switchyard/reviews/<n>.md`, where `<n>` is one more than 
 
 Mark each failing line in sections 1 to 7 `Blocker:` or `Note:`. A passing line says met or pass, with no mark. A blocker is a scenario or task not met, a check that fails, a scope breach, or a security or data-loss problem. A scope breach includes removed or reordered behaviour the change did not ask for. Everything else is a note, such as writing, style, code quality, a missing or incomplete screenshot page, or a design or tasks file that lags an answer the code follows. The verdict is `changes requested` only when a line is a blocker. Notes alone give `Verdict: pass`. Write "none" under a section with nothing to report.
 
+When the prompt names two candidate branches, compare them. Diff each with `git diff origin/main...<branch>`; branches are shared across worktrees, so no checkout is needed. Run the checks in each candidate's worktree, from `git worktree list`, on that worktree's brief's isolation values. Keep the candidate with fewer blockers. On a tie, keep the one that follows the design more closely and is easier to change. Write one review. Line 1 is the verdict for the kept candidate. Line 2 is `Keep: <branch>`. Sections 1 to 9 cover the kept candidate. Add a Comparison section before section 8 with each candidate's blockers and check results, and the reasons for the pick.
+
 Stop when the file is written. Your last message is the verdict line and the path of the review.
 
 Do not edit code, tests, or the change. Do not commit, push, or open a PR. The review file is the only file you write. Do not spawn subagents.

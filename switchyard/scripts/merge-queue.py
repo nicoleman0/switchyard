@@ -13,6 +13,8 @@ import subprocess
 import sys
 import time
 
+from state import valid_key
+
 
 SCRIPTS = Path(__file__).resolve().parent
 
@@ -218,8 +220,8 @@ def main():
         main = Path(run(SCRIPTS, "git", "worktree", "list", "--porcelain").stdout.splitlines()[0][9:]).resolve()
         records = []
         for issue in args.issues:
-            if not issue.isascii() or not issue.isdigit():
-                raise Stop(f"invalid issue number: {issue}")
+            if not valid_key(issue):
+                raise Stop(f"invalid issue key: {issue}")
             values = [run(main, sys.executable, str(SCRIPTS / "state.py"), "get", issue, key).stdout.strip()
                       for key in ("branch", "path")]
             records.append((issue, values[0], Path(values[1]).resolve()))

@@ -73,7 +73,8 @@ elif [ ! -x "$hook" ]; then
   echo "FAIL project checks"
   failed=1
 else
-  step "project checks" env ISSUE="$issue" BRANCH="$branch" WORKTREE="$path" MAIN_CHECKOUT="$main" "$hook"
+  digits=${issue%b}
+  step "project checks" env ISSUE="$digits" CANDIDATE="${issue#"$digits"}" BRANCH="$branch" WORKTREE="$path" MAIN_CHECKOUT="$main" "$hook"
 fi
 
 echo "Log: $log"

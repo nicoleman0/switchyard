@@ -113,6 +113,14 @@ class PreReview(unittest.TestCase):
         self.assertIn(str(self.tree), text.split("main-copy", 1)[1])
         self.assertNotIn("Add your project's checks", text)
 
+    def test_candidate_key_splits_issue_and_candidate(self):
+        self.hook(self.main / "switchyard/hooks/checks.sh", 'echo "vars [$ISSUE] [$CANDIDATE]"')
+        self.state("init", "1b", "branch=topic", f"path={self.tree}", "owned=src/")
+        for key, expected in (("1", "vars [1] []"), ("1b", "vars [1] [b]")):
+            result = self.gate(key)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn(expected, self.logs()[-1].read_text())
+
     def test_no_hook_skips(self):
         (self.main / "switchyard/hooks/checks.sh").unlink()
         result = self.gate()
