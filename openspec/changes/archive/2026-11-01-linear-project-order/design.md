@@ -45,11 +45,11 @@ Linear limits one query to 10,000 complexity points: 0.1 per property, 1 per obj
      filter: { state: { type: { nin: ["completed", "canceled", "duplicate"] } } }) {
      nodes { identifier title sortOrder state { name type } projectMilestone { name sortOrder }
        inverseRelations(first: 20) {
-         nodes { type issue { identifier state { type } project { id } } }
+         nodes { type issue { identifier state { type } } }
          pageInfo { hasNextPage endCursor } } }
      pageInfo { hasNextPage endCursor } } }
    ```
-   About 93 points per issue, 4,700 per page. `first: 50` on relations would pass 10,000.
+   About 90 points per issue, 4,500 per page. `first: 50` on relations would pass 10,000.
 3. An issue whose `inverseRelations.pageInfo.hasNextPage` is true gets its remaining relations by `issue(id: $key) { inverseRelations(first: 100, after: $after) { ... } }`, paged the same way `fetch` pages comments.
 
 The state filter runs in Linear, so closed issues cost no pages. The script still treats a returned issue as open only when its state type is not closed, so the filter and the rule have one home: a `CLOSED_TYPES` tuple used in both.

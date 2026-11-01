@@ -8,7 +8,7 @@
   tracker.py comment <issue> <file>
   tracker.py check
 
-`list` reads a Linear project's delivery order into open issues; on GitHub
+`list` prints a Linear project's open issues in delivery order; on GitHub
 it exits 2 and asks for named issues. The tracker comes from
 `switchyard/tracker.md`, which may also hold a `Phase | Status` table of
 Linear status names. set-phase does nothing on GitHub. Add a backend class
@@ -62,8 +62,13 @@ PROJECTS_QUERY = (
 )
 
 # Each connection multiplies its children by `first` in Linear's complexity
-# budget, so issue relations are paged apart from the issues (about 93 points
+# budget, so issue relations are paged apart from the issues (about 90 points
 # per issue; `first: 50` on relations alone would go over the 10,000 limit).
+RELATION_FIELDS = (
+    "nodes { type issue { identifier state { type } } }"
+    " pageInfo { hasNextPage endCursor }"
+)
+
 PROJECT_ISSUES_QUERY = (
     "query ProjectIssues($id: String!, $after: String) {\n"
     "  project(id: $id) {\n"
@@ -71,8 +76,7 @@ PROJECT_ISSUES_QUERY = (
     + json.dumps(list(CLOSED_TYPES)) + " } } }) {\n"
     "      nodes { identifier title sortOrder state { name type } projectMilestone { name sortOrder }\n"
     "        inverseRelations(first: 20) {\n"
-    "          nodes { type issue { identifier state { type } project { id } } }\n"
-    "          pageInfo { hasNextPage endCursor }\n"
+    "          " + RELATION_FIELDS + "\n"
     "        }\n"
     "      }\n"
     "      pageInfo { hasNextPage endCursor }\n"
@@ -85,8 +89,7 @@ RELATIONS_QUERY = (
     "query Relations($id: String!, $after: String) {\n"
     "  issue(id: $id) {\n"
     "    inverseRelations(first: 100, after: $after) {\n"
-    "      nodes { type issue { identifier state { type } project { id } } }\n"
-    "      pageInfo { hasNextPage endCursor }\n"
+    "      " + RELATION_FIELDS + "\n"
     "    }\n"
     "  }\n"
     "}"
@@ -168,9 +171,10 @@ def delivery_order(nodes: list) -> list:
     Linear's manual `sortOrder`, then the key. Each issue's blockers come
     from its `blocks` relations: an open blocker in the list is an edge, one
     outside the list is shown as `<key> (outside)` and changes nothing, one
-    closed is ignored. Kahn's algorithm with the base index as priority moves
-    a blocked issue after its blocker and nothing else; a cycle raises and
-    names its members.
+    closed is ignored. Each step emits the first issue in base order whose
+    in-list blockers are all emitted (Kahn's algorithm with the base index
+    as priority), so a blocked issue lands after its blockers and the
+    relative order of the others is kept. A cycle raises and names members.
 
     Takes the project's issue nodes as plain dicts shaped like the GraphQL
     query's `nodes`, with `inverseRelations` flattened to a node list.
@@ -191,17 +195,13 @@ def delivery_order(nodes: list) -> list:
 
     emitted, ordered, left = set(), [], list(base)
     while left:
-        progress = len(emitted)
-        # One pass per round keeps unblocked issues in base order; only a
-        # blocked issue moves, after its last unemitted blocker.
-        for node in list(left):
-            if node["identifier"] in emitted:
-                continue
+        for node in left:
             if depends_on[node["identifier"]] <= emitted:
                 ordered.append({**node, "blockers": blocker_lists[node["identifier"]]})
                 emitted.add(node["identifier"])
                 left.remove(node)
-        if len(emitted) == progress:
+                break
+        else:
             members = cycle_members(left, depends_on, emitted)
             raise TrackerError(f"tracker.py: blocked-by cycle: {' -> '.join([*members, members[0]])}")
     return ordered

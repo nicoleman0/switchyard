@@ -663,10 +663,24 @@ class DeliveryOrderTest(unittest.TestCase):
         issues = [flat_node("ENG-10"), flat_node("ENG-9")]
         self.assertEqual([n["identifier"] for n in tracker.delivery_order(issues)], ["ENG-9", "ENG-10"])
 
-    def test_a_blocked_issue_moves_after_its_blocker_and_nothing_else_moves(self) -> None:
+    def test_a_blocked_issue_lands_after_its_blocker_keeping_relative_order(self) -> None:
         issues = [flat_node("ENG-2", relations=[relation("ENG-5")]), flat_node("ENG-3"),
                   flat_node("ENG-5"), flat_node("ENG-6")]
-        self.assertEqual([n["identifier"] for n in tracker.delivery_order(issues)], ["ENG-3", "ENG-5", "ENG-6", "ENG-2"])
+        self.assertEqual([n["identifier"] for n in tracker.delivery_order(issues)], ["ENG-3", "ENG-5", "ENG-2", "ENG-6"])
+
+    def test_a_blocked_issue_does_not_fall_behind_later_milestones(self) -> None:
+        first = {"name": "First", "sortOrder": 0.0}
+        second = {"name": "Second", "sortOrder": 1.0}
+        third = {"name": "Third", "sortOrder": 2.0}
+        issues = [
+            flat_node("ENG-1", sort=0.0, milestone=first, relations=[relation("ENG-3")]),
+            flat_node("ENG-2", sort=1.0, milestone=first),
+            flat_node("ENG-3", sort=2.0, milestone=first),
+            flat_node("ENG-4", milestone=second),
+            flat_node("ENG-5", milestone=third),
+        ]
+        self.assertEqual([n["identifier"] for n in tracker.delivery_order(issues)],
+                         ["ENG-2", "ENG-3", "ENG-1", "ENG-4", "ENG-5"])
 
     def test_an_outside_blocker_is_shown_and_moves_nothing(self) -> None:
         issues = [flat_node("ENG-2", relations=[relation("OPS-9")]), flat_node("ENG-3")]
@@ -844,11 +858,9 @@ class LinearListTest(LinearMain, unittest.TestCase):
         self.assertIn("ENG-3", stderr)
 
     def test_a_missing_key_fails_before_any_call(self) -> None:
-        transport = RecordingTransport([{}])
         self.load(tracker.Linear())
         self.assertEqual(self.run_tool("list", "Onboarding"), 1, self.stdout.getvalue())
         self.assertIn("LINEAR_API_KEY is not set", self.stderr.getvalue())
-        self.assertEqual(transport.calls, [])
 
 
 class GitHubListTest(TrackerTest):
