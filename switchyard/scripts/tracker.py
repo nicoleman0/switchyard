@@ -29,7 +29,7 @@ import urllib.request
 from pathlib import Path
 
 TRACKER_FILE = Path(__file__).resolve().parents[1] / "tracker.md"
-TRACKER_LINE = re.compile(r"^Tracker:\s*(\S+)\s*$", re.MULTILINE)
+TRACKER_LINE = re.compile(r"^Tracker:[ \t]*(\S+)[ \t]*$", re.MULTILINE)
 
 # Default Linear status for each phase; tracker.md can override any of them.
 PHASES = {

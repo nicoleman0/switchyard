@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 ### Changed
 
 - #148: `scripts/tracker.py` is the only place that calls the issue tracker: `view <issue>` and `set-change <issue> <path>` replace `gh issue view` and `gh issue edit`. `switchyard/tracker.md` names the tracker (`github`); the updater adds it and never replaces it. Reading an issue now prints the title and body even with no comments.
+- #157: Install and update write `Tracker: github` when they add `tracker.md`, whatever tracker the release's file names, and template init resets the line to `github`. The tracker tests no longer read this repo's own `tracker.md`. A `Tracker:` line must now hold its name on the same line.
 
 ## [0.10.0] - 2026-11-01
 

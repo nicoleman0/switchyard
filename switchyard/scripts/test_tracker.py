@@ -36,6 +36,12 @@ class TrackerTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         root = Path(self.tmp.name)
+        # Own skill folder, so the repo's tracker.md never decides these tests.
+        scripts = root / "switchyard" / "scripts"
+        scripts.mkdir(parents=True)
+        (root / "switchyard" / "tracker.md").write_text("Tracker: github\n")
+        self.script = scripts / "tracker.py"
+        self.script.write_bytes(SCRIPT.read_bytes())
         bin_dir = root / "bin"
         bin_dir.mkdir()
         gh = bin_dir / "gh"
@@ -50,7 +56,7 @@ class TrackerTest(unittest.TestCase):
         )
 
     def run_tool(self, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run([sys.executable, str(SCRIPT), *args], env=self.env, capture_output=True, text=True)
+        return subprocess.run([sys.executable, str(self.script), *args], env=self.env, capture_output=True, text=True)
 
     def calls(self) -> list:
         if not self.log.exists():
@@ -111,6 +117,12 @@ class LoadTrackerTest(unittest.TestCase):
             tracker.load_tracker(self.path)
         self.assertEqual(ctx.exception.status, 1)
         self.assertIn("github", str(ctx.exception))
+
+    def test_name_on_next_line_is_not_a_tracker_line(self) -> None:
+        self.path.write_text("Tracker:\ngithub\n")
+        with self.assertRaises(tracker.TrackerError) as ctx:
+            tracker.load_tracker(self.path)
+        self.assertIn("found 0", str(ctx.exception))
 
     def test_no_tracker_line(self) -> None:
         self.path.write_text("# Project tracker\n")

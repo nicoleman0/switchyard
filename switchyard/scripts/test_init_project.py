@@ -55,10 +55,12 @@ TEMPLATE_FILES = {
     "docs/social-preview.png": b"png\n",
     "docs/pixelart.py": b"print('banner')\n",
     CHART: b"<svg></svg>\n",
+    "switchyard/tracker.md": b"Tracker: github\n",
     "create-switchyard/package.json": b"{}\n",
     "create-switchyard/bin/create-switchyard.mjs": b"// bin\n",
 }
 PACKAGE = "create-switchyard"
+TRACKER = "switchyard/tracker.md"
 
 
 class InitProjectTests(unittest.TestCase):
@@ -115,10 +117,55 @@ class InitProjectTests(unittest.TestCase):
         self.assertIn("moved     README.md -> docs/WORKFLOW.md", result.stdout)
         self.assertIn(f"kept      {CHART}", result.stdout)
         self.assertNotIn("skipped", result.stdout)
+        self.assertIn(f"kept      {TRACKER} (Tracker: github)", result.stdout)
         self.assertIn("Add your own README.md.", result.stdout)
         self.assertIn("Add your own LICENSE.", result.stdout)
         self.assertIn("Project section of AGENTS.md", result.stdout)
         self.assertIn("no commits", result.stdout)
+
+    def tracker_project(self, content: str | None) -> None:
+        self.write_template()
+        path = self.project / TRACKER
+        if content is None:
+            path.unlink()
+        else:
+            path.write_text(content)
+        self.git("init", "-q")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "template")
+
+    def test_resets_a_linear_tracker_and_keeps_the_rest(self):
+        self.tracker_project("# Tracker\n\nTracker: linear\n\n| Phase | Status |\n")
+        result = self.run_init()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.project / TRACKER).read_text(), "# Tracker\n\nTracker: github\n\n| Phase | Status |\n")
+        self.assertIn(f"reset     {TRACKER} (Tracker: github)\n", result.stdout)
+
+    def test_keeps_a_github_tracker(self):
+        self.tracker_project("Tracker: github\n")
+        result = self.run_init()
+        self.assertEqual((self.project / TRACKER).read_text(), "Tracker: github\n")
+        self.assertIn(f"kept      {TRACKER} (Tracker: github)\n", result.stdout)
+
+    def test_uncommitted_tracker_is_left_alone(self):
+        self.tracker_project("Tracker: linear\n")
+        (self.project / TRACKER).write_text("Tracker: linear\n# mine\n")
+        result = self.run_init()
+        self.assertEqual((self.project / TRACKER).read_text(), "Tracker: linear\n# mine\n")
+        self.assertIn(f"skipped   {TRACKER} (uncommitted changes)", result.stdout)
+
+    def test_absent_tracker_is_skipped(self):
+        self.tracker_project(None)
+        result = self.run_init()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f"skipped   {TRACKER} (absent)", result.stdout)
+        self.assertFalse((self.project / TRACKER).exists())
+
+    def test_tracker_without_one_line_is_skipped(self):
+        self.tracker_project("# Tracker\n")
+        result = self.run_init()
+        self.assertIn(f"skipped   {TRACKER} (needs exactly one Tracker: line, found 0)", result.stdout)
+        self.assertEqual((self.project / TRACKER).read_text(), "# Tracker\n")
 
     def test_deletes_the_package_folder(self):
         self.fresh_project()

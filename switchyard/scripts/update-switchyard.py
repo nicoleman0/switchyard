@@ -23,6 +23,8 @@ from pathlib import Path
 # Keep in step with the backends in switchyard/scripts/tracker.py; the test
 # suite asserts the argparse choices match that file's BACKENDS keys.
 TRACKER_CHOICES = ("github", "linear")
+# Every project that predates tracker.md used GitHub.
+DEFAULT_TRACKER = "github"
 TRACKER_LINE_RE = re.compile(r"^Tracker:[ \t]*(\S+)[ \t]*$", re.MULTILINE)
 
 DEFAULT_SOURCE = "https://github.com/nicoleman0/switchyard.git"
@@ -774,8 +776,8 @@ def run() -> int:
                         local_content, _ = local_file(project_root, path)
                         if local_content is None:
                             content = (
-                                replace_tracker_line(target_content, args.tracker)
-                                if path == TRACKER and args.tracker is not None
+                                replace_tracker_line(target_content, args.tracker or DEFAULT_TRACKER)
+                                if path == TRACKER
                                 else target_content
                             )
                             actions.append(Action(path, "added", content, mode))
@@ -809,7 +811,12 @@ def run() -> int:
                     if path in PROJECT_OWNED:
                         local_content, _ = local_file(project_root, path)
                         if target_item is not None and local_content is None:
-                            actions.append(Action(path, "added", target_item[1], target_item[0]))
+                            content = (
+                                replace_tracker_line(target_item[1], DEFAULT_TRACKER)
+                                if path == TRACKER
+                                else target_item[1]
+                            )
+                            actions.append(Action(path, "added", content, target_item[0]))
                         continue
                     base_content = base_item[1] if base_item else None
                     target_content = target_item[1] if target_item else None
