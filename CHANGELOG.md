@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 ### Added
 
 - #149: Linear as the issue tracker: `scripts/tracker.py` gets a Linear backend (`view`, `set-change`, and a new `check`) that calls Linear's GraphQL API with `LINEAR_API_KEY`. Issue keys accept Linear identifiers such as `ENG-123`, install takes `--tracker linear`, and preflight checks the key when the tracker is Linear. PRs stay on GitHub; branches start with the lowercased key so Linear's GitHub integration links them. Untested against live Linear: no API key in CI.
+- #150: On Linear, issues move through a status per phase (planning, plan review, building, in review, needs input), and questions go out as a Linear comment answered by reply. `tracker.py` gets `set-phase` and `comment`; `start-worker.sh` sets the phase for each worker. Add the Planning, Plan review, and Needs input statuses, or rename them in a `tracker.md` table. GitHub projects see no change. Untested against live Linear.
 
 ### Changed
 

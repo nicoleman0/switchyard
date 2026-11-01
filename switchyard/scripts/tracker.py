@@ -3,10 +3,13 @@
 
   tracker.py view <issue>
   tracker.py set-change <issue> <change-path>
+  tracker.py set-phase <issue> <phase>
+  tracker.py comment <issue> <file>
   tracker.py check
 
-The tracker comes from `switchyard/tracker.md`. Add a backend class and a
-BACKENDS entry.
+The tracker comes from `switchyard/tracker.md`, which may also hold a
+`Phase | Status` table of Linear status names. set-phase does nothing on
+GitHub. Add a backend class and a BACKENDS entry.
 """
 
 from __future__ import annotations
@@ -23,6 +26,15 @@ from pathlib import Path
 
 TRACKER_FILE = Path(__file__).resolve().parents[1] / "tracker.md"
 TRACKER_LINE = re.compile(r"^Tracker:\s*(\S+)\s*$", re.MULTILINE)
+
+# Default Linear status for each phase; tracker.md can override any of them.
+PHASES = {
+    "planning": "Planning",
+    "plan-review": "Plan review",
+    "building": "In Progress",
+    "in-review": "In Review",
+    "needs-input": "Needs input",
+}
 
 LINEAR_URL = "https://api.linear.app/graphql"
 LINEAR_KEY_ENV = "LINEAR_API_KEY"
@@ -90,6 +102,14 @@ class GitHub:
         body = json.loads(self.gh("issue", "view", key, "--json", "body"))["body"]
         self.gh("issue", "edit", key, "--body-file", "-", stdin=with_change_line(body, path))
 
+    def set_phase(self, key: str, phase: str) -> None:
+        # GitHub issues have no workflow status; checking the key keeps typos loud.
+        self.check_key(key)
+
+    def comment(self, key: str, body: str) -> None:
+        key = self.check_key(key)
+        self.gh("issue", "comment", key, "--body-file", "-", stdin=body)
+
 
 def graphql_post(url: str, key: str):
     """Return transport(query, variables) -> dict for Linear's GraphQL endpoint."""
@@ -123,8 +143,9 @@ class Linear:
     # letters or digits follow, then a dash and a number.
     KEY_PATTERN = r"[A-Z][A-Z0-9]*-[0-9]+"
 
-    def __init__(self, transport=None) -> None:
+    def __init__(self, transport=None, statuses: dict | None = None) -> None:
         self._transport = transport
+        self.statuses = {**PHASES, **(statuses or {})}
 
     def transport(self):
         # Read at call time so a bad key still parses arguments and validates keys.
@@ -190,25 +211,88 @@ class Linear:
                 lines += [f"### {author}, {comment['createdAt']}", "", comment["body"].strip(), ""]
         return "\n".join(lines).rstrip("\n") + "\n"
 
-    def set_change(self, key: str, path: str) -> None:
-        key = self.check_key(key)
+    def lookup(self, key: str, fields: str) -> dict:
+        """Return the issue's `fields` by identifier; mutations need its UUID `id`."""
         issue = self.query(
-            "query IssueId($id: String!) { issue(id: $id) { id description } }",
+            f"query IssueId($id: String!) {{ issue(id: $id) {{ {fields} }} }}",
             {"id": key},
         )["issue"]
         if issue is None:
             raise TrackerError(f"Linear has no issue {key}")
-        data = self.query(
+        return issue
+
+    def set_change(self, key: str, path: str) -> None:
+        key = self.check_key(key)
+        issue = self.lookup(key, "id description")
+        self.update(issue["id"], {"description": with_change_line(issue["description"] or "", path)})
+
+    def set_phase(self, key: str, phase: str) -> None:
+        key = self.check_key(key)
+        wanted = self.statuses[phase]
+        issue = self.lookup(key, "id team { name states(first: 250) { nodes { id name } pageInfo { hasNextPage } } }")
+        team = issue["team"]
+        states = team["states"]
+        if states["pageInfo"]["hasNextPage"]:
+            # Paging for a team this large is not worth it; a silent miss would be worse.
+            raise TrackerError(f"Linear team {team['name']} has more than 250 statuses; tracker.py reads only 250")
+        ids = [state["id"] for state in states["nodes"] if state["name"] == wanted]
+        if not ids:
+            names = ", ".join(state["name"] for state in states["nodes"])
+            raise TrackerError(
+                f"Linear team {team['name']} has no status {wanted!r} for phase {phase}. Its statuses: {names}. "
+                f"Add the status in Linear, or name another in the Phase | Status table in switchyard/tracker.md."
+            )
+        self.update(issue["id"], {"stateId": ids[0]})
+
+    def comment(self, key: str, body: str) -> None:
+        key = self.check_key(key)
+        issue = self.lookup(key, "id")
+        self.mutate(
+            "commentCreate",
+            "mutation Comment($input: CommentCreateInput!) { commentCreate(input: $input) { success } }",
+            {"input": {"issueId": issue["id"], "body": body}},
+        )
+
+    def mutate(self, name: str, query: str, variables: dict) -> None:
+        if not self.query(query, variables)[name]["success"]:
+            # The schema can return a false success without an errors entry.
+            raise TrackerError(f"Linear API error: {name} returned success: false")
+
+    def update(self, issue_id: str, fields: dict) -> None:
+        self.mutate(
+            "issueUpdate",
             "mutation Update($id: String!, $input: IssueUpdateInput!) {"
             " issueUpdate(id: $id, input: $input) { success } }",
-            {"id": issue["id"], "input": {"description": with_change_line(issue["description"] or "", path)}},
-        )["issueUpdate"]
-        if not data["success"]:
-            # The schema can return a false success without an errors entry.
-            raise TrackerError("Linear API error: issueUpdate returned success: false")
+            {"id": issue_id, "input": fields},
+        )
 
 
 BACKENDS = {"github": GitHub, "linear": Linear}
+
+
+def read_statuses(text: str, path: Path) -> dict:
+    """Read the optional `| Phase | Status |` table; every other line is ignored."""
+    statuses = {}
+    for line in text.splitlines():
+        row = line.strip()
+        if not row.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in row.strip("|").split("|")]
+        if cells[0] == "Phase" or all(re.fullmatch(r":?-+:?", cell) for cell in cells):
+            continue
+        problem = None
+        if len(cells) != 2:
+            problem = "needs two cells, a phase and a status"
+        elif cells[0] not in PHASES:
+            problem = "names an unknown phase"
+        elif cells[0] in statuses:
+            problem = "repeats a phase"
+        elif not cells[1]:
+            problem = "has an empty status"
+        if problem:
+            raise TrackerError(f"tracker.py: the row {row!r} in {path} {problem}. Phases: {', '.join(PHASES)}")
+        statuses[cells[0]] = cells[1]
+    return statuses
 
 
 def load_tracker(path: Path = TRACKER_FILE):
@@ -224,7 +308,19 @@ def load_tracker(path: Path = TRACKER_FILE):
         raise TrackerError(f"tracker.py: {path} needs exactly one 'Tracker: <name>' line, found {len(names)}")
     if names[0] not in BACKENDS:
         raise TrackerError(f"tracker.py: unknown tracker {names[0]!r} in {path}. Known: {', '.join(sorted(BACKENDS))}")
-    return BACKENDS[names[0]]()
+    statuses = read_statuses(text, path)
+    backend = BACKENDS[names[0]]
+    return backend(statuses=statuses) if backend is Linear else backend()
+
+
+def read_body(path: str) -> str:
+    try:
+        body = Path(path).read_text()
+    except (OSError, UnicodeDecodeError) as error:
+        raise TrackerError(f"tracker.py: cannot read {path}: {error}")
+    if not body.strip():
+        raise TrackerError(f"tracker.py: {path} is blank; there is nothing to post")
+    return body
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -234,6 +330,12 @@ def main(argv: list[str] | None = None) -> int:
     change = sub.add_parser("set-change", help="make 'Change: <path>' the first line of the issue body")
     change.add_argument("issue")
     change.add_argument("path")
+    phase = sub.add_parser("set-phase", help="move the issue to the status for a phase (nothing on GitHub)")
+    phase.add_argument("issue")
+    phase.add_argument("phase", choices=PHASES)
+    comment = sub.add_parser("comment", help="post a file as an issue comment")
+    comment.add_argument("issue")
+    comment.add_argument("file")
     sub.add_parser("check", help="confirm the configured tracker is usable and print its name")
     args = parser.parse_args(argv)
     try:
@@ -242,6 +344,10 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.write(tracker.view(args.issue))
         elif args.command == "set-change":
             tracker.set_change(args.issue, args.path)
+        elif args.command == "set-phase":
+            tracker.set_phase(args.issue, args.phase)
+        elif args.command == "comment":
+            tracker.comment(args.issue, read_body(args.file))
         else:
             sys.stdout.write(tracker.check() + "\n")
     except TrackerError as error:
