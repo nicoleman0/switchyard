@@ -11,10 +11,13 @@ if [ -f .env ]; then
 fi
 
 # One port per worktree, so dev servers and e2e runs never collide.
+# Linear keys take the number after the last dash, so two teams' equal
+# numbers share one port; edit this if your project has several teams.
+number=${ISSUE##*-}
 if [ "${CANDIDATE:-}" = b ]; then
-  printf 'port=4%03d\n' $((ISSUE % 1000))
+  printf 'port=4%03d\n' $((10#$number % 1000))
 else
-  printf 'port=3%03d\n' $((ISSUE % 1000))
+  printf 'port=3%03d\n' $((10#$number % 1000))
 fi
 
 # Add what your stack needs here: a database per issue, dependency install, migrations.

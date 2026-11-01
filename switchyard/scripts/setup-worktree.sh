@@ -3,22 +3,23 @@
 # Inside Herdr the worktree opens as a workspace; otherwise it is a plain git
 # worktree beside the checkout. A key <issue>b sets up best-of-N candidate b
 # from record <issue>: same base, same reviewed plan and answers.
-# Usage: setup-worktree.sh [--parent <issue>] <issue-number>[b] <branch>
+# Usage: setup-worktree.sh [--parent <issue>] <issue>[b] <branch>
 set -euo pipefail
 
 parent=
 if [ "${1:-}" = --parent ]; then
-  parent=${2:?parent issue number required}
+  parent=${2:?parent issue key required}
   shift 2
 fi
 case ${1:-} in
   -*) echo "Unknown option $1." >&2; exit 2 ;;
 esac
-issue=${1:?issue number required}
+issue=${1:?issue key required}
 branch=${2:?branch name required}
-[ $# -eq 2 ] || { echo "Usage: setup-worktree.sh [--parent <issue>] <issue-number>[b] <branch>" >&2; exit 2; }
+[ $# -eq 2 ] || { echo "Usage: setup-worktree.sh [--parent <issue>] <issue>[b] <branch>" >&2; exit 2; }
 repo=$(git rev-parse --show-toplevel)
 cd "$repo"
+python3 switchyard/scripts/state.py check-key "$issue"
 base=$(git symbolic-ref --short HEAD)
 hook=switchyard/hooks/worktree-up.sh
 digits=${issue%b}
@@ -29,9 +30,6 @@ if [ -n "$candidate" ]; then
     echo "Candidate $issue takes its base from issue $digits. Drop --parent." >&2
     exit 1
   fi
-  case $digits in
-    '' | *[!0-9]*) echo "Issue key $issue must be digits, optionally followed by b." >&2; exit 1 ;;
-  esac
   first_path=$(python3 switchyard/scripts/state.py get "$digits" path) || exit 1
   base=$(python3 switchyard/scripts/state.py get "$digits" branch) || exit 1
   [ -d "$first_path" ] || { echo "Issue $digits: worktree $first_path is missing." >&2; exit 1; }
@@ -47,6 +45,7 @@ if [ -n "$parent" ]; then
     echo "Issue $issue cannot be its own parent." >&2
     exit 1
   fi
+  python3 switchyard/scripts/state.py check-key "$parent"
   parent_branch=$(python3 switchyard/scripts/state.py get "$parent" branch) || exit 1
   if python3 switchyard/scripts/state.py get "$parent" parent >/dev/null 2>&1; then
     echo "Issue $parent is itself stacked. Only one level is supported." >&2

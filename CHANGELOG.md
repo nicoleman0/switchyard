@@ -4,6 +4,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- #149: Linear as the issue tracker: `scripts/tracker.py` gets a Linear backend (`view`, `set-change`, and a new `check`) that calls Linear's GraphQL API with `LINEAR_API_KEY`. Issue keys accept Linear identifiers such as `ENG-123`, install takes `--tracker linear`, and preflight checks the key when the tracker is Linear. PRs stay on GitHub; branches start with the lowercased key so Linear's GitHub integration links them. Untested against live Linear: no API key in CI.
+
 ### Changed
 
 - #148: `scripts/tracker.py` is the only place that calls the issue tracker: `view <issue>` and `set-change <issue> <path>` replace `gh issue view` and `gh issue edit`. `switchyard/tracker.md` names the tracker (`github`); the updater adds it and never replaces it. Reading an issue now prints the title and body even with no comments.

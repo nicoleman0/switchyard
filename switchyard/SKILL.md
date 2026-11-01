@@ -116,7 +116,7 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
 
 ## Per issue
 
-1. **Set up.** Run `scripts/setup-worktree.sh <issue> <branch>`. It records the issue and prints the worktree path, the runner's handles, and the isolation values from the project's `hooks/worktree-up.sh`. Keep them for the brief.
+1. **Set up.** Run `scripts/setup-worktree.sh <issue> <branch>`. It records the issue and prints the worktree path, the runner's handles, and the isolation values from the project's `hooks/worktree-up.sh`. Keep them for the brief. On Linear, start the branch with the lowercased issue key, such as `eng-123-fix-login`, so Linear's GitHub integration links the PR.
 2. **Brief.** Copy `brief-template.md` to `<path>/.switchyard/brief.md` and fill every `{placeholder}`. Under the coordinator notes, put:
    - the decisions already made,
    - what is out of scope and which issue owns it,

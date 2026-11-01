@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Replay a child's commits after its parent merges, then retarget its PR.
-# Run from the main checkout. Usage: restack.sh <issue-number>
+# Run from the main checkout. Usage: restack.sh <issue>
 set -euo pipefail
 
-issue=${1:?issue number required}
-[ $# -eq 1 ] || { echo "Usage: restack.sh <issue-number>" >&2; exit 2; }
+issue=${1:?issue key required}
+[ $# -eq 1 ] || { echo "Usage: restack.sh <issue>" >&2; exit 2; }
 repo=$(git rev-parse --show-toplevel)
 cd "$repo"
 state=switchyard/scripts/state.py

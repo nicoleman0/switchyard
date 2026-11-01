@@ -3,10 +3,10 @@
 # Ordinary teardown refuses dirty worktrees to avoid leaving a half-torn-down issue.
 # --abandon reports what it discards; missing steps are skipped.
 # --skip-hook keeps the down hook from removing state another worktree shares.
-# Usage: teardown-worktree.sh [--abandon [--skip-hook]] <issue-number> <branch>
+# Usage: teardown-worktree.sh [--abandon [--skip-hook]] <issue> <branch>
 set -euo pipefail
 
-usage="Usage: teardown-worktree.sh [--abandon [--skip-hook]] <issue-number> <branch>"
+usage="Usage: teardown-worktree.sh [--abandon [--skip-hook]] <issue> <branch>"
 abandon=
 skip_hook=
 while :; do
@@ -22,7 +22,7 @@ if [ -n "$skip_hook" ] && [ -z "$abandon" ]; then
   exit 2
 fi
 
-issue=${1:?issue number required}
+issue=${1:?issue key required}
 branch=${2:?branch name required}
 [ $# -eq 2 ] || { echo "$usage" >&2; exit 2; }
 repo=$(git rev-parse --show-toplevel)

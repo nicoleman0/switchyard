@@ -176,19 +176,25 @@ sys.exit(subprocess.run([{REAL_GIT!r}, *sys.argv[1:]]).returncode)
         state.parent.mkdir(parents=True, exist_ok=True)
         state.write_text(json.dumps({"issue": issue, "branch": branch, "path": str(tree),
                                      "owned": "CHANGELOG.md code.py", **(fields or {})}))
-        number = 100 + int(issue.rstrip("b"))
+        number = self.pr_number(issue)
         self.data["prs"][str(number)] = {"number": number, "state": "OPEN", "branch": branch,
                                          "url": f"https://example.test/pr/{issue}"}
         self.save()
         self.trees[issue] = tree
         return tree
 
+    def pr_number(self, issue):
+        # A fake pr number per issue; digits and Linear keys both take it.
+        digits = issue.rstrip("b")
+        _, _, number = digits.rpartition("-")
+        return 100 + int(number or digits)
+
     def stacked(self, child, parent, files=None):
         branch = f"topic-{parent}"
         fields = {"parent": parent, "parent_branch": branch, "parent_head": git(self.main, "rev-parse", branch),
                   "owned": f"CHANGELOG.md code.py child-{child}.txt"}
         tree = self.issue(child, branch, files or {f"child-{child}.txt": f"child {child}\n"}, fields)
-        self.data["prs"][str(100 + int(child))]["base"] = branch
+        self.data["prs"][str(self.pr_number(child))]["base"] = branch
         self.save()
         return tree
 
@@ -260,7 +266,7 @@ sys.exit(subprocess.run([{REAL_GIT!r}, *sys.argv[1:]]).returncode)
         self.assertEqual(len(merges), 2)
         for issue, call in zip(("1", "2"), merges):
             self.assert_torn_down(issue)
-            row = data["prs"][str(100 + int(issue))]
+            row = data["prs"][str(self.pr_number(issue))]
             self.assertEqual(row["state"], "MERGED")
             self.assertEqual(call[-2:], ["--match-head-commit", row["merged_head"]])
 
@@ -324,7 +330,7 @@ sys.exit(subprocess.run([{REAL_GIT!r}, *sys.argv[1:]]).returncode)
         record = self.state(child)
         for key in ("parent", "parent_branch", "parent_head"):
             self.assertFalse(record.get(key), key)
-        self.assertEqual(self.fixture()["prs"][str(100 + int(child))]["base"], "main")
+        self.assertEqual(self.fixture()["prs"][str(self.pr_number(child))]["base"], "main")
 
     def assert_on_main(self, child):
         branch = f"topic-{child}"
@@ -482,6 +488,31 @@ sys.exit(subprocess.run([{REAL_GIT!r}, *sys.argv[1:]]).returncode)
         result = self.queue("1c")
         self.assert_status(result, 2)
         self.assertIn("invalid issue key: 1c", result.stderr)
+
+    def test_linear_key_merges_and_children_sort_by_key_order(self):
+        self.issue("1")
+        stacked_five = self.stacked("5", "1")
+        self.stacked("ENG-4", "1")
+        self.upstream()
+        # key_order puts digits first, so #5 restacks before ENG-4.
+        result = self.queue("--merge", "1")
+        self.assert_status(result, 0)
+        self.assert_torn_down("1")
+        self.assert_restacked("5")
+        self.assert_restacked("ENG-4")
+        self.assertLess(result.stdout.index("restacking #5"), result.stdout.index("restacking #ENG-4"))
+        self.assertEqual(git(stacked_five, "rev-list", "--count", "origin/main..topic-5"), "1")
+        # ENG-5 is accepted as a key on its own; catch main up to the squash merge first.
+        git(self.main, "fetch", "-q", "origin")
+        git(self.main, "reset", "-q", "--hard", "origin/main")
+        self.issue("ENG-5")
+        self.upstream()
+        result = self.queue("--merge", "ENG-5")
+        self.assert_status(result, 0)
+        self.assert_torn_down("ENG-5")
+        result = self.queue("ENG-5c")
+        self.assert_status(result, 2)
+        self.assertIn("invalid issue key: ENG-5c", result.stderr)
 
     def test_unchanged_rebase_skips_push(self):
         tree = self.issue()

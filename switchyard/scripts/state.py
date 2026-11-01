@@ -28,19 +28,30 @@ def repo_root():
     return Path(first)
 
 
+KEY_PATTERN = r"(?:[0-9]+|[A-Z][A-Z0-9]*-[0-9]+)b?"
+
+
 def valid_key(issue):
-    # The b suffix marks a best-of-N issue's second candidate.
-    return re.fullmatch(r"[0-9]+b?", issue) is not None
+    # The b suffix marks a best-of-N issue's second candidate. Digits are
+    # GitHub keys; TEAM-NUMBER is a Linear identifier.
+    return re.fullmatch(KEY_PATTERN, issue) is not None
 
 
 def key_order(issue):
-    return int(issue.rstrip("b")), issue
+    # Digits sort first by number; Linear keys sort by team key, then number.
+    digits = issue.rstrip("b")
+    team, _, number = digits.rpartition("-")
+    return (team, int(number or digits), issue)
 
 
 def issue_path(issue):
     if not valid_key(issue):
-        fail(issue, "issue key must be digits, optionally followed by b")
+        fail(issue, "issue key must be digits or like ENG-123, optionally followed by b")
     return repo_root() / ".switchyard" / "state" / f"{issue}.json"
+
+
+def check_key(issue):
+    issue_path(issue)
 
 
 def read_record(issue):
@@ -82,7 +93,7 @@ def fields(args, issue):
 
 def command(args):
     if not args:
-        fail("?", "usage: state.py init|set|get|rm|status|phase-start|phase-end|turn-start|turn-end|archive|timings ...")
+        fail("?", "usage: state.py init|set|get|rm|status|check-key|phase-start|phase-end|turn-start|turn-end|archive|timings ...")
     action = args.pop(0)
     if action == "timings":
         timings(args)
@@ -91,9 +102,11 @@ def command(args):
         status()
         return
     if not args:
-        fail("?", f"{action} requires an issue number")
+        fail("?", f"{action} requires an issue key")
     issue = args.pop(0)
     path = issue_path(issue)
+    if action == "check-key":
+        return
     if action == "init":
         record = {"issue": issue, **fields(args, issue)}
         write_record(path, record)

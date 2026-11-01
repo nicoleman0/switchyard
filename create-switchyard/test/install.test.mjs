@@ -137,6 +137,33 @@ test("both install mode flags print usage and exit 2", () => {
   assert.match(result.stderr, /usage/);
 });
 
+test("a tracker name the updater does not know exits 2 with its error", () => {
+  const cases = [
+    ["tracker-flag", ["--tracker", "jira"], undefined],
+    ["tracker-inline", ["--tracker=jira"], undefined],
+    ["tracker-env", [], "jira"],
+  ];
+  for (const [name, args, npmTracker] of cases) {
+    const dir = join(tmp, name);
+    mkdirSync(dir);
+    gitIn(dir, "init", "-q");
+    const result = spawnSync("node", [join(unpacked, "package/bin/create-switchyard.mjs"), ...args], {
+      cwd: dir, env: { ...gitEnv, npm_config_tracker: npmTracker }, encoding: "utf8", input: "",
+    });
+    assert.equal(result.status, 2, output(result));
+    assert.match(result.stderr, /invalid choice: 'jira'/, args.join(" "));
+  }
+});
+
+test("--tracker with no value prints usage and exits 2", () => {
+  const dir = join(tmp, "tracker-missing-value");
+  mkdirSync(dir);
+  gitIn(dir, "init", "-q");
+  const result = createIn(dir, "--tracker");
+  assert.equal(result.status, 2, output(result));
+  assert.match(result.stderr, /usage/);
+});
+
 test("a second run refuses and names the update command", () => {
   git("add", "-A");
   git("commit", "-qm", "switchyard");
