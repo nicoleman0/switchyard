@@ -95,7 +95,7 @@ Install asks whether to use OpenSpec, default yes; use `npm init switchyard@late
 - When the project uses OpenSpec, `openspec/config.yaml` gains the Switchyard `rules` entries without replacing `context` or the project's own rules.
 - `switchyard/routing.md` is added when it is missing and never replaced.
 - `switchyard/lessons.md` is added when it is missing and never replaced.
-- `switchyard/tracker.md` is added when it is missing and never replaced.
+- `switchyard/tracker.md` is added when it is missing, naming `github` unless `--tracker` names another, and never replaced.
 
 The report lists each file as `added`, `merged`, or `conflict`, then the totals, and writes `VERSION` naming the release. Conflict markers name the two sides. In `AGENTS.md`, `.gitignore`, and `openspec/config.yaml`, they stay inside the owned section or rule list. Any other existing workflow file that differs gets markers around the whole file. Resolve them, review the diff, and commit. The updater ends by printing the commands that undo the run.
 
@@ -111,7 +111,7 @@ cd my-project
 python3 switchyard/scripts/init-project.py
 ```
 
-The new repo has every file here and none of this repo's history. Init moves this guide to `docs/WORKFLOW.md`, fixes its paths, and deletes Switchyard's own files: the `create-switchyard/` folder, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, the banner image, the social preview, and `docs/pixelart.py`. It keeps `docs/workflow.svg`, prints every move, deletion, and skip, and never commits. A committed copy of every moved and deleted file stays in git history: init refuses to run outside a git work tree and skips the listed paths with uncommitted changes. It ends by naming what to add next: your own `README.md` and `LICENSE`, for a start.
+The new repo has every file here and none of this repo's history. Init moves this guide to `docs/WORKFLOW.md`, fixes its paths, and deletes Switchyard's own files: the `create-switchyard/` folder, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, the banner image, the social preview, and `docs/pixelart.py`. It sets the `Tracker:` line of `switchyard/tracker.md` to `github`. It keeps `docs/workflow.svg`, prints every move, deletion, and skip, and never commits. A committed copy of every moved and deleted file stays in git history: init refuses to run outside a git work tree and skips the listed paths with uncommitted changes. It ends by naming what to add next: your own `README.md` and `LICENSE`, for a start.
 
 Then [make it yours](#make-it-yours) before the first issue.
 
@@ -153,7 +153,7 @@ The report lists files as `added`, `updated`, `removed`, `merged`, `conflict`, o
 
 The updater adds `switchyard/routing.md` when it is missing, then leaves it unchanged in later updates. Review it after it is added.
 The updater adds `switchyard/lessons.md` when it is missing, then leaves it unchanged in later updates. The project owns its content: the coordinator edits it during a batch.
-The updater adds `switchyard/tracker.md` when it is missing, then leaves it unchanged in later updates.
+The updater adds `switchyard/tracker.md` when it is missing, naming `github`, then leaves it unchanged in later updates.
 
 Preflight warns when `switchyard/VERSION` is behind the newest release. Run `python3 switchyard/scripts/update-switchyard.py --check` for the same check: it exits 0 when current, 3 when behind, and 4 when the source cannot be reached.
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Initialize a project freshly made from Switchyard.
 
-Moves the workflow guide to docs/WORKFLOW.md and deletes Switchyard-only
+Moves the workflow guide to docs/WORKFLOW.md, deletes Switchyard-only
 files and the create-switchyard folder, including locally edited ones: a committed copy stays in git history.
+Sets the Tracker: line of switchyard/tracker.md to github.
 Skips listed paths with uncommitted changes, because git could not restore
 those, stops before any change when the directory has no git work tree
 or when the guide does not start with Switchyard's heading, and never commits.
@@ -16,9 +17,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tracker import TRACKER_LINE
+
 README = Path("README.md")
 GUIDE = Path("docs/WORKFLOW.md")
 CHART = Path("docs/workflow.svg")
+TRACKER = Path("switchyard/tracker.md")
+TRACKER_NAME = "github"
 DELETED_PATHS = [
     Path("CHANGELOG.md"),
     Path("CONTRIBUTING.md"),
@@ -83,7 +88,7 @@ def verify_template(root: Path) -> None:
 
 
 def changed_paths(root: Path) -> set[str]:
-    listed = [README, *DELETED_PATHS, *DELETED_DIRS]
+    listed = [README, TRACKER, *DELETED_PATHS, *DELETED_DIRS]
     result = subprocess.run(
         ["git", "status", "--porcelain", "-uall", "--", *(str(p) for p in listed)],
         cwd=root,
@@ -135,6 +140,22 @@ def edit_guide(text: str) -> str:
     return text
 
 
+def reset_tracker(reason: str | None) -> None:
+    label = f"{TRACKER} (Tracker: {TRACKER_NAME})"
+    if reason:
+        print(f"skipped   {TRACKER} ({reason})")
+        return
+    text = TRACKER.read_text(encoding="utf-8")
+    names = TRACKER_LINE.findall(text)
+    if len(names) != 1:
+        print(f"skipped   {TRACKER} (needs exactly one Tracker: line, found {len(names)})")
+    elif names[0] == TRACKER_NAME:
+        print(f"kept      {label}")
+    else:
+        TRACKER.write_text(TRACKER_LINE.sub(f"Tracker: {TRACKER_NAME}", text, count=1), encoding="utf-8")
+        print(f"reset     {label}")
+
+
 def main() -> None:
     root = Path.cwd()
     verify_work_tree(root)
@@ -178,6 +199,8 @@ def main() -> None:
         else:
             shutil.rmtree(path)
             print(f"deleted   {path}")
+
+    reset_tracker(skip_reason(TRACKER))
 
     if CHART.exists():
         print(f"kept      {CHART}")
