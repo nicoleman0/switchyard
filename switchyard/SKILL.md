@@ -78,7 +78,7 @@ Workers never push. Implementers commit and write `.switchyard/pr-body.md`, then
 
 ## Coordinator
 
-The coordinator must be able to read `AGENTS.md` and this skill, run the skill's scripts, write to issue worktrees, and push from the main checkout. It must get explicit maintainer approval before merging. These requirements apply even when the CLI runs commands without permission prompts. Follow the matching coordinator note in `switchyard/routing.md` for setup, permissions, and waiting behavior.
+The coordinator must be able to read `AGENTS.md` and this skill, run the skill's scripts, write to issue worktrees, and push from the main checkout. It must get the maintainer's approval before merging, per PR or as a pre-approval that names the batch's condition (see Merge and clean up). These requirements apply even when the CLI runs commands without permission prompts. Follow the matching coordinator note in `switchyard/routing.md` for setup, permissions, and waiting behavior.
 
 ## Batch state
 
@@ -146,7 +146,7 @@ With several PRs in flight, merge every branch into a throwaway worktree off `or
 
 ## Merge and clean up
 
-Merge only after the maintainer explicitly approves. This rule applies on every CLI, including those that can run commands without a permission prompt. A CLI prompt is not maintainer approval. Squash-merge one PR with `gh pr merge <pr> --squash`, without `--delete-branch`. Then end its worker's session and run `scripts/teardown-worktree.sh <issue> <branch>`. It runs the project's `hooks/worktree-down.sh`, removes the worktree, deletes the local and remote branch, and removes the record. Teardown skips steps that are already done and still removes the record.
+The maintainer approves each merge, or pre-approves a batch by naming the condition in the coordinator conversation, for example reviewer pass and green CI. A pre-approval is explicit, covers that batch only, and the maintainer can withdraw it. Without a pre-approval, merge only after the maintainer explicitly approves that PR. The rule applies on every CLI, including those that can run commands without a permission prompt. A CLI prompt is not maintainer approval. Squash-merge one PR with `gh pr merge <pr> --squash`, without `--delete-branch`. Tell the maintainer after each merge. With a pre-approval, when the repo allows auto-merge (`gh api repos/{owner}/{repo} --jq .allow_auto_merge`), append `--auto`: `gh pr merge <pr> --squash --auto` merges when CI finishes. When CI has already passed, `--auto` refuses, so merge without it. When the repo does not allow auto-merge, wait for CI with `gh pr checks <pr> --watch`, then merge. Run each `gh pr merge` as its own command, not chained with a CI wait or another merge. With `--auto`, wait for the merge to land before the teardown. When the maintainer withdraws a pre-approval, cancel each pending one with `gh pr merge <pr> --disable-auto`. Then end its worker's session and run `scripts/teardown-worktree.sh <issue> <branch>`. It runs the project's `hooks/worktree-down.sh`, removes the worktree, deletes the local and remote branch, and removes the record. Teardown skips steps that are already done and still removes the record.
 
 For each PR still open:
 1. Rebase its branch in its worktree onto `origin/main`.
