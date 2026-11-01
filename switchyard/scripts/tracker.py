@@ -2,19 +2,23 @@
 """The only place that talks to the issue tracker. PRs stay on `gh pr`.
 
   tracker.py view <issue>
+  tracker.py list <project>
   tracker.py set-change <issue> <change-path>
   tracker.py set-phase <issue> <phase>
   tracker.py comment <issue> <file>
   tracker.py check
 
-The tracker comes from `switchyard/tracker.md`, which may also hold a
-`Phase | Status` table of Linear status names. set-phase does nothing on
-GitHub. Add a backend class and a BACKENDS entry.
+`list` prints a Linear project's open issues in delivery order; on GitHub
+it exits 2 and asks for named issues. The tracker comes from
+`switchyard/tracker.md`, which may also hold a `Phase | Status` table of
+Linear status names. set-phase does nothing on GitHub. Add a backend class
+and a BACKENDS entry.
 """
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -38,6 +42,59 @@ PHASES = {
 
 LINEAR_URL = "https://api.linear.app/graphql"
 LINEAR_KEY_ENV = "LINEAR_API_KEY"
+
+# Ordered out ("completed" and friends) so the closed rule has one home:
+# Linear's issues filter and the blocker check both read this tuple.
+CLOSED_TYPES = ("completed", "canceled", "duplicate")
+
+PROJECT_QUERY = (
+    "query Project($name: String!) {\n"
+    "  projects(first: 50, filter: { or: [{ name: { eqIgnoreCase: $name } }, { slugId: { eq: $name } }] }) {\n"
+    "    nodes { id name slugId }\n"
+    "  }\n"
+    "}"
+)
+
+PROJECTS_QUERY = (
+    "query Projects {\n"
+    "  projects(first: 250) { nodes { name slugId } pageInfo { hasNextPage } }\n"
+    "}"
+)
+
+# Each connection multiplies its children by `first` in Linear's complexity
+# budget, so issue relations are paged apart from the issues (about 90 points
+# per issue; `first: 50` on relations alone would go over the 10,000 limit).
+RELATION_FIELDS = (
+    "nodes { type issue { identifier state { type } } }"
+    " pageInfo { hasNextPage endCursor }"
+)
+
+PROJECT_ISSUES_QUERY = (
+    "query ProjectIssues($id: String!, $after: String) {\n"
+    "  project(id: $id) {\n"
+    "    issues(first: 50, after: $after, filter: { state: { type: { nin: "
+    + json.dumps(list(CLOSED_TYPES)) + " } } }) {\n"
+    "      nodes { identifier title sortOrder state { name type } projectMilestone { name sortOrder }\n"
+    "        inverseRelations(first: 20) {\n"
+    "          " + RELATION_FIELDS + "\n"
+    "        }\n"
+    "      }\n"
+    "      pageInfo { hasNextPage endCursor }\n"
+    "    }\n"
+    "  }\n"
+    "}"
+)
+
+RELATIONS_QUERY = (
+    "query Relations($id: String!, $after: String) {\n"
+    "  issue(id: $id) {\n"
+    "    inverseRelations(first: 100, after: $after) {\n"
+    "      " + RELATION_FIELDS + "\n"
+    "    }\n"
+    "  }\n"
+    "}"
+)
+
 ISSUE_QUERY = (
     "query Issue($id: String!, $after: String) {\n"
     "  issue(id: $id) {\n"
@@ -66,6 +123,102 @@ def with_change_line(body: str, path: str) -> str:
     if first.startswith("Change:"):
         return f"Change: {path}\n{rest}"
     return f"Change: {path}\n\n{body}"
+
+
+def key_parts(identifier: str) -> tuple:
+    """ENG-10 sorts after ENG-9, so the number compares as a number."""
+    team, dash, number = identifier.partition("-")
+    return (team, int(number) if dash and number.isdigit() else 0)
+
+
+def blocker_key_parts(identifier: str) -> tuple:
+    """Ordering for key-shaped blocker text; non-key text goes last."""
+    parts = key_parts(identifier)
+    return (0, *parts) if "-" in identifier else (1, identifier, 0)
+
+
+def base_key(node: dict) -> tuple:
+    """Milestone order (no milestone last), then manual order, then the key."""
+    milestone = node.get("projectMilestone")
+    return (
+        float("inf") if milestone is None else milestone["sortOrder"],
+        node["sortOrder"],
+        *key_parts(node["identifier"]),
+    )
+
+
+def edges(node: dict, open_keys: set) -> tuple:
+    """`blocks` relations as in-list blocker keys and outside blocker keys.
+
+    A source the key cannot read comes back without an `issue`; not shown.
+    """
+    in_list, outside = [], []
+    for relation in node.get("inverseRelations", []):
+        if relation.get("type") != "blocks":
+            continue
+        blocker = relation.get("issue")
+        if not blocker or blocker["state"]["type"] in CLOSED_TYPES:
+            continue
+        key = blocker["identifier"]
+        (in_list if key in open_keys else outside).append(key)
+    return in_list, outside
+
+
+def delivery_order(nodes: list) -> list:
+    """Order a Linear project's open issues for delivery.
+
+    Base order is the milestone's order in the project (none last), then
+    Linear's manual `sortOrder`, then the key. Each issue's blockers come
+    from its `blocks` relations: an open blocker in the list is an edge, one
+    outside the list is shown as `<key> (outside)` and changes nothing, one
+    closed is ignored. Each step emits the first issue in base order whose
+    in-list blockers are all emitted (Kahn's algorithm with the base index
+    as priority), so a blocked issue lands after its blockers and the
+    relative order of the others is kept. A cycle raises and names members.
+
+    Takes the project's issue nodes as plain dicts shaped like the GraphQL
+    query's `nodes`, with `inverseRelations` flattened to a node list.
+    Returns new dicts in delivery order with a `blockers` display list.
+    """
+    base = [node for node in nodes if node["state"]["type"] not in CLOSED_TYPES]
+    base.sort(key=base_key)
+    open_keys = {node["identifier"] for node in base}
+    position = {node["identifier"]: index for index, node in enumerate(base)}
+
+    depends_on, blocker_lists = {}, {}
+    for node in base:
+        in_list, outside = edges(node, open_keys)
+        in_list.sort(key=position.__getitem__)
+        outside.sort(key=blocker_key_parts)
+        depends_on[node["identifier"]] = set(in_list)
+        blocker_lists[node["identifier"]] = [*in_list, *(f"{key} (outside)" for key in outside)]
+
+    emitted, ordered, left = set(), [], list(base)
+    while left:
+        for node in left:
+            if depends_on[node["identifier"]] <= emitted:
+                ordered.append({**node, "blockers": blocker_lists[node["identifier"]]})
+                emitted.add(node["identifier"])
+                left.remove(node)
+                break
+        else:
+            members = cycle_members(left, depends_on, emitted)
+            raise TrackerError(f"tracker.py: blocked-by cycle: {' -> '.join([*members, members[0]])}")
+    return ordered
+
+
+def cycle_members(left: list, depends_on: dict, emitted: set) -> list:
+    """Walk one left issue's unemitted blockers until a key repeats.
+
+    Every left issue has an unemitted in-list blocker (else the loop would
+    have emitted it), so the walk only visits left keys and stops.
+    """
+    start = next(node["identifier"] for node in left if depends_on[node["identifier"]] - emitted)
+    seen, current = [], start
+    while current not in seen:
+        seen.append(current)
+        current = sorted(depends_on[current] - emitted, key=blocker_key_parts)[0]
+    return seen[seen.index(current):]
 
 
 class GitHub:
@@ -109,6 +262,14 @@ class GitHub:
     def comment(self, key: str, body: str) -> None:
         key = self.check_key(key)
         self.gh("issue", "comment", key, "--body-file", "-", stdin=body)
+
+    def list(self, name: str) -> str:
+        # A second way to order GitHub batches is spec work the issue does
+        # not ask for; the maintainer names issues and milestones.
+        raise TrackerError(
+            "tracker.py: list reads a Linear project. On GitHub, name the issues; milestones set the order.",
+            2,
+        )
 
 
 def graphql_post(url: str, key: str):
@@ -266,6 +427,61 @@ class Linear:
             {"id": issue_id, "input": fields},
         )
 
+    def find_project(self, name: str) -> dict:
+        """Return the project by name without case or slug id.
+
+        No match exits 1 with close project names (every name when none is
+        close); several matches exit 1 with each one's slug id to pass.
+        """
+        projects = self.query(PROJECT_QUERY, {"name": name})["projects"]["nodes"]
+        if len(projects) == 1:
+            return projects[0]
+        if projects:
+            listing = "\n  ".join(f"{project['name']} ({project['slugId']})" for project in projects)
+            raise TrackerError(
+                f"tracker.py: several Linear projects are called {name!r}:\n  {listing}\n"
+                f"Pass one project's slug id, such as `tracker.py list {projects[0]['slugId']}`."
+            )
+        page = self.query(PROJECTS_QUERY, {})["projects"]
+        lowered = name.lower()
+        named = [project["name"] for project in page["nodes"]]
+        close = sorted(set(difflib.get_close_matches(name, named)))
+        close += sorted(set(n for n in named if lowered in n.lower()) - set(close))
+        shown = close or named
+        more = ", and more" if page["pageInfo"]["hasNextPage"] else ""
+        raise TrackerError(f"tracker.py: Linear has no project {name!r}. Projects: {', '.join(shown)}{more}")
+
+    def project_issues(self, project_id: str) -> list:
+        """Every open issue in the project, with `inverseRelations` flattened."""
+        nodes, after = [], None
+        while True:
+            connection = self.query(PROJECT_ISSUES_QUERY, {"id": project_id, "after": after})["project"]["issues"]
+            for node in connection["nodes"]:
+                related = node["inverseRelations"]
+                flat = list(related["nodes"])
+                while related["pageInfo"]["hasNextPage"]:
+                    related = self.query(
+                        RELATIONS_QUERY,
+                        {"id": node["identifier"], "after": related["pageInfo"]["endCursor"]},
+                    )["issue"]["inverseRelations"]
+                    flat += related["nodes"]
+                nodes.append({**node, "inverseRelations": flat})
+            if not connection["pageInfo"]["hasNextPage"]:
+                return nodes
+            after = connection["pageInfo"]["endCursor"]
+
+    def list(self, name: str) -> str:
+        project = self.find_project(name)
+        ordered = delivery_order(self.project_issues(project["id"]))
+        if not ordered:
+            return f"Project {project['name']} ({project['slugId']})\nNo open issues.\n"
+        lines = [f"Project {project['name']} ({project['slugId']})"]
+        for node in ordered:
+            milestone = (node.get("projectMilestone") or {}).get("name") or "-"
+            blockers = ", ".join(node["blockers"]) or "-"
+            lines.append("\t".join([node["identifier"], node["state"]["name"], milestone, blockers, node["title"]]))
+        return "\n".join(lines) + "\n"
+
 
 BACKENDS = {"github": GitHub, "linear": Linear}
 
@@ -336,12 +552,16 @@ def main(argv: list[str] | None = None) -> int:
     comment = sub.add_parser("comment", help="post a file as an issue comment")
     comment.add_argument("issue")
     comment.add_argument("file")
+    listing = sub.add_parser("list", help="print a Linear project's open issues in delivery order")
+    listing.add_argument("project")
     sub.add_parser("check", help="confirm the configured tracker is usable and print its name")
     args = parser.parse_args(argv)
     try:
         tracker = load_tracker()
         if args.command == "view":
             sys.stdout.write(tracker.view(args.issue))
+        elif args.command == "list":
+            sys.stdout.write(tracker.list(args.project))
         elif args.command == "set-change":
             tracker.set_change(args.issue, args.path)
         elif args.command == "set-phase":

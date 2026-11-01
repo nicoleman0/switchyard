@@ -604,6 +604,273 @@ class StatusTableTest(unittest.TestCase):
                 self.assertIn("planning, plan-review, building, in-review, needs-input", stderr.getvalue())
 
 
+def project_find(*nodes) -> dict:
+    return {"data": {"projects": {"nodes": list(nodes)}}}
+
+
+def project_list(names, has_next=False) -> dict:
+    return {"data": {"projects": {
+        "nodes": [{"name": name, "slugId": f"slug-{name}"} for name in names],
+        "pageInfo": {"hasNextPage": has_next},
+    }}}
+
+
+def project_issues_page(nodes, has_next=False, end_cursor=None) -> dict:
+    return {"data": {"project": {"issues": {
+        "nodes": nodes, "pageInfo": {"hasNextPage": has_next, "endCursor": end_cursor}}}}}
+
+
+def relations_page(nodes, has_next=False, end_cursor=None) -> dict:
+    return {"data": {"issue": {"inverseRelations": {
+        "nodes": nodes, "pageInfo": {"hasNextPage": has_next, "endCursor": end_cursor}}}}}
+
+
+def relation(blocker: str, kind="blocks", state_type="unstarted") -> dict:
+    return {"type": kind, "issue": {"identifier": blocker, "state": {"type": state_type}, "project": {"id": "other"}}}
+
+
+def issue_node(key, title="Fix it", sort=0.0, milestone=None, status="Todo", status_type="unstarted", relations=()):
+    return {"identifier": key, "title": title, "sortOrder": sort,
+            "state": {"name": status, "type": status_type},
+            "projectMilestone": milestone,
+            "inverseRelations": {"nodes": list(relations), "pageInfo": {"hasNextPage": False, "endCursor": None}}}
+
+
+ONBOARDING = {"id": "pid-1", "name": "Onboarding", "slugId": "onboard-a"}
+
+
+def flat_node(key, title="Fix it", sort=0.0, milestone=None, status_type="unstarted", relations=()):
+    """A node shaped for delivery_order: relations flattened to a list."""
+    return {"identifier": key, "title": title, "sortOrder": sort,
+            "state": {"name": "Todo", "type": status_type},
+            "projectMilestone": milestone, "inverseRelations": list(relations)}
+
+
+class DeliveryOrderTest(unittest.TestCase):
+    """The ordering rule as a pure function over plain dicts."""
+
+    def test_milestones_first_in_their_order_and_no_milestone_last(self) -> None:
+        setup = {"name": "Setup", "sortOrder": 10.0}
+        first = {"name": "First", "sortOrder": 0.0}
+        issues = [
+            flat_node("ENG-3", milestone=setup),
+            flat_node("ENG-2", milestone=first),
+            flat_node("ENG-4"),
+        ]
+        self.assertEqual([n["identifier"] for n in tracker.delivery_order(issues)], ["ENG-2", "ENG-3", "ENG-4"])
+
+    def test_key_number_ties_compare_as_numbers(self) -> None:
+        issues = [flat_node("ENG-10"), flat_node("ENG-9")]
+        self.assertEqual([n["identifier"] for n in tracker.delivery_order(issues)], ["ENG-9", "ENG-10"])
+
+    def test_a_blocked_issue_lands_after_its_blocker_keeping_relative_order(self) -> None:
+        issues = [flat_node("ENG-2", relations=[relation("ENG-5")]), flat_node("ENG-3"),
+                  flat_node("ENG-5"), flat_node("ENG-6")]
+        self.assertEqual([n["identifier"] for n in tracker.delivery_order(issues)], ["ENG-3", "ENG-5", "ENG-2", "ENG-6"])
+
+    def test_a_blocked_issue_does_not_fall_behind_later_milestones(self) -> None:
+        first = {"name": "First", "sortOrder": 0.0}
+        second = {"name": "Second", "sortOrder": 1.0}
+        third = {"name": "Third", "sortOrder": 2.0}
+        issues = [
+            flat_node("ENG-1", sort=0.0, milestone=first, relations=[relation("ENG-3")]),
+            flat_node("ENG-2", sort=1.0, milestone=first),
+            flat_node("ENG-3", sort=2.0, milestone=first),
+            flat_node("ENG-4", milestone=second),
+            flat_node("ENG-5", milestone=third),
+        ]
+        self.assertEqual([n["identifier"] for n in tracker.delivery_order(issues)],
+                         ["ENG-2", "ENG-3", "ENG-1", "ENG-4", "ENG-5"])
+
+    def test_an_outside_blocker_is_shown_and_moves_nothing(self) -> None:
+        issues = [flat_node("ENG-2", relations=[relation("OPS-9")]), flat_node("ENG-3")]
+        ordered = tracker.delivery_order(issues)
+        self.assertEqual([n["identifier"] for n in ordered], ["ENG-2", "ENG-3"])
+        self.assertEqual(ordered[0]["blockers"], ["OPS-9 (outside)"])
+
+    def test_a_closed_blocker_is_left_out_of_the_field_and_the_order(self) -> None:
+        issues = [flat_node("ENG-2", relations=[relation("ENG-1", state_type="completed")]),
+                  flat_node("ENG-1")]
+        ordered = tracker.delivery_order(issues)
+        self.assertEqual([n["identifier"] for n in ordered], ["ENG-1", "ENG-2"])
+        self.assertEqual(ordered[1]["blockers"], [])
+
+    def test_a_related_relation_is_not_a_blocker(self) -> None:
+        issues = [flat_node("ENG-2", relations=[relation("ENG-5", kind="related")]), flat_node("ENG-5")]
+        ordered = tracker.delivery_order(issues)
+        self.assertEqual([n["identifier"] for n in ordered], ["ENG-2", "ENG-5"])
+        self.assertEqual(ordered[0]["blockers"], [])
+
+    def test_cycles_raise_and_name_every_member(self) -> None:
+        two = [flat_node("ENG-2", relations=[relation("ENG-3")]), flat_node("ENG-3", relations=[relation("ENG-2")])]
+        with self.assertRaises(tracker.TrackerError) as ctx:
+            tracker.delivery_order(two)
+        self.assertIn("ENG-2", str(ctx.exception))
+        self.assertIn("ENG-3", str(ctx.exception))
+        self.assertIn("cycle", str(ctx.exception))
+        three = [flat_node("ENG-2", relations=[relation("ENG-3")]),
+                 flat_node("ENG-3", relations=[relation("ENG-7")]),
+                 flat_node("ENG-7", relations=[relation("ENG-2")])]
+        with self.assertRaises(tracker.TrackerError) as ctx:
+            tracker.delivery_order(three)
+        for member in ("ENG-2", "ENG-3", "ENG-7"):
+            self.assertIn(member, str(ctx.exception))
+
+
+class LinearFindProjectTest(LinearMain, unittest.TestCase):
+    def test_name_without_case_lists_the_project(self) -> None:
+        transport = RecordingTransport([
+            project_find(ONBOARDING),
+            project_issues_page([issue_node("ENG-5", "Seed the database")]),
+        ])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "onboarding"), 0, self.stderr.getvalue())
+        out = self.stdout.getvalue()
+        self.assertIn("Project Onboarding (onboard-a)", out)
+        self.assertIn("ENG-5\tTodo\t-\t-\tSeed the database", out)
+        first = transport.calls[0]
+        # One `or` filter carries both the case-free name and the slug id.
+        self.assertIn("or: [{ name: { eqIgnoreCase: $name } }, { slugId: { eq: $name } }]", first["query"])
+        self.assertEqual(first["variables"], {"name": "onboarding"})
+
+    def test_an_unknown_project_lists_close_names(self) -> None:
+        transport = RecordingTransport([project_find(), project_list(["Onboarding"])])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "Onbording"), 1, self.stdout.getvalue())
+        self.assertIn("Onboarding", self.stderr.getvalue())
+
+    def test_an_unrelated_name_lists_every_name_and_more_on_a_full_page(self) -> None:
+        transport = RecordingTransport([project_find(), project_list(["Alpha", "Beta", "Gamma"], True)])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "Delivery invoices"), 1)
+        stderr = self.stderr.getvalue()
+        self.assertIn("Alpha, Beta, Gamma", stderr)
+        self.assertIn("and more", stderr)
+
+    def test_two_matches_exit_one_with_both_slug_ids(self) -> None:
+        transport = RecordingTransport([
+            project_find({"id": "pid-1", "name": "Onboarding", "slugId": "onboard-a"},
+                         {"id": "pid-2", "name": "Onboarding", "slugId": "onboard-b"}),
+        ])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "Onboarding"), 1)
+        stderr = self.stderr.getvalue()
+        self.assertIn("onboard-a", stderr)
+        self.assertIn("onboard-b", stderr)
+        self.assertIn("slug id", stderr)
+        self.assertEqual(len(transport.calls), 1)
+
+
+class LinearProjectIssuesTest(LinearMain, unittest.TestCase):
+    def block_paged(self, extra_nodes=()) -> list:
+        blocked = issue_node("ENG-2", relations=[])
+        blocked["inverseRelations"] = {"nodes": [], "pageInfo": {"hasNextPage": True, "endCursor": "rel-cur-1"}}
+        return [
+            project_find(ONBOARDING),
+            project_issues_page([blocked, *extra_nodes]),
+            relations_page([relation("ENG-5")]),
+        ]
+
+    def test_two_issue_pages_are_both_read(self) -> None:
+        transport = RecordingTransport([
+            project_find(ONBOARDING),
+            project_issues_page([issue_node("ENG-5")], True, "iss-cur-1"),
+            project_issues_page([issue_node("ENG-6")]),
+        ])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "Onboarding"), 0, self.stderr.getvalue())
+        out = self.stdout.getvalue()
+        self.assertLess(out.index("ENG-5"), out.index("ENG-6"))
+        self.assertEqual(transport.calls[1]["variables"], {"id": "pid-1", "after": None})
+        self.assertEqual(transport.calls[2]["variables"], {"id": "pid-1", "after": "iss-cur-1"})
+        self.assertEqual(transport.calls[1]["query"], transport.calls[2]["query"])
+
+    def test_an_issue_with_more_relations_follows_up_and_the_blocker_counts(self) -> None:
+        transport = RecordingTransport(self.block_paged(extra_nodes=[issue_node("ENG-5")]))
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "Onboarding"), 0, self.stderr.getvalue())
+        follow = transport.calls[2]
+        self.assertIn("issue(id: $id)", follow["query"])
+        self.assertIn("inverseRelations(first: 100", follow["query"])
+        self.assertEqual(follow["variables"], {"id": "ENG-2", "after": "rel-cur-1"})
+        second = self.stdout.getvalue().strip().splitlines()
+        self.assertEqual(second[1], "ENG-5\tTodo\t-\t-\tFix it")
+        self.assertEqual(second[2], "ENG-2\tTodo\t-\tENG-5\tFix it")
+
+    def test_the_issue_query_text_is_pinned(self) -> None:
+        transport = RecordingTransport([project_find(ONBOARDING), project_issues_page([])])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "Onboarding"), 0, self.stderr.getvalue())
+        query = transport.calls[1]["query"]
+        for text in ("project(id: $id)", "issues(first: 50, after: $after",
+                     'nin: ["completed", "canceled", "duplicate"]', "inverseRelations(first: 20)",
+                     "projectMilestone { name sortOrder }", "state { name type }"):
+            self.assertIn(text, query)
+
+
+class LinearListTest(LinearMain, unittest.TestCase):
+    def test_list_prints_the_header_and_lines_in_order(self) -> None:
+        setup = {"name": "Setup", "sortOrder": 0.0}
+        transport = RecordingTransport([
+            project_find(ONBOARDING),
+            project_issues_page([
+                issue_node("ENG-2", "Add the login form", 1.0, setup, "In Progress", "started",
+                           [relation("ENG-5")]),
+                issue_node("ENG-5", "Seed the database", 0.0, setup, "Todo", "unstarted"),
+            ]),
+        ])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "Onboarding"), 0, self.stderr.getvalue())
+        self.assertEqual(self.stdout.getvalue(), (
+            "Project Onboarding (onboard-a)\n"
+            "ENG-5\tTodo\tSetup\t-\tSeed the database\n"
+            "ENG-2\tIn Progress\tSetup\tENG-5\tAdd the login form\n"
+        ))
+
+    def test_an_empty_project_prints_no_open_issues(self) -> None:
+        transport = RecordingTransport([project_find(ONBOARDING), project_issues_page([])])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "Onboarding"), 0, self.stderr.getvalue())
+        self.assertEqual(self.stdout.getvalue(), "Project Onboarding (onboard-a)\nNo open issues.\n")
+
+    def test_an_outside_blocker_is_marked(self) -> None:
+        transport = RecordingTransport([
+            project_find(ONBOARDING),
+            project_issues_page([issue_node("ENG-7", "Write the docs", relations=[relation("OPS-9")])]),
+        ])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "Onboarding"), 0, self.stderr.getvalue())
+        self.assertIn("OPS-9 (outside)", self.stdout.getvalue())
+
+    def test_a_cycle_exits_one_with_nothing_on_stdout(self) -> None:
+        transport = RecordingTransport([
+            project_find(ONBOARDING),
+            project_issues_page([
+                issue_node("ENG-2", relations=[relation("ENG-3")]),
+                issue_node("ENG-3", relations=[relation("ENG-2")]),
+            ]),
+        ])
+        self.load(tracker.Linear(transport))
+        self.assertEqual(self.run_tool("list", "Onboarding"), 1, self.stdout.getvalue())
+        self.assertEqual(self.stdout.getvalue(), "")
+        stderr = self.stderr.getvalue()
+        self.assertIn("ENG-2", stderr)
+        self.assertIn("ENG-3", stderr)
+
+    def test_a_missing_key_fails_before_any_call(self) -> None:
+        self.load(tracker.Linear())
+        self.assertEqual(self.run_tool("list", "Onboarding"), 1, self.stdout.getvalue())
+        self.assertIn("LINEAR_API_KEY is not set", self.stderr.getvalue())
+
+
+class GitHubListTest(TrackerTest):
+    def test_list_exits_two_without_calling_gh(self) -> None:
+        result = self.run_tool("list", "Onboarding")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("On GitHub", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+
 class KeyAgreementTest(unittest.TestCase):
     """state.py and tracker.py check Linear keys separately; pin that they agree."""
 
