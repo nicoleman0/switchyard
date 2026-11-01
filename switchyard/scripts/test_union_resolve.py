@@ -52,9 +52,13 @@ class UnionResolve(unittest.TestCase):
         self.assertEqual(self.resolve(text, succeeds=False), text)
 
     def test_malformed_conflict_leaves_file_unchanged(self):
-        for text in ("<<<<<<< HEAD\nno end\n", "=======\n", "<<<<<<< HEAD\n<<<<<<< nested\n=======\na\n>>>>>>> topic\n"):
+        for text in ("<<<<<<< HEAD\nno end\n", "<<<<<<< HEAD\n<<<<<<< nested\n=======\na\n>>>>>>> topic\n"):
             with self.subTest(text=text):
                 self.assertEqual(self.resolve(text, succeeds=False), text)
+
+    def test_setext_underline_outside_conflict(self):
+        text = "Title\n=======\n\n<<<<<<< HEAD\na\n=======\nb\n>>>>>>> t\n"
+        self.assertEqual(self.resolve(text), "Title\n=======\n\na\n\nb\n")
 
     def test_plain_file_unchanged(self):
         text = "## Requirements\n\n### Added\n\n- a\n"

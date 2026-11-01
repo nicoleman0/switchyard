@@ -20,7 +20,9 @@ def union(text):
             output.append("".join(upstream).rstrip("\n") + "\n\n" + "".join(incoming))
             upstream, incoming = [], []
             state = "outside"
-        elif re.match(r"^(?:<{7}|={7}|>{7}|\|{7})(?:\s|$)", line):
+        elif re.match(r"^(?:<{7}|>{7}|\|{7})(?:\s|$)", line) or (
+            state == "incoming" and re.match(r"^={7}\s*$", line)
+        ):
             raise ValueError("a conflict is not a plain two-sided append")
         else:
             {"outside": output, "upstream": upstream, "incoming": incoming}[state].append(line)
