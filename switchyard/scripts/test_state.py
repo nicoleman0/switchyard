@@ -417,6 +417,7 @@ class Harness(unittest.TestCase):
                      ".switchyard/answers/plan.md"):
             self.assertEqual((second / name).read_text(), name)
         self.assertFalse((second / "openspec/changes/archive").exists())
+        self.assertFalse((second / ".switchyard/plan.md").exists())
         self.assertEqual(self.record("120b")["owned"], "src/ CHANGELOG.md")
         self.assertEqual(self.record("120b")["candidate_of"], "120")
         self.assertEqual(self.record("120b")["branch"], "topic-b")
@@ -432,6 +433,25 @@ class Harness(unittest.TestCase):
         self.assertEqual(self.script("teardown-worktree.sh", "--abandon", "120", "topic").returncode, 0)
         self.assertEqual(log.read_text().splitlines(),
                          ["up [120] []", "up [120] [b]", "down [120] [b]", "down [120] []"])
+
+    def test_setup_candidate_copies_plain_plan(self):
+        first_setup = self.script("setup-worktree.sh", "82", "topic")
+        self.assertEqual(first_setup.returncode, 0, first_setup.stderr)
+        first = Path(self.record("82")["path"])
+        plan = first / ".switchyard/plan.md"
+        plan.parent.mkdir(parents=True, exist_ok=True)
+        content = b"# Plan: issue #82\n\n## Tasks\n\n- [ ] Implement\n"
+        plan.write_bytes(content)
+
+        second_setup = self.script("setup-worktree.sh", "82b", "topic-b")
+        self.assertEqual(second_setup.returncode, 0, second_setup.stderr)
+        second = Path(self.record("82b")["path"])
+        copied = second / ".switchyard/plan.md"
+        self.assertTrue(copied.is_file())
+        self.assertEqual(copied.read_bytes(), content)
+        self.assertFalse((second / "openspec").exists())
+        copied.write_bytes(content.replace(b"[ ]", b"[x]"))
+        self.assertEqual(plan.read_bytes(), content)
 
     def test_abandon_skip_hook_keeps_shared_state(self):
         # A hook that ignores CANDIDATE gives both candidates one database.
@@ -1071,6 +1091,7 @@ fi'''
         self.assertEqual(self.get("8", "backend"), "claude")
 
     def test_worktree_cannot_push_and_scope_is_checked(self):
+        (self.repo / "openspec").mkdir()
         git = lambda *args, cwd=self.repo: subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True)
         self.assertEqual(git("push", "-q", "origin", "HEAD:main").returncode, 0)
         git("fetch", "-q", "origin")
@@ -1099,6 +1120,27 @@ fi'''
         self.assertEqual(git("push", "-q", "origin", "topic").returncode, 0)
         self.assertIn("refs/heads/topic", git("ls-remote", "--heads", "origin", "topic").stdout)
         self.assertEqual(self.script("teardown-worktree.sh", "8", "topic").returncode, 0)
+
+    def test_scope_uses_main_checkout_mode(self):
+        git = lambda *args, cwd=self.repo: subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True, check=True)
+        git("push", "-q", "origin", "HEAD:main")
+        git("fetch", "-q", "origin")
+        setup = self.script("setup-worktree.sh", "8", "topic")
+        self.assertEqual(setup.returncode, 0, setup.stderr)
+        tree = Path(self.record()["path"])
+        self.state("set", "8", "owned=src/")
+        plan = tree / "openspec/changes/x/tasks.md"
+        plan.parent.mkdir(parents=True)
+        plan.write_text("- [x] Done\n")
+        git("add", "openspec", cwd=tree)
+        git("commit", "-qm", "add change", cwd=tree)
+
+        plain = self.script("check-scope.sh", "8")
+        self.assertEqual(plain.returncode, 1, plain.stderr)
+        self.assertEqual(plain.stdout.splitlines(), ["openspec/changes/x/tasks.md"])
+        (self.repo / "openspec").mkdir()
+        spec = self.script("check-scope.sh", "8")
+        self.assertEqual(spec.returncode, 0, spec.stderr)
 
     def test_check_scope_reports_all_files_when_owned_is_blank(self):
         bash = "/bin/bash"

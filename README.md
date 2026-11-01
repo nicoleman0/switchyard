@@ -29,7 +29,7 @@ One session coordinates. For each issue, a planner writes a spec change, an impl
 
 Each piece covers a gap the others leave:
 
-- **Issue, then spec, then code.** Every behaviour change starts as a short GitHub issue, becomes exactly one [OpenSpec](https://github.com/Fission-AI/OpenSpec) change, and ships as one PR. The PR archives the change into `openspec/specs/`, so the specs always describe what the code does.
+- **Issue, then plan, then code.** Every issue starts with a short problem statement and ships as one PR. A project with `openspec/` uses one [OpenSpec](https://github.com/Fission-AI/OpenSpec) change per issue; the PR syncs any spec delta and archives the change. Without `openspec/`, the planner writes scenarios and tasks in `.switchyard/plan.md`. The implementer and reviewer use that plan, and nothing is archived.
 - **Planning and building are separate sessions.** The planner and implementer can use different effort settings, and the planner stops at a plan. The implementer starts fresh and reads the plan from disk. Its session does not inherit the planner's context.
 - **Two reviews, two reviewers.** The coordinator checks the plan before any code is written. A reviewer checks the diff against the change before anything is pushed, on another provider when one is available.
 - **Files carry every handoff.** The brief, the answers, the change, and the review live in the worktree. Each session reads them from disk, so no stage works from another session's summary, and the coordinator holds verdicts, not diffs.
