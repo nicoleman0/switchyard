@@ -190,22 +190,33 @@ class Linear:
                 lines += [f"### {author}, {comment['createdAt']}", "", comment["body"].strip(), ""]
         return "\n".join(lines).rstrip("\n") + "\n"
 
-    def set_change(self, key: str, path: str) -> None:
-        key = self.check_key(key)
+    def lookup(self, key: str, fields: str) -> dict:
+        """Return the issue's `fields` by identifier; mutations need its UUID `id`."""
         issue = self.query(
-            "query IssueId($id: String!) { issue(id: $id) { id description } }",
+            f"query IssueId($id: String!) {{ issue(id: $id) {{ {fields} }} }}",
             {"id": key},
         )["issue"]
         if issue is None:
             raise TrackerError(f"Linear has no issue {key}")
-        data = self.query(
+        return issue
+
+    def set_change(self, key: str, path: str) -> None:
+        key = self.check_key(key)
+        issue = self.lookup(key, "id description")
+        self.update(issue["id"], {"description": with_change_line(issue["description"] or "", path)})
+
+    def mutate(self, name: str, query: str, variables: dict) -> None:
+        if not self.query(query, variables)[name]["success"]:
+            # The schema can return a false success without an errors entry.
+            raise TrackerError(f"Linear API error: {name} returned success: false")
+
+    def update(self, issue_id: str, fields: dict) -> None:
+        self.mutate(
+            "issueUpdate",
             "mutation Update($id: String!, $input: IssueUpdateInput!) {"
             " issueUpdate(id: $id, input: $input) { success } }",
-            {"id": issue["id"], "input": {"description": with_change_line(issue["description"] or "", path)}},
-        )["issueUpdate"]
-        if not data["success"]:
-            # The schema can return a false success without an errors entry.
-            raise TrackerError("Linear API error: issueUpdate returned success: false")
+            {"id": issue_id, "input": fields},
+        )
 
 
 BACKENDS = {"github": GitHub, "linear": Linear}
