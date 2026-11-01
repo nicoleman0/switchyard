@@ -104,11 +104,13 @@ A project uses OpenSpec when its main checkout has an `openspec/` folder. Withou
 
 In plain mode the planner copies `switchyard/plan-template.md` to `.switchyard/plan.md` and fills it in. The implementer ticks its tasks. The reviewer checks its scenarios, tasks, and decisions. There is no `Change:` issue line and nothing to archive. Teardown deletes the plan; the PR body keeps the summary.
 
+The project's issue tracker is named in `switchyard/tracker.md`, which the project owns. `scripts/tracker.py` is the only place that calls it. Pull requests stay on `gh pr`.
+
 ## Before starting
 
 Run `scripts/preflight.sh <provider>...` first, passing the provider names in `routing.md`. It checks the requirements and says how to fix each missing one. Stop on a non-zero exit and tell the maintainer what is missing. Pass its warnings on.
 
-1. Read the issues and `AGENTS.md`. Check the issues against the code. For each one, write down anything the issue leaves undecided, and ask the maintainer before any agent starts.
+1. Read the issues with `python3 scripts/tracker.py view <issue>` and read `AGENTS.md`. Check the issues against the code. For each one, write down anything the issue leaves undecided, and ask the maintainer before any agent starts.
 2. Split the issues by ownership. Each issue owns folders that no other issue in the batch edits. Issues that touch the same files run one after another, not in parallel. Run first the one whose result the others build on. The maintainer may name issues to stack instead; see Stacked issues.
 3. Make sure the shared services `AGENTS.md` names are up in the main checkout.
 
