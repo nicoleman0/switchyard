@@ -594,6 +594,172 @@ exec "{real}" "$@"''')
 
 
 
+    def stack_git(self, *args, cwd=None):
+        return subprocess.run(["git", "-C", str(cwd or self.repo), *args],
+                              env=self.env, capture_output=True, text=True, check=True).stdout.strip()
+
+    def stack_commit(self, tree, name, text):
+        (tree / name).write_text(text)
+        self.stack_git("add", name, cwd=tree)
+        self.stack_git("commit", "-qm", name, cwd=tree)
+        return self.stack_git("rev-parse", "HEAD", cwd=tree)
+
+    def make_stack(self, herdr=False):
+        self.stack_git("branch", "-M", "main")
+        self.stack_git("push", "-q", "origin", "main")
+        result = self.script("setup-worktree.sh", "8", "parent")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        parent = Path(self.record()["path"])
+        head = self.stack_commit(parent, "parent.txt", "parent\n")
+        env = self.env.copy()
+        if herdr:
+            tree = self.base / "herdr-child"
+            self.stack_git("worktree", "add", "-qb", "child", str(tree), "parent")
+            env.update(HERDR_ENV="1", HERDR_CREATE_RESULT=json.dumps({"result": {"root_pane": {
+                "cwd": str(tree), "pane_id": "w1:p2", "workspace_id": "ws1"}}}))
+        result = self.script("setup-worktree.sh", "--parent", "8", "9", "child", env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        child = Path(self.record("9")["path"])
+        self.assertEqual(self.stack_git("rev-parse", "HEAD", cwd=child), head)
+        for field, value in (("parent", "8"), ("parent_branch", "parent"), ("parent_head", head)):
+            self.assertEqual(self.record("9")[field], value)
+        if herdr:
+            self.assertIn(f"--base {head}", self.log.read_text())
+        return parent, child, head
+
+    def test_setup_stacked_git_and_herdr(self):
+        # Each runner uses the captured parent head, not the checkout's HEAD.
+        self.make_stack()
+
+    def test_setup_stacked_herdr(self):
+        self.make_stack(herdr=True)
+
+    def test_setup_refuses_missing_or_stacked_parent(self):
+        for existing in (False, True):
+            with self.subTest(existing=existing):
+                if existing:
+                    self.init(branch="parent", parent="7")
+                result = self.script("setup-worktree.sh", "--parent", "8", "9", "child")
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("itself stacked" if existing else "no record", result.stderr)
+                self.assertFalse((self.base / "repo.worktrees/child").exists())
+                self.assertNotIn("refs/heads/child", self.stack_git("show-ref"))
+                self.assertEqual(self.state("get", "9", "path").returncode, 3)
+
+    def test_teardown_refuses_parent_until_all_children_clear(self):
+        parent, child, _ = self.make_stack()
+        self.init("10", parent="8")
+        self.stack_git("push", "-q", "origin", "parent")
+        before = self.record()
+        self.down_hook.write_text('#!/bin/sh\ntouch "$MAIN_CHECKOUT/down-called"\n')
+        for options in ((), ("--abandon",)):
+            result = self.script("teardown-worktree.sh", *options, "8", "parent")
+            self.assertEqual(result.returncode, 1, result.stderr)
+            for number in ("9", "10"):
+                self.assertIn(f"restack.sh {number}", result.stderr)
+            self.assertTrue(parent.exists())
+            self.assertTrue(child.exists())
+            self.assertEqual(self.record(), before)
+            self.assertFalse((self.repo / "down-called").exists())
+            self.assertFalse((self.repo / ".switchyard/history.jsonl").exists())
+            self.assertIn("refs/heads/parent", self.stack_git("ls-remote", "--heads", "origin", "parent"))
+        for number in ("9", "10"):
+            self.assertEqual(self.state("set", number, "parent=").returncode, 0)
+        result = self.script("teardown-worktree.sh", "8", "parent")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(parent.exists())
+        self.assertEqual(self.stack_git("ls-remote", "--heads", "origin", "parent"), "")
+
+    def prepare_restack(self, conflict=False, pushed=True):
+        parent, child, head = self.make_stack()
+        self.stack_commit(child, "parent.txt" if conflict else "child.txt", "child\n")
+        # The parent can gain fixes after the child branches.
+        self.stack_commit(parent, "parent.txt", "parent fix\n")
+        self.stack_git("push", "-q", "origin", "parent")
+        if pushed:
+            self.stack_git("push", "-q", "origin", "child")
+        self.stack_git("merge", "--squash", "parent")
+        self.stack_git("commit", "-qm", "squashed parent")
+        self.stack_git("push", "-q", "origin", "main")
+        self.stub("gh", 'echo "$*" >> "$CALL_LOG"\nif [ "$1 $2" = "pr list" ]; then printf "%s\\n" "${OPEN_PR:-42}"; elif [ "$1 $2" = "pr edit" ]; then [ "${FAIL_EDIT:-}" != 1 ]; else exit 23; fi')
+        return child, head
+
+    def test_restack_squash_replays_only_child_pushes_and_retargets(self):
+        child, head = self.prepare_restack()
+        result = self.script("restack.sh", "9")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.stack_git("rev-list", "--count", "origin/main..child"), "1")
+        self.assertEqual(self.stack_git("diff", "--name-only", "origin/main...child"), "child.txt")
+        self.assertEqual((child / "parent.txt").read_text(), "parent fix\n")
+        self.assertNotEqual(self.stack_git("rev-parse", "child^"), head)
+        self.assertEqual(self.stack_git("rev-parse", "child^"), self.stack_git("rev-parse", "origin/main"))
+        self.assertEqual(self.stack_git("rev-parse", "child"), self.stack_git("rev-parse", "origin/child"))
+        self.assertIn("pr edit child --base main", self.log.read_text())
+        for field in ("parent", "parent_branch", "parent_head"):
+            self.assertEqual(self.record("9")[field], "")
+
+    def test_restack_conflict_aborts_and_preserves_record_and_remote(self):
+        child, _ = self.prepare_restack(conflict=True)
+        before = self.record("9")
+        head = self.stack_git("rev-parse", "child")
+        result = self.script("restack.sh", "9")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("parent.txt", result.stderr)
+        self.assertEqual(self.stack_git("rev-parse", "child"), head)
+        self.assertEqual(self.stack_git("rev-parse", "origin/child"), head)
+        self.assertEqual(self.record("9"), before)
+        self.assertEqual(self.stack_git("status", "--porcelain", cwd=child), "")
+        for name in ("rebase-merge", "rebase-apply"):
+            self.assertFalse(Path(self.stack_git("rev-parse", "--git-path", name, cwd=child)).exists())
+        self.assertFalse(self.log.exists())
+
+    def test_restack_without_remote_or_open_pr(self):
+        child, _ = self.prepare_restack(pushed=False)
+        # Match gh's empty output when no PR is open.
+        self.stub("gh", 'echo "$*" >> "$CALL_LOG"\n[ "$1 $2" = "pr list" ]')
+        result = self.script("restack.sh", "9")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.stack_git("ls-remote", "--heads", "origin", "child"), "")
+        self.assertNotIn("pr edit", self.log.read_text())
+        self.assertEqual(self.record("9")["parent"], "")
+        self.assertEqual((child / "child.txt").read_text(), "child\n")
+
+    def test_restack_failed_retarget_keeps_parent_fields(self):
+        self.prepare_restack()
+        before = self.record("9")
+        env = self.env.copy(); env["FAIL_EDIT"] = "1"
+        result = self.script("restack.sh", "9", env=env)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(self.record("9"), before)
+        head = self.stack_git("rev-parse", "child")
+        retry = self.script("restack.sh", "9")
+        self.assertEqual(retry.returncode, 1, retry.stderr)
+        self.assertIn("finish the push", retry.stderr)
+        self.assertEqual(self.stack_git("rev-parse", "child"), head)
+        self.assertEqual(self.record("9"), before)
+
+    def test_restack_requires_parent_head(self):
+        self.init(path=str(self.repo), branch="main")
+        result = self.script("restack.sh", "8")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("parent_head", result.stderr)
+        self.assertFalse(self.log.exists())
+
+    def test_stacked_scope_ignores_parent_changes(self):
+        _, child, _ = self.make_stack()
+        self.state("set", "9", "owned=child.txt")
+        self.stack_commit(child, "child.txt", "child\n")
+        result = self.script("check-scope.sh", "9")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.stack_commit(child, "outside.txt", "outside\n")
+        result = self.script("check-scope.sh", "9")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.stdout.strip(), "outside.txt")
+        self.state("set", "9", "parent_head=missing-ref")
+        result = self.script("check-scope.sh", "9")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("every changed file is in scope", result.stdout)
+
     def test_setup_herdr_records_pane(self):
         env = self.env.copy(); env["HERDR_ENV"] = "1"
         env["HERDR_CREATE_RESULT"] = '{"result":{"root_pane":{"cwd":"' + str(self.base / "herdr-tree") + '","pane_id":"w9:p2","workspace_id":"ws9"}}}'

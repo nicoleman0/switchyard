@@ -10,14 +10,18 @@ path=$(python3 "$state" get "$issue" path)
 owned=$(python3 "$state" get "$issue" owned)
 read -r -a prefixes <<<"$owned"
 
+base=$(python3 "$state" get "$issue" parent_head 2>/dev/null) || base=origin/main
+changed=$(git -C "$path" diff --name-only "$base...HEAD")
+
 outside=()
 while IFS= read -r file; do
+  [ -n "$file" ] || continue
   inside=0
   for prefix in openspec/ ${prefixes[@]+"${prefixes[@]}"}; do
     case "$file" in "$prefix"*) inside=1 ;; esac
   done
   [ "$inside" = 1 ] || outside+=("$file")
-done < <(git -C "$path" diff --name-only origin/main...HEAD)
+done <<<"$changed"
 
 if [ "${#outside[@]}" -gt 0 ]; then
   echo "Issue $issue changed files outside its owned paths ($owned):" >&2

@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 ### Added
 
 - #124: `state.py timings` splits each phase into busy and wait time. The coordinator marks turns with `state.py turn-end` and `turn-start`.
+- #119: Opt-in stacked issues branch from a reviewed parent, restack after it merges, and block parent teardown while children depend on it.
 - #123: `wait-agents.sh --timeout <seconds>` returns when watched agents run past the limit, listing each with how long it has worked.
 - #121: `merge-queue.py <issue>...` rebases, checks, pushes, and waits for CI on each passing PR in order, then prints the merge command, or merges with `--merge`. `union-resolve.py` merges a CHANGELOG's Unreleased subsections instead of repeating their headings.
 

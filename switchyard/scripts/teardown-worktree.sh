@@ -23,6 +23,22 @@ branch=${2:?branch name required}
 repo=$(git rev-parse --show-toplevel)
 cd "$repo"
 hook=switchyard/hooks/worktree-down.sh
+python3 - "$issue" <<'PYTHON'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path("switchyard/scripts").resolve()))
+from state import repo_root, read_record
+
+children = []
+for path in sorted((repo_root() / ".switchyard/state").glob("*.json")):
+    record = read_record(path.stem)
+    if str(record.get("parent", "")) == sys.argv[1]:
+        children.append(path.stem)
+if children:
+    for child in children:
+        print(f"Issue {sys.argv[1]} has child {child}. Run restack.sh {child} or abandon it first.", file=sys.stderr)
+    sys.exit(1)
+PYTHON
 get_err=$(mktemp)
 trap 'rm -f "$get_err"' EXIT
 has_record=
