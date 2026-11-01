@@ -236,6 +236,14 @@ class Harness(unittest.TestCase):
         self.assertIn("ses_issue10", result.stdout)
         self.assertIn("#12 open", result.stdout)
 
+    def test_status_shows_waiting(self):
+        self.init("2", branch="b2", path=str(self.repo), role="planner", waiting="questions")
+        self.assertIn("planner, waiting", self.state("status").stdout)
+        self.state("set", "2", "waiting=")
+        out = self.state("status").stdout
+        self.assertIn("planner", out)
+        self.assertNotIn("waiting", out)
+
     def test_status_agent_ended_and_missing_worktree(self):
         self.init("2", branch="b2", path=str(self.repo), runner="herdr", worker="gone")
         self.init("3", branch="b3", path=str(self.base / "missing"), runner="headless")
