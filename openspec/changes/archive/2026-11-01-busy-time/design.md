@@ -65,9 +65,9 @@ Rounds: 1  Verdict: pass  Busy: 1h25m  Total: 2h25m
 
 The no-issue report adds `BUSY` after `TOTAL` on issue rows and after `TIME` on provider rows. Durations use the existing `duration()` format. Columns go at the end so existing column positions stay.
 
-### Docs live in the Batch state section
+### Docs live in Batch state, with one clause in step 6
 
-The brief limits SKILL.md edits to Batch state. That section gets the two commands and when to run them, and the sentence "These times measure open sessions, including waits." is replaced, since it becomes wrong. Step 6 (Watch) and the runner files' Prompt and Read verbs are where a coordinator acts. Adding one clause there is question 1.
+The brief limits SKILL.md edits to Batch state. That section gets the two commands and when to run them, and the sentence "These times measure open sessions, including waits." is replaced, since it becomes wrong. Step 6 (Watch) and the runner files' Prompt and Read verbs are where a coordinator acts. The maintainer chose one clause at the end of step 6 (Watch) pointing back to Batch state; the runner files stay unchanged.
 
 ## Risks / Trade-offs
 

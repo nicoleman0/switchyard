@@ -29,7 +29,7 @@
 
 ## 4. Docs
 
-- [x] 4.1 In `switchyard/SKILL.md`, Batch state section only, replace "These times measure open sessions, including waits." with short sentences: run `python3 switchyard/scripts/state.py turn-end <issue>` as soon as a worker's wait returns, before you read it; run `python3 switchyard/scripts/state.py turn-start <issue>` before you prompt or unblock the same session again. Name the report's BUSY and WAIT columns in the timings sentence. No em-dashes.
+- [x] 4.1 In `switchyard/SKILL.md`, Batch state section, plus one clause at the end of step 6 (Watch) pointing to it, replace "These times measure open sessions, including waits." with short sentences: run `python3 switchyard/scripts/state.py turn-end <issue>` as soon as a worker's wait returns, before you read it; run `python3 switchyard/scripts/state.py turn-start <issue>` before you prompt or unblock the same session again. Name the report's BUSY and WAIT columns in the timings sentence. No em-dashes.
 - [x] 4.2 Add `- #124: \`state.py timings\` splits each phase into busy and wait time. The coordinator marks turns with \`state.py turn-end\` and \`turn-start\`.` under Unreleased, `### Added`, in `CHANGELOG.md`. Append only.
 
 ## 5. Repository checks
