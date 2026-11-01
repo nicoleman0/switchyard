@@ -103,7 +103,7 @@ Open questions for the maintainer wait in one file, `.switchyard/questions.md` i
 Run `scripts/preflight.sh <provider>...` first, passing the provider names in `routing.md`. It checks the requirements and says how to fix each missing one. Stop on a non-zero exit and tell the maintainer what is missing. Pass its warnings on.
 
 1. Read the issues and `AGENTS.md`. Check the issues against the code. For each one, write down anything the issue leaves undecided, and ask the maintainer before any agent starts.
-2. Split the issues by ownership. Each issue owns folders that no other issue in the batch edits. Issues that touch the same files run one after another, not in parallel. Run first the one whose result the others build on.
+2. Split the issues by ownership. Each issue owns folders that no other issue in the batch edits. Issues that touch the same files run one after another, not in parallel. Run first the one whose result the others build on. The maintainer may name issues to stack instead; see Stacked issues.
 3. Make sure the shared services `AGENTS.md` names are up in the main checkout.
 
 ## Per issue
@@ -160,6 +160,17 @@ End each issue's worker sessions. Run `python3 scripts/merge-queue.py <issue>...
 Exit 3 prints the merge command. Run it on its own after the maintainer approves, then run the queue again with the issues not yet torn down. Pass `--merge` only when the maintainer pre-approved merges for the batch; it merges and tears down each issue before moving on.
 
 Exit 1 names the file or step that stopped. Fix it in the worktree, commit, and run the queue again. Run the queue in the background when the CLI limits command time. `--timeout <seconds>` bounds the CI wait for each PR (default 1800).
+
+## Stacked issues
+
+Stack only when the maintainer names the issues in the session, and only after the parent's review passes. Keep one level; a parent may have several children.
+
+1. Run `scripts/setup-worktree.sh --parent <parent> <child> <branch>`. The child's record stores `parent`, `parent_branch`, and `parent_head` at branch time.
+2. Tell the child's reviewer in its brief to diff `<parent_head>...HEAD`. Open its PR with `gh pr create --base <parent_branch>`.
+3. After the parent merges, run `scripts/restack.sh <child>` from the main checkout for each child. It fetches, rebases only the child's commits with `--onto origin/main <parent_head>`, pushes with a lease when the remote branch exists, retargets any open PR to `main`, and clears the parent fields. Run every check after the rebase. On conflict it lists the files and aborts; resolve the restack by hand, then finish the push, retarget, and state update.
+4. Tear down the parent after every child is restacked or abandoned. Both teardown modes refuse while a child names the parent.
+
+Do not queue a child with its parent in `merge-queue.py`. Parent teardown stops while children remain stacked. Restack the children after the parent merges, then rerun the queue for the parent and children. Queue integration is a follow-up.
 
 ## Merge and clean up
 
