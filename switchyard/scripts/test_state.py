@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from datetime import datetime, timedelta, timezone
 import unittest
 
 
@@ -167,6 +168,100 @@ class Harness(unittest.TestCase):
         self.assertIn("running", self.state("timings", "8").stdout)
         # Open phases are excluded from aggregate durations.
         self.assertRegex(self.state("timings").stdout, r"claude\s+-\s+planner\s+1\s+45s")
+
+    def test_turn_commands_record_turns(self):
+        self.init(path=str(self.repo), runner="headless", planner_row="claude --model opus")
+        result = self.script("start-worker.sh", "8", "planner", "claude")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        phase = self.record()["phases"][0]
+        self.assertEqual(phase["turns"], [{"started": phase["started"]}])
+        self.assertEqual(self.state("turn-end", "8").returncode, 0)
+        turn = self.record()["phases"][0]["turns"][0]
+        self.assertRegex(turn["ended"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        before = self.record()
+        self.assertEqual(self.state("turn-end", "8").returncode, 0)
+        self.assertEqual(self.record(), before)
+        self.assertEqual(self.state("turn-start", "8").returncode, 0)
+        phase = self.record()["phases"][0]
+        self.assertEqual(len(phase["turns"]), 2)
+        self.assertEqual(set(phase["turns"][1]), {"started"})
+        # An open turn is a no-op.
+        before = self.record()
+        self.assertEqual(self.state("turn-start", "8").returncode, 0)
+        self.assertEqual(self.record(), before)
+        # A second start-worker.sh closes the old open turn at the phase's ended time.
+        result = self.script("start-worker.sh", "8", "implementer", "codex")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        phases = self.record()["phases"]
+        self.assertEqual(phases[0]["turns"][-1]["ended"], phases[0]["ended"])
+        self.assertEqual(phases[0]["ended"], phases[1]["started"])
+        self.assertEqual(phases[1]["turns"], [{"started": phases[1]["started"]}])
+        # phase-end closes the open turn too.
+        self.assertEqual(self.state("phase-end", "8").returncode, 0)
+        phases = self.record()["phases"]
+        self.assertEqual(phases[1]["turns"][0]["ended"], phases[1]["ended"])
+        result = self.state("turn-start", "8")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(len(result.stderr.strip().splitlines()), 1)
+        before = self.record()
+        self.assertEqual(self.state("turn-end", "8").returncode, 0)
+        self.assertEqual(self.record(), before)
+
+    def test_timings_busy_wait_and_turns(self):
+        self.init(size="medium")
+        record = self.record()
+        record["rounds"] = 1
+        record["verdict"] = "pass"
+        record["phases"] = [
+            {"role": "planner", "provider": "claude", "row": "claude --model opus",
+             "started": "2026-10-31T10:00:00Z", "ended": "2026-10-31T10:42:00Z",
+             "turns": [{"started": "2026-10-31T10:00:00Z", "ended": "2026-10-31T10:10:00Z"},
+                       {"started": "2026-10-31T10:12:00Z", "ended": "2026-10-31T10:20:00Z"}]},
+            {"role": "implementer", "provider": "codex", "row": "",
+             "started": "2026-10-31T10:42:00Z", "ended": "2026-10-31T11:24:00Z"},
+        ]
+        self.write_record(record)
+        result = self.state("timings", "8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertRegex(result.stdout,
+                         r"planner\s+claude\s+opus\s+2026-10-31T10:00:00Z\s+42m\s+18m\s+24m\n")
+        self.assertRegex(result.stdout, r"implementer\s+codex\s+-\s+\S+\s+42m\s+-\s+-\n")
+        self.assertIn("Rounds: 1  Verdict: pass  Busy: 18m  Total: 1h24m", result.stdout)
+        # An open turn counts to now and the phase prints running.
+        recent = (datetime.now(timezone.utc) - timedelta(seconds=130)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        record["phases"].append({"role": "reviewer", "provider": "codex", "row": "codex",
+                                 "started": recent, "turns": [{"started": recent}]})
+        self.write_record(record)
+        result = self.state("timings", "8")
+        self.assertRegex(result.stdout, r"reviewer\s+codex\s+default\s+\S+\s+running 2m\s+2m\s+0s\n")
+        self.assertIn("Busy: 20m", result.stdout)
+
+    def test_timings_no_issue_busy_column(self):
+        self.init(size="medium")
+        record = self.record()
+        record["rounds"] = 1
+        record["verdict"] = "pass"
+        record["phases"] = [
+            {"role": "planner", "provider": "claude", "row": "claude --model opus",
+             "started": "2026-10-31T10:00:00Z", "ended": "2026-10-31T10:42:00Z",
+             "turns": [{"started": "2026-10-31T10:00:00Z", "ended": "2026-10-31T10:10:00Z"},
+                       {"started": "2026-10-31T10:12:00Z", "ended": "2026-10-31T10:20:00Z"}]},
+            {"role": "implementer", "provider": "codex", "row": "",
+             "started": "2026-10-31T10:42:00Z", "ended": "2026-10-31T11:24:00Z"},
+        ]
+        self.write_record(record)
+        history = {"issue": "7", "size": "small", "archived": "2026-10-31T11:30:00Z",
+                   "abandoned": False,
+                   "phases": [{"role": "planner", "provider": "claude", "row": "claude",
+                               "started": "2026-10-31T09:00:00Z", "ended": "2026-10-31T09:10:00Z"}]}
+        (self.repo / ".switchyard/history.jsonl").write_text(json.dumps(history) + "\n")
+        result = self.state("timings")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertRegex(result.stdout, r"\b8\s+medium\s+1\s+pass\s+1h24m\s+18m\n")
+        # A record whose phases have no turns shows - and adds nothing.
+        self.assertRegex(result.stdout, r"\b7\s+small\s+-\s+-\s+10m\s+-\n")
+        self.assertRegex(result.stdout, r"claude\s+opus\s+planner\s+1\s+42m\s+18m\n")
+        self.assertRegex(result.stdout, r"codex\s+-\s+implementer\s+1\s+42m\s+-\n")
 
     def test_timings_empty(self):
         result = self.state("timings")

@@ -72,7 +72,7 @@ def fields(args, issue):
 
 def command(args):
     if not args:
-        fail("?", "usage: state.py init|set|get|rm|status|phase-start|phase-end|archive|timings ...")
+        fail("?", "usage: state.py init|set|get|rm|status|phase-start|phase-end|turn-start|turn-end|archive|timings ...")
     action = args.pop(0)
     if action == "timings":
         timings(args)
@@ -98,7 +98,7 @@ def command(args):
         if value is None or value == "":
             fail(issue, f"field {args[0]} is missing or empty")
         print(value)
-    elif action in {"phase-start", "phase-end", "archive"}:
+    elif action in {"phase-start", "phase-end", "turn-start", "turn-end", "archive"}:
         if args and (action != "archive" or args != ["--abandon"]):
             fail(issue, f"unexpected arguments for {action}")
         record = read_record(issue)
@@ -107,12 +107,29 @@ def command(args):
         if action == "phase-start" and (not record.get("role") or not record.get("backend")):
             fail(issue, "phase-start requires role and backend")
         now = timestamp()
+        if action == "turn-end":
+            phase = open_phase(record)
+            turns = phase.get("turns") if phase else None
+            if turns and "ended" not in turns[-1]:
+                turns[-1]["ended"] = now
+                write_record(path, record)
+            return
+        if action == "turn-start":
+            phase = open_phase(record)
+            if phase is None:
+                fail(issue, "no open phase. Start the worker with start-worker.sh")
+            turns = phase.setdefault("turns", [])
+            if not turns or "ended" in turns[-1]:
+                turns.append({"started": now})
+                write_record(path, record)
+            return
         changed = close_phases(record, now)
         if action == "phase-start":
             role = record["role"]
             record.setdefault("phases", []).append({
                 "role": role, "provider": record["backend"],
                 "row": record.get(f"{role}_row", ""), "started": now,
+                "turns": [{"started": now}],
             })
             changed = True
         elif action == "archive":
@@ -147,7 +164,19 @@ def close_phases(record, now):
         if "ended" not in phase:
             phase["ended"] = now
             changed = True
+            # Close the turn with the phase so a forgotten turn-end cannot
+            # push busy time past the session's real length.
+            for turn in phase.get("turns", []):
+                if "ended" not in turn:
+                    turn["ended"] = now
     return changed
+
+
+def open_phase(record):
+    phases = record.get("phases", [])
+    if phases and "ended" not in phases[-1]:
+        return phases[-1]
+    return None
 
 
 def review_result(record):
@@ -196,6 +225,14 @@ def total_time(record, now):
                             max(p.get("ended", now) for p in phases)))
 
 
+def phase_busy(phase, now):
+    """Seconds the phase was busy, or None when the phase has no turns."""
+    turns = phase.get("turns")
+    if turns is None:
+        return None
+    return sum(seconds(turn["started"], turn.get("ended", now)) for turn in turns)
+
+
 def print_table(headers, rows):
     widths = [max(len(header), *(len(str(row[i])) for row in rows))
               for i, header in enumerate(headers)] if rows else [len(h) for h in headers]
@@ -227,15 +264,27 @@ def timings(args):
             return
         rows = []
         for phase in record.get("phases", []):
-            elapsed = duration(seconds(phase["started"], phase.get("ended", now)))
+            phase_end = phase.get("ended", now)
+            elapsed = duration(seconds(phase["started"], phase_end))
             if "ended" not in phase:
                 elapsed = "running " + elapsed
-            rows.append([phase["role"], phase["provider"], model(phase["row"]), phase["started"], elapsed])
-        print_table(["ROLE", "PROVIDER", "MODEL", "STARTED", "TIME"], rows)
+            busy = phase_busy(phase, now)
+            busy_text, wait_text = "-", "-"
+            if busy is not None:
+                phase_time = seconds(phase["started"], phase_end)
+                shown = min(busy, phase_time)
+                busy_text = duration(shown)
+                wait_text = duration(phase_time - shown)
+            rows.append([phase["role"], phase["provider"], model(phase["row"]), phase["started"],
+                         elapsed, busy_text, wait_text])
+        print_table(["ROLE", "PROVIDER", "MODEL", "STARTED", "TIME", "BUSY", "WAIT"], rows)
         rounds, verdict = review_result(record)
         if record.get("abandoned"):
             verdict = "abandoned"
-        print(f"Rounds: {rounds}  Verdict: {verdict}  Total: {total_time(record, now)}")
+        busy_values = [value for value in (phase_busy(phase, now) for phase in record.get("phases", []))
+                       if value is not None]
+        busy = duration(sum(busy_values)) if busy_values else "-"
+        print(f"Rounds: {rounds}  Verdict: {verdict}  Busy: {busy}  Total: {total_time(record, now)}")
         return
     records = history[:]
     for path in sorted((root / "state").glob("*.json")):
@@ -251,18 +300,24 @@ def timings(args):
     rows, totals = [], {}
     for record in records:
         rounds, verdict = review_result(record)
+        busy_values = [value for value in (phase_busy(phase, now) for phase in record.get("phases", []))
+                       if value is not None]
+        busy = duration(sum(busy_values)) if busy_values else "-"
         rows.append([record["issue"], record.get("size") or "-", rounds,
-                     "abandoned" if record.get("abandoned") else verdict, total_time(record, now)])
+                     "abandoned" if record.get("abandoned") else verdict, total_time(record, now), busy])
         for phase in record.get("phases", []):
             if "ended" not in phase:
                 continue
             key = (phase["provider"], model(phase["row"]), phase["role"])
-            count, elapsed = totals.get(key, (0, 0))
-            totals[key] = count + 1, elapsed + seconds(phase["started"], phase["ended"])
-    print_table(["ISSUE", "SIZE", "ROUNDS", "VERDICT", "TOTAL"], rows)
+            count, elapsed, seen, busy_total = totals.get(key, (0, 0, False, 0))
+            busy = phase_busy(phase, now)
+            totals[key] = (count + 1, elapsed + seconds(phase["started"], phase["ended"]),
+                           seen or busy is not None, busy_total + (busy or 0))
+    print_table(["ISSUE", "SIZE", "ROUNDS", "VERDICT", "TOTAL", "BUSY"], rows)
     print()
-    print_table(["PROVIDER", "MODEL", "ROLE", "PHASES", "TIME"],
-                [[*key, count, duration(elapsed)] for key, (count, elapsed) in sorted(totals.items())])
+    print_table(["PROVIDER", "MODEL", "ROLE", "PHASES", "TIME", "BUSY"],
+                [[*key, count, duration(elapsed), duration(busy_total) if seen else "-"]
+                 for key, (count, elapsed, seen, busy_total) in sorted(totals.items())])
 
 
 def status():
