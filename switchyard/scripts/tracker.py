@@ -155,11 +155,16 @@ class Linear:
         return key
 
     def check(self) -> str:
-        self.query("query Viewer { viewer { id } }", {})
+        try:
+            self.query("query Viewer { viewer { id } }", {})
+        except TrackerError as error:
+            raise TrackerError(f"Linear check failed: {error}. If {LINEAR_KEY_ENV} was rejected, create a new personal API key in your Linear settings.") from None
         return "linear"
 
     def fetch(self, identifier: str) -> dict:
         issue = self.query(ISSUE_QUERY, {"id": identifier, "after": None})["issue"]
+        if issue is None:
+            raise TrackerError(f"Linear has no issue {identifier}")
         comments = issue["comments"]
         nodes = comments["nodes"]
         while comments["pageInfo"]["hasNextPage"]:
@@ -180,7 +185,7 @@ class Linear:
         else:
             # Linear does not promise comment order; ask for the oldest first.
             for comment in sorted(comments, key=lambda comment: comment["createdAt"]):
-                author = (comment.get("user") or {}).get("name", "unknown")
+                author = (comment.get("user") or {}).get("name") or "unknown"
                 lines += [f"### {author}, {comment['createdAt']}", "", comment["body"].strip(), ""]
         return "\n".join(lines).rstrip("\n") + "\n"
 
@@ -190,6 +195,8 @@ class Linear:
             "query IssueId($id: String!) { issue(id: $id) { id description } }",
             {"id": key},
         )["issue"]
+        if issue is None:
+            raise TrackerError(f"Linear has no issue {key}")
         data = self.query(
             "mutation Update($id: String!, $input: IssueUpdateInput!) {"
             " issueUpdate(id: $id, input: $input) { success } }",
