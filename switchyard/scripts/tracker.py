@@ -155,6 +155,7 @@ class Linear:
         return key
 
     def check(self) -> str:
+        self.transport()
         try:
             self.query("query Viewer { viewer { id } }", {})
         except TrackerError as error:
