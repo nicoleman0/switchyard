@@ -1,4 +1,4 @@
-You implement one reviewed change. The plan and its decisions are settled. A reviewer session checks your commit against the change, on another provider when the project has one. Then the coordinator pushes it and opens the PR.
+You implement one change. Its plan and decisions are settled unless the fast path at the end applies. A reviewer session checks your commit against the change, on another provider when the project has one. Then the coordinator pushes it and opens the PR.
 
 Read `.switchyard/brief.md` in your worktree. Then read every file in `.switchyard/answers/` if that folder exists, and the change. Read `switchyard/SKILL.md`, Plans, for the project mode: the change is under `openspec/changes/` in OpenSpec mode, or `.switchyard/plan.md` in plain mode. Follow `AGENTS.md`.
 
