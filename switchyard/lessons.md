@@ -11,12 +11,18 @@ Traps that cost time in a batch, so the next batch does not find them again. The
 
 ## Claude Code
 
+- 2026-11-01: Claude workers ran the unit suite in the background and went idle before committing or writing the review, so `wait-agents.sh` returned early. Wait for the commit or the review file, or tell workers in the brief to run the suite in the foreground.
+- 2026-11-01: Ending a Claude agent with background shells opens an "Exit and stop tasks" prompt, and `end-worker.sh` times out with `blocked`. Send Enter to the agent, then run `end-worker.sh` again.
 - 2026-10-31: The auto-mode classifier refused a background command that chained CI waits and merges, and allowed each `gh pr merge` run as its own command. Run merges one per command.
 - 2026-10-29: Folder trust is per folder. Trusting a parent folder did not cover a new folder under it, so a worker in a new worktree can stop at the trust prompt before its first turn. Enter alone picks "No, exit"; answer with Down then Enter, or start the worker from a trusted folder.
 
 ## zsh coordinator
 
 - 2026-10-31: An unquoted `$FLAGS` in zsh is not word-split, so `start-worker.sh ... -- $FLAGS` passes all flags as one argument and the CLI exits. Run multi-flag starts under bash, or use `${=FLAGS}` in zsh.
+
+## Codex
+
+- 2026-11-01: Codex 0.166.0 failed every command with "timed out negotiating with the code-mode host", and `--disable code_mode_host` left shell execution disabled. Test one `codex exec` command before a batch; skip Codex for the batch when it fails.
 
 ## Herdr
 
