@@ -154,18 +154,17 @@ After `Verdict: pass`:
 
 ## Several PRs
 
-With several PRs in flight, merge every branch into a throwaway worktree off `origin/main`. Resolve the append-only conflicts with `scripts/union-resolve.py`, run every check there, then remove that worktree.
+End each issue's worker sessions. Run `python3 scripts/merge-queue.py <issue>...` in merge order. It rebases each worktree, resolves append-only conflicts, runs `pre-review.sh`, pushes with a lease, and waits for CI.
+
+Exit 3 prints the merge command. Run it on its own after the maintainer approves, then run the queue again with the issues not yet torn down. Pass `--merge` only when the maintainer pre-approved merges for the batch; it merges and tears down each issue before moving on.
+
+Exit 1 names the file or step that stopped. Fix it in the worktree, commit, and run the queue again. Run the queue in the background when the CLI limits command time. `--timeout <seconds>` bounds the CI wait for each PR (default 1800).
 
 ## Merge and clean up
 
 The maintainer approves each merge, or pre-approves a batch by naming the condition in the coordinator conversation, for example reviewer pass and green CI. A pre-approval is explicit, covers that batch only, and the maintainer can withdraw it. Without a pre-approval, merge only after the maintainer explicitly approves that PR. The rule applies on every CLI, including those that can run commands without a permission prompt. A CLI prompt is not maintainer approval. Squash-merge one PR with `gh pr merge <pr> --squash`, without `--delete-branch`. Tell the maintainer after each merge. With a pre-approval, when the repo allows auto-merge (`gh api repos/{owner}/{repo} --jq .allow_auto_merge`), append `--auto`: `gh pr merge <pr> --squash --auto` merges when CI finishes. When CI has already passed, `--auto` refuses, so merge without it. When the repo does not allow auto-merge, wait for CI with `gh pr checks <pr> --watch`, then merge. Run each `gh pr merge` as its own command, not chained with a CI wait or another merge. With `--auto`, wait for the merge to land before the teardown. When the maintainer withdraws a pre-approval, cancel each pending one with `gh pr merge <pr> --disable-auto`. Then end its worker's session and run `scripts/teardown-worktree.sh <issue> <branch>`. It runs the project's `hooks/worktree-down.sh`, removes the worktree, deletes the local and remote branch, and removes the record. Teardown skips steps that are already done and still removes the record.
 
-For each PR still open:
-1. Rebase its branch in its worktree onto `origin/main`.
-2. Run `scripts/union-resolve.py` on each conflicted append-only file. In zsh, pass the files as separate arguments, not one variable.
-3. Run every check in `AGENTS.md`.
-4. From the main checkout, push with `git push --force-with-lease origin <branch>`.
-5. Wait for CI, then merge it and tear it down the same way.
+For each PR still open, run the queue as Several PRs says.
 
 ## Abandon an issue
 

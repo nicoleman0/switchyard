@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 ### Added
 
 - #123: `wait-agents.sh --timeout <seconds>` returns when watched agents run past the limit, listing each with how long it has worked.
+- #121: `merge-queue.py <issue>...` rebases, checks, pushes, and waits for CI on each passing PR in order, then prints the merge command, or merges with `--merge`. `union-resolve.py` merges a CHANGELOG's Unreleased subsections instead of repeating their headings.
 
 ### Changed
 
