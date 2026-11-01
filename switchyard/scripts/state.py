@@ -298,6 +298,8 @@ def status():
         issue, branch = record.get("issue", "?"), record.get("branch", "-")
         worker = record.get("worker") or record.get("session") or "-"
         phase = record.get("role") or "setup"
+        if record.get("waiting"):
+            phase += ", waiting"
         live_state = "-"
         if not record.get("path") or not Path(record["path"]).is_dir():
             live_state = "no worktree"

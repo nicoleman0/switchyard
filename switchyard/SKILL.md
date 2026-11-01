@@ -86,6 +86,18 @@ Issue records live in `.switchyard/state/<issue>.json` in the main checkout. `se
 
 `start-worker.sh` and `end-worker.sh` record when each phase starts and ends. Headless phases end at the next start or at teardown. These times measure open sessions, including waits. Run `python3 switchyard/scripts/state.py timings [issue]` for time per phase, review rounds, and the verdict. Teardown appends each issue's summary to `.switchyard/history.jsonl`, so the report covers finished issues.
 
+## Question queue
+
+Open questions for the maintainer wait in one file, `.switchyard/questions.md` in the main checkout, so one issue's question does not stall the batch.
+- Queue only what you cannot answer: product decisions, and anything that reaches past the paths an issue owns. Answer the rest yourself.
+- Give each issue one section: a `## #<issue> <title>` heading, an `Answers go to:` line naming the answers file in its worktree, and numbered questions. Each question has two or three options, a recommendation, and an empty `Answer:` line.
+- Record the wait: `python3 scripts/state.py set <issue> waiting=questions`.
+- Show the maintainer the whole queue in one message, then go on with the other issues. The maintainer answers on the `Answer:` lines or in the chat.
+- Read the queue each time a wait returns.
+- When all of an issue's questions are answered, copy the answers to its answers file and delete its section. Clear the wait with `python3 scripts/state.py set <issue> waiting=`, then resume the issue where it stopped.
+- When no issue can move until an answer lands, end your turn with the queue.
+- Delete an issue's section when the issue is torn down.
+
 ## Before starting
 
 Run `scripts/preflight.sh <provider>...` first, passing the provider names in `routing.md`. It checks the requirements and says how to fix each missing one. Stop on a non-zero exit and tell the maintainer what is missing. Pass its warnings on.
@@ -112,12 +124,12 @@ Run `scripts/preflight.sh <provider>...` first, passing the provider names in `r
    - Check the change against the code and the specs. Verify any claim it makes about the code or the data before you rely on it.
    - A change with `skip_specs: true` has no spec delta. Check that the planner set the flag only when the work changes no observable behaviour.
    - Answer what you can.
-   - Bring product decisions to the maintainer: anything that changes behaviour the issue does not settle, or that reaches past the paths the issue owns.
+   - Bring product decisions to the maintainer: anything that changes behaviour the issue does not settle, or that reaches past the paths the issue owns. Add them to the question queue.
    - Write the answers to `<path>/.switchyard/answers/plan.md`.
    - Size the reviewed change again and record it: `python3 scripts/state.py set <issue> size=<size>`. Tell the maintainer.
 5. **Implement.** End the planner's session. Pick the implementer provider from the routing table in `switchyard/routing.md`, then the row for `size`. Record it: `python3 scripts/state.py set <issue> "implementer_row=<provider> <flags>"`. Start it in the same worktree. Then prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md and .switchyard/answers/, and implement the change for issue #<issue>.`
-6. **Watch.** Wait for the worker, then read its report. Answer it with a file in `.switchyard/answers/` and a one-line prompt that points to the file.
-   Give `wait-agents.sh` a `--timeout <seconds>` bound. On exit 4 the script has printed each agent still working: read that agent's pane, then nudge, end, or reassign it.
+6. **Watch.** Wait for the worker, then read its report. Answer it with a file in `.switchyard/answers/` and a one-line prompt that points to the file. Add questions only the maintainer can answer to the question queue.
+   Give `wait-agents.sh` a `--timeout <seconds>` bound. Name the agents to wait for, and leave out any whose issue waits on questions. On exit 4 the script has printed each agent still working: read that agent's pane, then nudge, end, or reassign it.
 7. **Review.** When the implementer reports its commit, end its session. Start the reviewer on another usable provider when available. Otherwise set `SWITCHYARD_SAME_PROVIDER=1` and use the implementer's provider. Pick the row for `size` and pass its flags from `switchyard/routing.md`. Record it: `python3 scripts/state.py set <issue> "reviewer_row=<provider> <flags>"`. Then prompt it: `Read switchyard/roles/reviewer.md and follow it for issue #<issue>.` Wait for it, then read the newest file in `<path>/.switchyard/reviews/`.
    Before the reviewer starts, run `scripts/pre-review.sh <issue>`. Exit 0: go on. Exit 2: fix what it names yourself. Exit 1 with only `FAIL scope`: rule on each listed file as in Open the PR, step 1, accept one by adding it to `owned` with `state.py set`, and run the gate again. Any other exit 1: end the implementer's session, start a new one on the same row, and record `implementer_row`. Prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md, .switchyard/answers/, and the newest file in .switchyard/checks/, and fix the failed checks for issue #<issue>. The change is already built: follow the Fix rounds paragraph with that log in place of a review.` Then run the gate again. After two failed gate runs in a row, stop and bring the log to the maintainer. Gate rounds do not count toward the two `changes requested` rounds.
 
@@ -128,7 +140,7 @@ The reviewer checks the diff against the change. Read its review, not the diff. 
 - **`Verdict: pass`:** make any small fixes, then open the PR.
 - **`Verdict: changes requested`:** when every blocker fits a small fix, fix them and open the PR without another review. Otherwise end the reviewer's session and start a new implementer session. Prompt it: `Read switchyard/roles/implementer.md, then .switchyard/brief.md, .switchyard/answers/, and the newest file in .switchyard/reviews/, and fix the findings for issue #<issue>.` Do not restate the findings. Pick its row for `size` without re-sizing, and record `implementer_row` again. Then run step 7 again with a new reviewer session.
 - **A second `changes requested`:** stop. Bring the open findings to the maintainer.
-- **Questions for the coordinator:** answer what you can in `.switchyard/answers/`, and bring product decisions to the maintainer. If an answer changes the change, run a fix round.
+- **Questions for the coordinator:** answer what you can in `.switchyard/answers/`, and add product decisions to the question queue. If an answer changes the change, run a fix round.
 - **Small fixes:** fix notes and blockers yourself when all your fixes for one review total about 10 changed lines or fewer, as `git diff --stat` counts them, code included. Edit and commit in the worktree. Do not amend. Run every check in the brief. If one fails, undo your commit and run a fix round. Record each fix in the PR body's Review section with the finding and the file. Leave a note unfixed when you disagree with it.
 
 ## Open the PR
