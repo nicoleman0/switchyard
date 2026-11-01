@@ -6,14 +6,14 @@ Use this when the coordinator runs inside Herdr (`HERDR_ENV=1`). Each worker is 
 
 | Verb | Command |
 |---|---|
-| Start an agent | `scripts/start-worker.sh <issue> <role> <provider> -- <flags>` when the provider's On Herdr cell is `agent` |
-| Start a turns provider | `scripts/start-worker.sh <issue> <role> <provider> --turns` when its On Herdr cell is `turns` |
+| Start an agent | `scripts/start-worker.sh <issue> <role> <provider> -- <flags>` when the provider's On Herdr cell is `agent`. With `--resume` in place of `-- <flags>`, it reopens the role's running agent |
+| Start a turns provider | `scripts/start-worker.sh <issue> <role> <provider> --turns` when its On Herdr cell is `turns`. `--resume` reuses the role's recorded session |
 | Prompt | `herdr agent prompt <name> "<one line>" --wait --until working --until blocked --timeout 30000` |
 | Wait | `scripts/wait-agents.sh [--timeout <seconds>] <name>...` |
 | Read | `herdr agent read <name> --source recent-unwrapped --lines 80` |
-| End | `scripts/end-worker.sh <issue>` |
+| End | `scripts/end-worker.sh <issue> [<role>]`. Without a role it ends every agent of the issue |
 
-Read the provider's commands, flags, and End value from `switchyard/routing.md`. The script names agents `<role>-<issue>`. A name is free again once its agent has exited, so fix rounds reuse `implementer-<issue>` and `reviewer-<issue>`. Herdr rejects names that start with a digit; names must start with a lowercase letter.
+Read the provider's commands, flags, and End value from `switchyard/routing.md`. The script names agents `<role>-<issue>`. The implementer keeps running while the reviewer works, so `implementer-<issue>` and `reviewer-<issue>` live at once. The reviewer starts in a pane split below the worktree's pane, and ending it closes that pane. `--resume` exits 4 when the agent has exited or ran on another provider; start a fresh one then. Herdr rejects names that start with a digit; names must start with a lowercase letter.
 
 Multi-line prompt text does not submit reliably. Put the content in a file and prompt with one line that points to it.
 

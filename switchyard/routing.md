@@ -32,7 +32,7 @@ A provider is named after its CLI command. To add one, add a Providers row and a
 | Provider | On Herdr | End | First turn | Later turns |
 |---|---|---|---|---|
 | claude | agent | `/exit` | `claude -p --session-id <session> <flags> "<prompt>"` | `claude -p --resume <session> <flags> "<prompt>"` |
-| codex | agent | `/exit` | `codex exec <flags> "<prompt>"` | `codex exec resume --last <flags> "<prompt>"` |
+| codex | agent | `/exit` | `codex exec <flags> "<prompt>"` | `codex exec resume <session> <flags> "<prompt>"` |
 | opencode | turns | | `opencode run <flags> --session ses_<session> "<prompt>"` | the same command |
 | pi | agent | `/quit` | `pi -p <flags> --session .switchyard/sessions/<session>.jsonl "<prompt>"` | the same command |
 
@@ -40,7 +40,7 @@ The runner files explain these columns and placeholders.
 
 Provider notes:
 - claude: the status line shows usage used. Pin a model with `--model <alias or id>`.
-- codex: the status line shows usage left ("5h N% left"). Later turns forget the model, so pass the row's flags again, and the pinned model if there is one. `codex exec resume` rejects `--approve-for-me`; pass `-c approvals_reviewer=auto_review` in its place. `--last` picks the newest session for the current folder, so run it from the worktree. Pin a model with `-m <model>`.
+- codex: the status line shows usage left ("5h N% left"). Later turns forget the model, so pass the row's flags again, and the pinned model if there is one. `codex exec resume` rejects `--approve-for-me`; pass `-c approvals_reviewer=auto_review` in its place. `codex exec` prints `session id: <uuid>` in its header. Record that id after the first turn, as the headless runner says, so Later turns resume this session and not a newer one, such as a reviewer's. Pin a model with `-m <model>`.
 - opencode: interactive mode ignores model settings and reopens the last model picked, so it runs as turns on Herdr. Session IDs must start with `ses`. No known way to read usage from a script. Pin a model with `--model <provider/model>`.
 - pi: no permission prompts, so no approval flag. `--session` needs a file path; an id pi did not create fails. A model the key cannot reach exits 1 with a 404, so check `pi --list-models` against a real turn. A key with a per-minute token limit below pi's base request fails every turn with a 413, so try a real turn in the repo before relying on a model. No usage window to read. With no `--model`, pi uses the model from its own settings; a project pins one by adding `--model <provider/id>` to the row.
 - codex on Herdr: Codex may open on an update prompt. `start-worker.sh` exits 3 with `status=blocked` after writing the record. Dismiss it with `herdr agent send-keys <name> esc`, and tell the maintainer an update is available. Do not update Codex without asking.

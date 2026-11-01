@@ -47,7 +47,7 @@ class Harness(unittest.TestCase):
             self.stub(cli, "exit 0")
         self.log = self.base / "calls.jsonl"
         self.stub("gh", 'echo "$*" >> "$CALL_LOG"\n[ "$1 $2" = "pr list" ] && [ "$3" = "--head" ] && [ "$5" = "--state" ] && [ "$6" = all ] && [ "$7" = "--json" ] && [ "$8" = "number,state" ] && [ "$9" = "--limit" ] && [ "${10}" = 1 ] || exit 23\n[ "${FAIL_GH:-}" != 1 ] || exit 2\nprintf \'%s\\n\' "${GH_RESULT:-[]}"')
-        self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\n[ "${FAIL_HERDR:-}" != 1 ] || exit 2\nif [ "$1 $2" = "agent list" ] && [ "$#" = 2 ]; then printf \'%s\\n\' "$HERDR_RESULT"; elif [ "$1 $2" = "agent start" ]; then [ "${FAIL_START:-}" != 1 ] || exit 2; case "$3" in planner-10|planner-8|implementer-10|reviewer-10) ;; *) exit 23 ;; esac; echo "agent start output"; elif [ "$1 $2" = "worktree create" ]; then printf \'%s\\n\' "$HERDR_CREATE_RESULT"; else exit 23; fi')
+        self.stub("herdr", 'echo "$*" >> "$CALL_LOG"\n[ "${FAIL_HERDR:-}" != 1 ] || exit 2\nif [ "$1 $2" = "agent list" ] && [ "$#" = 2 ]; then printf \'%s\\n\' "$HERDR_RESULT"; elif [ "$1 $2" = "agent start" ]; then [ "${FAIL_START:-}" != 1 ] || exit 2; case "$3" in planner-10|planner-8|implementer-10|reviewer-10) ;; *) exit 23 ;; esac; echo "agent start output"; elif [ "$1 $2" = "worktree create" ]; then printf \'%s\\n\' "$HERDR_CREATE_RESULT"; elif [ "$1 $2" = "pane split" ]; then printf \'{"result":{"pane":{"pane_id":"w1:p2"}}}\\n\'; elif [ "$1 $2" = "pane close" ]; then echo ok; else exit 23; fi')
         self.env = os.environ.copy()
         self.env.update(PATH=f"{self.bin}:{self.env['PATH']}", CALL_LOG=str(self.log), TEST_WORKTREE=str(self.repo))
         self.env["HERDR_RESULT"] = '{"result":{"agents":[]}}'
@@ -1069,14 +1069,180 @@ fi'''
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.record()["backend"], "opencode")
 
-    def test_reviewer_starts_in_herdr_pane(self):
+    def test_reviewer_starts_in_split_herdr_pane(self):
         self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
         herdr_env = self.env.copy(); herdr_env["HERDR_ENV"] = "1"
         self.assertEqual(self.script("start-worker.sh", "10", "implementer", "codex", env=herdr_env).returncode, 0)
         result = self.script("start-worker.sh", "10", "reviewer", "claude", "--", "--agent", "issue-reviewer", env=herdr_env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.get("10", "worker"), "reviewer-10")
-        self.assertIn("agent start reviewer-10 --kind claude --pane w1:p1 -- --agent issue-reviewer", self.log.read_text())
+        self.assertEqual(result.stdout.splitlines(), [f"path={self.repo}", "pane=w1:p2", "name=reviewer-10"])
+        calls = self.log.read_text()
+        self.assertIn(f"pane split w1:p1 --direction down --cwd {self.repo}", calls)
+        self.assertIn("agent start reviewer-10 --kind claude --pane w1:p2 -- --agent issue-reviewer", calls)
+        record = self.record("10")
+        self.assertEqual((record["worker"], record["reviewer_worker"], record["reviewer_pane"]), ("reviewer-10", "reviewer-10", "w1:p2"))
+        self.assertEqual((record["implementer_worker"], record["implementer_pane"], record["pane"]), ("implementer-10", "w1:p1", "w1:p1"))
+
+        self.log.write_text("")
+        turns = self.script("start-worker.sh", "10", "reviewer", "claude", "--turns", env=herdr_env)
+        self.assertEqual(turns.returncode, 0, turns.stderr)
+        self.assertIn("pane=w1:p2", turns.stdout)
+        self.assertIn("pane split w1:p1", self.log.read_text())
+        self.assertEqual(self.record("10")["reviewer_worker"], "")
+
+        before = self.record("10")
+        fail_env = herdr_env.copy(); fail_env["FAIL_START"] = "1"
+        failed = self.script("start-worker.sh", "10", "reviewer", "claude", env=fail_env)
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("pane close w1:p2", self.log.read_text())
+        self.assertEqual(self.record("10"), before)
+
+    def test_start_records_each_role_fields(self):
+        self.init(branch="b", path=str(self.repo), runner="headless")
+        self.assertEqual(self.script("start-worker.sh", "8", "planner", "claude").returncode, 0)
+        self.assertEqual(self.script("start-worker.sh", "8", "implementer", "codex").returncode, 0)
+        record = self.record()
+        self.assertEqual((record["planner_backend"], record["implementer_backend"]), ("claude", "codex"))
+        self.assertNotEqual(record["planner_session"], record["implementer_session"])
+        self.assertEqual(record["session"], record["implementer_session"])
+        self.assertNotIn("planner_pane", record)
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
+        herdr_env = self.env.copy(); herdr_env["HERDR_ENV"] = "1"
+        for role in ("planner", "implementer"):
+            self.assertEqual(self.script("start-worker.sh", "10", role, "pi", env=herdr_env).returncode, 0)
+        record = self.record("10")
+        for role in ("planner", "implementer"):
+            self.assertEqual((record[f"{role}_worker"], record[f"{role}_pane"], record[f"{role}_backend"], record[f"{role}_session"]),
+                             (f"{role}-10", "w1:p1", "pi", ""))
+
+    def stub_agents(self):
+        # Several named agents at once: <name>.gone marks an exited agent,
+        # <name>.state holds a live agent's status (idle by default).
+        agents = self.base / "agents"
+        agents.mkdir(exist_ok=True)
+        self.stub("herdr", '''echo "$*" >> "$CALL_LOG"
+case "$1 $2" in
+  "agent start") rm -f "$AGENTS/$3.gone"; echo started ;;
+  "agent get")
+    if [ -f "$AGENTS/$3.gone" ]; then echo \'{"error":{"code":"agent_not_found"}}\' >&2; exit 1; fi
+    printf \'{"result":{"agent":{"agent_status":"%s"}}}\\n\' "$(cat "$AGENTS/$3.state" 2>/dev/null || echo idle)" ;;
+  "agent prompt") touch "$AGENTS/$3.gone"; echo \'{"result":{}}\' ;;
+  "pane split") echo \'{"result":{"pane":{"pane_id":"w1:p2"}}}\' ;;
+  "pane close") echo \'{"result":{"type":"ok"}}\' ;;
+  "pane process-info") echo \'{"result":{"process_info":{"shell_pid":1,"foreground_process_group_id":1}}}\' ;;
+  "pane send-keys") echo \'{"result":{}}\' ;;
+  *) exit 23 ;;
+esac''')
+        (self.skill / "routing.md").write_text("| Provider | On Herdr | End |\n|---|---|---|\n| claude | agent | `/exit` |\n| codex | agent | `/quit` |\n| opencode | turns | |\n")
+        env = self.env.copy()
+        env.update(HERDR_ENV="1", AGENTS=str(agents))
+        return env, agents
+
+    def test_resume_opens_a_phase_on_the_recorded_session(self):
+        env, agents = self.stub_agents()
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
+        self.assertEqual(self.script("start-worker.sh", "10", "implementer", "codex", env=env).returncode, 0)
+        self.assertEqual(self.script("start-worker.sh", "10", "reviewer", "claude", env=env).returncode, 0)
+        self.log.write_text("")
+        resumed = self.script("start-worker.sh", "10", "implementer", "codex", "--resume", env=env)
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+        self.assertEqual(resumed.stdout.splitlines(), [f"path={self.repo}", "pane=w1:p1", "name=implementer-10"])
+        self.assertNotIn("agent start", self.log.read_text())
+        record = self.record("10")
+        self.assertEqual((record["role"], record["backend"], record["worker"]), ("implementer", "codex", "implementer-10"))
+        self.assertEqual([p["role"] for p in record["phases"]], ["implementer", "reviewer", "implementer"])
+
+        before = self.record("10")
+        mismatch = self.script("start-worker.sh", "10", "implementer", "claude", "--resume", env=env)
+        self.assertEqual(mismatch.returncode, 4)
+        self.assertEqual(len(mismatch.stderr.strip().splitlines()), 1)
+        self.assertIn("fresh", mismatch.stderr)
+        (agents / "implementer-10.state").write_text("working")
+        busy = self.script("start-worker.sh", "10", "implementer", "codex", "--resume", env=env)
+        self.assertEqual(busy.returncode, 1)
+        self.assertIn("working", busy.stderr)
+        (agents / "implementer-10.gone").touch()
+        gone = self.script("start-worker.sh", "10", "implementer", "codex", "--resume", env=env)
+        self.assertEqual(gone.returncode, 4)
+        self.assertIn("fresh", gone.stderr)
+        self.assertEqual(self.record("10"), before)
+
+        self.init(branch="b", path=str(self.repo), runner="headless")
+        self.assertEqual(self.script("start-worker.sh", "8", "implementer", "claude").returncode, 0)
+        session = self.get("8", "implementer_session")
+        self.assertEqual(self.script("start-worker.sh", "8", "reviewer", "codex").returncode, 0)
+        resumed = self.script("start-worker.sh", "8", "implementer", "claude", "--resume")
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+        self.assertEqual(resumed.stdout.splitlines(), [f"path={self.repo}", f"session={session}"])
+        self.assertEqual(self.get("8", "session"), session)
+        self.state("set", "8", "implementer_session=")
+        before = self.record()
+        missing = self.script("start-worker.sh", "8", "implementer", "claude", "--resume")
+        self.assertEqual(missing.returncode, 4)
+        self.assertIn("fresh", missing.stderr)
+        never = self.script("start-worker.sh", "8", "planner", "claude", "--resume")
+        self.assertEqual(never.returncode, 4)
+        self.assertEqual(self.record(), before)
+
+    def test_end_worker_by_role_and_every_live_agent(self):
+        env, agents = self.stub_agents()
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
+        self.assertEqual(self.script("start-worker.sh", "10", "implementer", "codex", env=env).returncode, 0)
+        self.assertEqual(self.script("start-worker.sh", "10", "reviewer", "claude", env=env).returncode, 0)
+        self.log.write_text("")
+        ended = self.script("end-worker.sh", "10", "reviewer", env=env)
+        self.assertEqual(ended.returncode, 0, ended.stderr)
+        self.assertEqual(ended.stdout.splitlines(), ["ended=reviewer-10", "closed=w1:p2"])
+        calls = self.log.read_text()
+        self.assertIn("agent prompt reviewer-10 /exit", calls)
+        self.assertIn("pane close w1:p2", calls)
+        self.assertNotIn("implementer-10", calls)
+        record = self.record("10")
+        self.assertEqual((record["reviewer_worker"], record["reviewer_pane"]), ("", ""))
+        self.assertEqual(record["implementer_worker"], "implementer-10")
+        self.assertIn("ended", record["phases"][-1])
+
+        self.assertEqual(self.script("start-worker.sh", "10", "reviewer", "claude", env=env).returncode, 0)
+        self.log.write_text("")
+        both = self.script("end-worker.sh", "10", env=env)
+        self.assertEqual(both.returncode, 0, both.stderr)
+        self.assertEqual(both.stdout.splitlines(), ["ended=reviewer-10", "closed=w1:p2", "ended=implementer-10"])
+        calls = self.log.read_text()
+        self.assertIn("agent prompt implementer-10 /quit", calls)
+        self.assertIn("pane send-keys w1:p1 ctrl+u", calls)
+        self.assertEqual(self.record("10")["reviewer_pane"], "")
+
+        self.assertEqual(self.script("start-worker.sh", "10", "reviewer", "opencode", "--turns", env=env).returncode, 0)
+        self.log.write_text("")
+        turns = self.script("end-worker.sh", "10", "reviewer", env=env)
+        self.assertEqual(turns.returncode, 0, turns.stderr)
+        self.assertEqual(turns.stdout.splitlines(), ["closed=w1:p2"])
+        self.assertNotIn("agent", self.log.read_text())
+
+        (agents / "implementer-10.gone").unlink()
+        (agents / "implementer-10.state").write_text("working")
+        busy = self.script("end-worker.sh", "10", env=env)
+        self.assertEqual(busy.returncode, 1)
+        self.assertIn("working", busy.stderr)
+        self.assertNotEqual(self.script("end-worker.sh", "10", "nobody", env=env).returncode, 0)
+
+    def test_phases_stay_sequential_across_a_resumed_fix_round(self):
+        env, agents = self.stub_agents()
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
+        steps = [("start-worker.sh", "10", "planner", "claude"), ("end-worker.sh", "10"),
+                 ("start-worker.sh", "10", "implementer", "codex"), ("start-worker.sh", "10", "reviewer", "claude"),
+                 ("end-worker.sh", "10", "reviewer"), ("start-worker.sh", "10", "implementer", "codex", "--resume")]
+        for step in steps:
+            result = self.script(*step, env=env)
+            self.assertEqual(result.returncode, 0, f"{step}: {result.stderr}")
+            phases = self.record("10")["phases"]
+            self.assertLessEqual(sum("ended" not in p for p in phases), 1)
+        phases = self.record("10")["phases"]
+        self.assertEqual([p["role"] for p in phases], ["planner", "implementer", "reviewer", "implementer"])
+        self.assertTrue(all("ended" in p for p in phases[:3]))
+        self.assertNotIn("ended", phases[3])
+        for earlier, later in zip(phases, phases[1:]):
+            self.assertLessEqual(earlier["ended"], later["started"])
 
 
 if __name__ == "__main__":

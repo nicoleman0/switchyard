@@ -44,7 +44,7 @@ Each piece covers a gap the others leave:
 | You | GitHub and the coordinator's chat | Open issues, answer product questions, approve merges | |
 | Coordinator | Your session on the main checkout, any CLI that reads `AGENTS.md` and can run the skill's scripts | Splits the work, writes briefs, reviews plans, acts on review verdicts, pushes, opens PRs, merges, cleans up | Implements |
 | Planner | The issue's worktree, any provider | Reads the issue and the code, proposes the OpenSpec change, takes before screenshots, lists open questions | Writes code |
-| Implementer | The same worktree, fresh session, any provider | Applies the change, runs every check, takes after screenshots, archives the change, commits, writes the PR body | Pushes |
+| Implementer | The same worktree, fresh session that fix rounds resume, any provider | Applies the change, runs every check, takes after screenshots, archives the change, commits, writes the PR body | Pushes |
 | Reviewer | The same worktree, fresh session, another provider when available | Checks the diff against the change's scenarios and tasks, runs every check, writes a verdict file | Edits code |
 
 ### One issue, start to finish
@@ -61,7 +61,7 @@ Each piece covers a gap the others leave:
 
 6. **The implementer builds it.** A fresh session applies the tasks, runs every check, syncs the spec delta into `openspec/specs/` when it has one, archives the change, commits, and writes the PR body. It asks before it decides anything the plan does not cover.
 7. **The reviewer checks the diff.** A fresh session, on another provider when available, reads the change and the diff. It checks each scenario, or each task for a `skip_specs: true` change, plus scope, tests, duplication, and screenshots. It runs every check and writes a verdict to a file in the worktree.
-8. **The coordinator acts on the verdict.** On a pass it pushes the branch and opens the PR. Otherwise a fresh implementer session reads the review and fixes it, and a new reviewer checks again. After two failed rounds the coordinator brings the findings to you.
+8. **The coordinator acts on the verdict.** On a pass it pushes the branch and opens the PR. Otherwise the implementer's session resumes, or a fresh one starts when the provider cannot resume. It reads the review and fixes it, and a new reviewer checks again. After two failed rounds the coordinator brings the findings to you.
 9. **You approve.** The coordinator squash-merges, removes the worktree and its branch, and rebases the PRs still open.
 
 You are asked something at three points: before work starts, after the plan, and at the merge. Pre-approve the batch's merges and step 9 asks nothing more: the coordinator merges on the condition you named.
