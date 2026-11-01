@@ -163,7 +163,7 @@ After `Verdict: pass`:
 
 End each issue's worker sessions. Run `python3 scripts/merge-queue.py <issue>...` in merge order. It rebases each worktree, resolves append-only conflicts, runs `pre-review.sh`, pushes with a lease, and waits for CI.
 
-Exit 3 prints the merge command. Run it on its own after the maintainer approves, then run the queue again with the issues not yet torn down. Pass `--merge` only when the maintainer pre-approved merges for the batch; it merges and tears down each issue before moving on.
+Exit 3 prints the merge command. Run it on its own after the maintainer approves, then run the queue again with the issues not yet torn down. Pass `--merge` only when the maintainer pre-approved merges for the batch; it merges and tears down each issue before moving on. After an issue merges, the queue runs `restack.sh` for each child that names it, then tears it down; a failed restack stops the queue and names the child.
 
 Exit 1 names the file or step that stopped. Fix it in the worktree, commit, and run the queue again. Run the queue in the background when the CLI limits command time. `--timeout <seconds>` bounds the CI wait for each PR (default 1800).
 
@@ -173,10 +173,10 @@ Stack only when the maintainer names the issues in the session, and only after t
 
 1. Run `scripts/setup-worktree.sh --parent <parent> <child> <branch>`. The child's record stores `parent`, `parent_branch`, and `parent_head` at branch time.
 2. Tell the child's reviewer in its brief to diff `<parent_head>...HEAD`. Open its PR with `gh pr create --base <parent_branch>`.
-3. After the parent merges, run `scripts/restack.sh <child>` from the main checkout for each child. It fetches, rebases only the child's commits with `--onto origin/main <parent_head>`, pushes with a lease when the remote branch exists, retargets any open PR to `main`, and clears the parent fields. Run every check after the rebase. On conflict it lists the files and aborts; resolve the restack by hand, then finish the push, retarget, and state update.
+3. After the parent merges, run `scripts/restack.sh <child>` from the main checkout for each child. It fetches, rebases only the child's commits with `--onto origin/main <parent_head>`, pushes with a lease when the remote branch exists, retargets any open PR to `main`, and clears the parent fields. Run every check after the rebase. On conflict it lists the files and aborts; resolve the restack by hand, then finish the push, retarget, and state update. `merge-queue.py` runs this step itself after it merges or finds the parent merged.
 4. Tear down the parent after every child is restacked or abandoned. Both teardown modes refuse while a child names the parent.
 
-Do not queue a child with its parent in `merge-queue.py`. Parent teardown stops while children remain stacked. Restack the children after the parent merges, then rerun the queue for the parent and children. Queue integration is a follow-up.
+Queue the parent before its children in `merge-queue.py`, or the queue exits 2. The queue restacks the children itself. A child it restacks but does not queue still needs its checks.
 
 ## Merge and clean up
 
