@@ -25,9 +25,22 @@ path=$(python3 "$state" get "$issue" path)
 case "$runner" in herdr|headless) ;; *) echo "Unknown runner: $runner" >&2; exit 1 ;; esac
 pane=""
 if [ "$runner" = herdr ]; then pane=$(python3 "$state" get "$issue" pane); fi
+root_pane=$pane
 
 field() {
   python3 "$state" get "$issue" "$1" 2>/dev/null || true
+}
+
+# A record from before per-role fields names one worker for its current role.
+# Keep it under that role before the current fields are replaced.
+adopt_legacy_worker() {
+  local legacy_role legacy_worker
+  legacy_role=$(field role)
+  legacy_worker=$(field worker)
+  if [ -n "$legacy_role" ] && [ -n "$legacy_worker" ] && [ -z "$(field "${legacy_role}_worker")" ]; then
+    python3 "$state" set "$issue" "${legacy_role}_worker=$legacy_worker" "${legacy_role}_pane=$root_pane" \
+      "${legacy_role}_backend=$(python3 "$state" get "$issue" backend)"
+  fi
 }
 
 print_handles() {
@@ -43,6 +56,7 @@ if [ "$resume" = 1 ]; then
     echo "Issue $issue: $1. Start a fresh $role session." >&2
     exit 4
   }
+  adopt_legacy_worker
   recorded=$(field "${role}_backend")
   [ "$recorded" = "$backend" ] || cannot_resume "no $role session on $backend to resume"
   worker=$(field "${role}_worker")
@@ -120,6 +134,7 @@ PY
   fi
 fi
 
+adopt_legacy_worker
 python3 "$state" set "$issue" "role=$role" "backend=$backend" "worker=$worker" "session=$session" \
   "${role}_backend=$backend" "${role}_worker=$worker" "${role}_session=$session" ${extra[@]+"${extra[@]}"}
 python3 "$state" phase-start "$issue"

@@ -89,7 +89,14 @@ end_agent() {
     if [ "$rc" -eq 0 ]; then
       last_state=$(agent_status "$agent_result")
     elif [[ "$agent_result" == *agent_not_found* ]]; then
-      pane_result=$(herdr pane process-info --pane "$pane") || { echo "$pane_result" >&2; exit 1; }
+      rc=0
+      pane_result=$(herdr pane process-info --pane "$pane" 2>&1) || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        # A pane closed by hand took its agent with it.
+        [[ "$pane_result" == *pane_not_found* ]] || { echo "$pane_result" >&2; exit 1; }
+        printf 'ended=%s\n' "$worker"
+        return 0
+      fi
       read -r shell_pid foreground_pid < <(python3 -c 'import json,sys; d=json.load(sys.stdin); r=d.get("result", d); r=r.get("process_info", r); print(r["shell_pid"], r["foreground_process_group_id"])' <<<"$pane_result")
       last_state=agent_not_found
       if [ "$shell_pid" = "$foreground_pid" ]; then
@@ -109,29 +116,30 @@ end_agent() {
 
 if [ -n "$only_role" ]; then roles=("$only_role"); else roles=(reviewer implementer planner); fi
 ended=0
-if [ -z "$(field planner_pane)" ] && [ -z "$(field implementer_pane)" ]; then
-  # Records from before per-role fields name one worker in the root pane.
-  worker=$(field worker)
-  if [ -n "$worker" ] && { [ -z "$only_role" ] || [ "$only_role" = "$(field role)" ]; }; then
-    end_agent "$worker" "$(python3 "$state" get "$issue" backend)" "$root_pane"
+# A record from before per-role fields names one worker for its current role.
+legacy_role=$(field role)
+legacy_worker=$(field worker)
+if [ -n "$legacy_role" ] && [ -n "$legacy_worker" ] && [ -z "$(field "${legacy_role}_worker")" ]; then
+  python3 "$state" set "$issue" "${legacy_role}_worker=$legacy_worker" "${legacy_role}_pane=$root_pane" \
+    "${legacy_role}_backend=$(python3 "$state" get "$issue" backend)"
+fi
+for role in "${roles[@]}"; do
+  worker=$(field "${role}_worker")
+  pane=$(field "${role}_pane")
+  if [ -n "$worker" ]; then
+    end_agent "$worker" "$(python3 "$state" get "$issue" "${role}_backend")" "${pane:-$root_pane}"
     ended=1
   fi
-else
-  for role in "${roles[@]}"; do
-    worker=$(field "${role}_worker")
-    pane=$(field "${role}_pane")
-    if [ -n "$worker" ]; then
-      end_agent "$worker" "$(python3 "$state" get "$issue" "${role}_backend")" "${pane:-$root_pane}"
-      ended=1
-    fi
-    if [ "$role" = reviewer ] && [ -n "$pane" ]; then
-      close_result=$(herdr pane close "$pane" 2>&1) \
-        || [[ "$close_result" == *pane_not_found* ]] || { echo "$close_result" >&2; exit 1; }
-      python3 "$state" set "$issue" reviewer_pane= reviewer_worker=
-      printf 'closed=%s\n' "$pane"
-      ended=1
-    fi
-  done
-fi
+  if [ "$role" = reviewer ] && [ -n "$pane" ]; then
+    close_result=$(herdr pane close "$pane" 2>&1) \
+      || [[ "$close_result" == *pane_not_found* ]] || { echo "$close_result" >&2; exit 1; }
+    cleared=(reviewer_pane= reviewer_worker=)
+    # Clearing the current worker too keeps the step above from adopting it again.
+    if [ -n "$worker" ] && [ "$(field worker)" = "$worker" ]; then cleared+=(worker=); fi
+    python3 "$state" set "$issue" "${cleared[@]}"
+    printf 'closed=%s\n' "$pane"
+    ended=1
+  fi
+done
 python3 "$state" phase-end "$issue"
 [ "$ended" = 1 ] || echo "Issue $issue: there is no agent to end"

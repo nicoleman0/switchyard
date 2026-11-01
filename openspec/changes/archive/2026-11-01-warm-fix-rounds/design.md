@@ -41,9 +41,9 @@ The split happens on every reviewer start, whether or not the implementer is sti
 
 `end-worker.sh <issue>` with no role ends every role with a recorded live worker, reviewer first, then closes the split pane. This keeps "End the planner's session" and "end its worker's session" in Merge and clean up correct without edits.
 
-`phase-end` runs once per call, after the last agent ends. Each ended agent prints `ended=<name>`, and a closed split pane prints `closed=<pane>`. A split pane the maintainer already closed counts as closed.
+`phase-end` runs once per call, after the last agent ends. Each ended agent prints `ended=<name>`, and a closed split pane prints `closed=<pane>`. A split pane the maintainer already closed counts as closed, and so does its agent. Ending the reviewer also clears the unprefixed `worker` when it names the reviewer.
 
-A record written before this change has no `<role>_pane`. For it, `end-worker.sh` ends the unprefixed `worker` in the root pane, as before, so an issue in flight across an update still ends.
+A record written before this change names one `worker` for its current `role`, with no `<role>_worker`. Before either script uses or replaces the role fields, it copies that worker into `<role>_worker`, `<role>_backend`, and `<role>_pane` set to the root pane. An issue in flight across an update then keeps its implementer through a new reviewer start and ends both agents.
 
 ### 5. Phases stay sequential
 

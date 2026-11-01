@@ -1117,7 +1117,8 @@ fi'''
 
     def stub_agents(self):
         # Several named agents at once: <name>.gone marks an exited agent,
-        # <name>.state holds a live agent's status (idle by default).
+        # <name>.state holds a live agent's status (idle by default), and
+        # pane-<id>.gone marks a pane closed by hand.
         agents = self.base / "agents"
         agents.mkdir(exist_ok=True)
         self.stub("herdr", '''echo "$*" >> "$CALL_LOG"
@@ -1128,8 +1129,12 @@ case "$1 $2" in
     printf \'{"result":{"agent":{"agent_status":"%s"}}}\\n\' "$(cat "$AGENTS/$3.state" 2>/dev/null || echo idle)" ;;
   "agent prompt") touch "$AGENTS/$3.gone"; echo \'{"result":{}}\' ;;
   "pane split") echo \'{"result":{"pane":{"pane_id":"w1:p2"}}}\' ;;
-  "pane close") echo \'{"result":{"type":"ok"}}\' ;;
-  "pane process-info") echo \'{"result":{"process_info":{"shell_pid":1,"foreground_process_group_id":1}}}\' ;;
+  "pane close")
+    if [ -f "$AGENTS/pane-$3.gone" ]; then echo \'{"error":{"code":"pane_not_found"}}\'; exit 1; fi
+    echo \'{"result":{"type":"ok"}}\' ;;
+  "pane process-info")
+    if [ -f "$AGENTS/pane-$4.gone" ]; then echo \'{"error":{"code":"pane_not_found"}}\'; exit 1; fi
+    echo \'{"result":{"process_info":{"shell_pid":1,"foreground_process_group_id":1}}}\' ;;
   "pane send-keys") echo \'{"result":{}}\' ;;
   *) exit 23 ;;
 esac''')
@@ -1225,6 +1230,46 @@ esac''')
         self.assertEqual(busy.returncode, 1)
         self.assertIn("working", busy.stderr)
         self.assertNotEqual(self.script("end-worker.sh", "10", "nobody", env=env).returncode, 0)
+
+    def test_end_reviewer_whose_pane_was_closed_by_hand(self):
+        env, agents = self.stub_agents()
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1")
+        self.assertEqual(self.script("start-worker.sh", "10", "implementer", "codex", env=env).returncode, 0)
+        self.assertEqual(self.script("start-worker.sh", "10", "reviewer", "claude", env=env).returncode, 0)
+        (agents / "reviewer-10.gone").touch()
+        (agents / "pane-w1:p2.gone").touch()
+        ended = self.script("end-worker.sh", "10", "reviewer", env=env)
+        self.assertEqual(ended.returncode, 0, ended.stderr)
+        self.assertEqual(ended.stdout.splitlines(), ["ended=reviewer-10", "closed=w1:p2"])
+        record = self.record("10")
+        self.assertEqual((record["reviewer_worker"], record["reviewer_pane"], record["worker"]), ("", "", ""))
+        self.assertIn("ended", record["phases"][-1])
+        resumed = self.script("start-worker.sh", "10", "implementer", "codex", "--resume", env=env)
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+
+    def test_record_from_before_role_fields_keeps_both_agents(self):
+        env, agents = self.stub_agents()
+        self.init("10", branch="b", path=str(self.repo), runner="herdr", pane="w1:p1", role="implementer",
+                  backend="codex", implementer_backend="codex", worker="implementer-10", session="")
+        started = self.script("start-worker.sh", "10", "reviewer", "claude", env=env)
+        self.assertEqual(started.returncode, 0, started.stderr)
+        record = self.record("10")
+        self.assertEqual((record["implementer_worker"], record["implementer_pane"]), ("implementer-10", "w1:p1"))
+        self.log.write_text("")
+        ended = self.script("end-worker.sh", "10", "reviewer", env=env)
+        self.assertEqual(ended.returncode, 0, ended.stderr)
+        self.assertEqual(ended.stdout.splitlines(), ["ended=reviewer-10", "closed=w1:p2"])
+        calls = self.log.read_text()
+        self.assertIn("pane close w1:p2", calls)
+        self.assertNotIn("w1:p1", calls)
+        record = self.record("10")
+        self.assertEqual((record["reviewer_worker"], record["reviewer_pane"], record["worker"]), ("", "", ""))
+        resumed = self.script("start-worker.sh", "10", "implementer", "codex", "--resume", env=env)
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+        self.assertIn("name=implementer-10", resumed.stdout)
+        both = self.script("end-worker.sh", "10", env=env)
+        self.assertEqual(both.returncode, 0, both.stderr)
+        self.assertEqual(both.stdout.splitlines(), ["ended=implementer-10"])
 
     def test_phases_stay_sequential_across_a_resumed_fix_round(self):
         env, agents = self.stub_agents()
