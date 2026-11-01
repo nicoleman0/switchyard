@@ -72,7 +72,7 @@ A Use cell of `escalation`, from an older `routing.md`, counts as `large`. A row
 
 Record the sizes and rows with `state.py set`, passing each key as one quoted argument (see Per issue, steps 3, 4, 5, and 7).
 
-Each phase starts a fresh session. Fix rounds and gate rounds resume the implementer's session when its provider can; the reviewer is always fresh. Every handoff is a file in the worktree: the brief, the answers, the change, and the review. A worker reads them from disk, not from another session's context or from your summary, so the expensive context is not carried into the cheap phase.
+A phase starts a fresh session unless a rule says to resume one. Fix rounds and gate rounds resume the implementer's session when its provider can; the reviewer is always fresh. Every handoff is a file in the worktree: the brief, the answers, the change, and the review. A worker reads them from disk, not from another session's context or from your summary, so the expensive context is not carried into the cheap phase.
 
 Workers never push. Implementers commit and write `.switchyard/pr-body.md`, then stop, so nothing reaches the remote before the review passes. `setup-worktree.sh` disables the push URL in each worktree, so a push works only from the main checkout. The coordinator pushes from there and opens the PR.
 
